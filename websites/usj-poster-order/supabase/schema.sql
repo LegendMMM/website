@@ -9,6 +9,12 @@ create table if not exists public.admins (
   created_at timestamptz not null default now()
 );
 
+create table if not exists public.app_settings (
+  key text primary key,
+  value jsonb not null default '{}'::jsonb,
+  updated_at timestamptz not null default now()
+);
+
 create table if not exists public.campaigns (
   id uuid primary key default gen_random_uuid(),
   slug text not null unique check (slug ~ '^[a-z0-9-]+$'),
@@ -16,6 +22,7 @@ create table if not exists public.campaigns (
   description text not null default '',
   notice text not null default '',
   custom_fields jsonb not null default '[]'::jsonb,
+  field_config jsonb not null default '[]'::jsonb,
   is_active boolean not null default true,
   created_at timestamptz not null default now()
 );
@@ -33,6 +40,7 @@ create table if not exists public.orders (
   transaction_method text not null default '面交',
   note text not null default '',
   extra_data jsonb not null default '{}'::jsonb,
+  field_snapshot jsonb not null default '[]'::jsonb,
   status text not null default '已匯款' check (status in ('已匯款', '已採購', '已到貨', '已完成')),
   created_at timestamptz not null default now(),
   updated_at timestamptz not null default now()
@@ -43,25 +51,33 @@ alter table public.campaigns
   add column if not exists custom_fields jsonb not null default '[]'::jsonb;
 alter table public.campaigns
   add column if not exists notice text not null default '';
+alter table public.campaigns
+  add column if not exists field_config jsonb not null default '[]'::jsonb;
 
 alter table public.orders
   add column if not exists transaction_method text not null default '面交';
 
 alter table public.orders
   add column if not exists extra_data jsonb not null default '{}'::jsonb;
+alter table public.orders
+  add column if not exists field_snapshot jsonb not null default '[]'::jsonb;
 
 -- Ensure columns have expected defaults and not-null.
 alter table public.campaigns
   alter column notice set default '',
   alter column notice set not null,
   alter column custom_fields set default '[]'::jsonb,
-  alter column custom_fields set not null;
+  alter column custom_fields set not null,
+  alter column field_config set default '[]'::jsonb,
+  alter column field_config set not null;
 
 alter table public.orders
   alter column transaction_method set default '面交',
   alter column transaction_method set not null,
   alter column extra_data set default '{}'::jsonb,
-  alter column extra_data set not null;
+  alter column extra_data set not null,
+  alter column field_snapshot set default '[]'::jsonb,
+  alter column field_snapshot set not null;
 
 -- Ensure check constraints exist.
 do $$
@@ -74,6 +90,16 @@ begin
     alter table public.campaigns
       add constraint campaigns_custom_fields_array_check
       check (jsonb_typeof(custom_fields) = 'array');
+  end if;
+
+  if not exists (
+    select 1
+    from pg_constraint
+    where conname = 'campaigns_field_config_array_check'
+  ) then
+    alter table public.campaigns
+      add constraint campaigns_field_config_array_check
+      check (jsonb_typeof(field_config) = 'array');
   end if;
 
   if not exists (
@@ -94,6 +120,16 @@ begin
     alter table public.orders
       add constraint orders_extra_data_object_check
       check (jsonb_typeof(extra_data) = 'object');
+  end if;
+
+  if not exists (
+    select 1
+    from pg_constraint
+    where conname = 'orders_field_snapshot_array_check'
+  ) then
+    alter table public.orders
+      add constraint orders_field_snapshot_array_check
+      check (jsonb_typeof(field_snapshot) = 'array');
   end if;
 end;
 $$;
@@ -139,6 +175,7 @@ as $$
 $$;
 
 alter table public.admins enable row level security;
+alter table public.app_settings enable row level security;
 alter table public.campaigns enable row level security;
 alter table public.orders enable row level security;
 
@@ -150,6 +187,37 @@ on public.admins
 for select
 to authenticated
 using (email = auth.email());
+
+-- app_settings policies
+
+drop policy if exists app_settings_public_read_defaults on public.app_settings;
+create policy app_settings_public_read_defaults
+on public.app_settings
+for select
+to anon, authenticated
+using (key = 'order_form_defaults' or public.is_admin());
+
+drop policy if exists app_settings_admin_insert on public.app_settings;
+create policy app_settings_admin_insert
+on public.app_settings
+for insert
+to authenticated
+with check (public.is_admin());
+
+drop policy if exists app_settings_admin_update on public.app_settings;
+create policy app_settings_admin_update
+on public.app_settings
+for update
+to authenticated
+using (public.is_admin())
+with check (public.is_admin());
+
+drop policy if exists app_settings_admin_delete on public.app_settings;
+create policy app_settings_admin_delete
+on public.app_settings
+for delete
+to authenticated
+using (public.is_admin());
 
 -- campaigns policies
 
@@ -267,6 +335,25 @@ insert into public.admins(email)
 values ('49125466easongo@gmail.com')
 on conflict (email) do nothing;
 
+insert into public.app_settings(key, value)
+values (
+  'order_form_defaults',
+  jsonb_build_object(
+    'field_config',
+    jsonb_build_array(
+      jsonb_build_object('key', 'customer_name', 'label', '姓名', 'type', 'text', 'required', true, 'visible', true, 'placeholder', '', 'options', '[]'::jsonb, 'source', 'fixed'),
+      jsonb_build_object('key', 'phone', 'label', '手機', 'type', 'tel', 'required', true, 'visible', true, 'placeholder', '例如 0912345678', 'options', '[]'::jsonb, 'source', 'fixed'),
+      jsonb_build_object('key', 'email', 'label', 'Email', 'type', 'email', 'required', true, 'visible', true, 'placeholder', '', 'options', '[]'::jsonb, 'source', 'fixed'),
+      jsonb_build_object('key', 'quantity', 'label', '數量', 'type', 'number', 'required', true, 'visible', true, 'placeholder', '', 'options', '[]'::jsonb, 'source', 'fixed'),
+      jsonb_build_object('key', 'transfer_account', 'label', '匯款帳號', 'type', 'text', 'required', true, 'visible', true, 'placeholder', '例如 12345 或 完整帳號', 'options', '[]'::jsonb, 'source', 'fixed'),
+      jsonb_build_object('key', 'transfer_time', 'label', '匯款時間', 'type', 'datetime-local', 'required', true, 'visible', true, 'placeholder', '', 'options', '[]'::jsonb, 'source', 'fixed'),
+      jsonb_build_object('key', 'transaction_method', 'label', '交易方式', 'type', 'select', 'required', true, 'visible', true, 'placeholder', '', 'options', jsonb_build_array('面交', '賣貨便'), 'source', 'fixed'),
+      jsonb_build_object('key', 'note', 'label', '備註', 'type', 'textarea', 'required', false, 'visible', true, 'placeholder', '可留空', 'options', '[]'::jsonb, 'source', 'fixed')
+    )
+  )
+)
+on conflict (key) do nothing;
+
 -- Create a first campaign sample.
 insert into public.campaigns(slug, title, description, notice, custom_fields, is_active)
 values (
@@ -278,3 +365,32 @@ values (
   true
 )
 on conflict (slug) do nothing;
+
+update public.campaigns c
+set field_config = coalesce(
+  (
+    select jsonb_agg(item order by ord)
+    from (
+      select df as item, ord
+      from jsonb_array_elements(
+        coalesce((select s.value->'field_config' from public.app_settings s where s.key = 'order_form_defaults'), '[]'::jsonb)
+      ) with ordinality as t(df, ord)
+      union all
+      select jsonb_build_object(
+        'key', cf->>'key',
+        'label', coalesce(cf->>'label', cf->>'key'),
+        'type', coalesce(cf->>'type', 'text'),
+        'required', coalesce((cf->>'required')::boolean, false),
+        'visible', true,
+        'placeholder', '',
+        'options', coalesce(cf->'options', '[]'::jsonb),
+        'source', 'custom'
+      ) as item,
+      1000 + ord as ord
+      from jsonb_array_elements(coalesce(c.custom_fields, '[]'::jsonb)) with ordinality as t(cf, ord)
+      where coalesce(cf->>'key', '') <> ''
+    ) merged
+  ),
+  '[]'::jsonb
+)
+where coalesce(jsonb_array_length(c.field_config), 0) = 0;

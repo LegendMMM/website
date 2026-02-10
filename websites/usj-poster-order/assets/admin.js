@@ -2,14 +2,110 @@ import { getSupabase } from "./supabaseClient.js";
 
 const STATUS_OPTIONS = ["已匯款", "已採購", "已到貨", "已完成"];
 const TRANSACTION_METHOD_OPTIONS = ["面交", "賣貨便"];
+const SETTINGS_KEY = "order_form_defaults";
+
+const PROTECTED_REQUIRED_KEYS = new Set([
+  "customer_name",
+  "phone",
+  "email",
+  "quantity",
+  "transfer_account",
+  "transfer_time",
+  "transaction_method",
+]);
+
+const BASE_FIXED_FIELDS = [
+  {
+    key: "customer_name",
+    label: "姓名",
+    type: "text",
+    required: true,
+    visible: true,
+    placeholder: "",
+    options: [],
+    source: "fixed",
+  },
+  {
+    key: "phone",
+    label: "手機",
+    type: "tel",
+    required: true,
+    visible: true,
+    placeholder: "例如 0912345678",
+    options: [],
+    source: "fixed",
+  },
+  {
+    key: "email",
+    label: "Email",
+    type: "email",
+    required: true,
+    visible: true,
+    placeholder: "",
+    options: [],
+    source: "fixed",
+  },
+  {
+    key: "quantity",
+    label: "數量",
+    type: "number",
+    required: true,
+    visible: true,
+    placeholder: "",
+    options: [],
+    source: "fixed",
+  },
+  {
+    key: "transfer_account",
+    label: "匯款帳號",
+    type: "text",
+    required: true,
+    visible: true,
+    placeholder: "例如 12345 或 完整帳號",
+    options: [],
+    source: "fixed",
+  },
+  {
+    key: "transfer_time",
+    label: "匯款時間",
+    type: "datetime-local",
+    required: true,
+    visible: true,
+    placeholder: "",
+    options: [],
+    source: "fixed",
+  },
+  {
+    key: "transaction_method",
+    label: "交易方式",
+    type: "select",
+    required: true,
+    visible: true,
+    placeholder: "",
+    options: ["面交", "賣貨便"],
+    source: "fixed",
+  },
+  {
+    key: "note",
+    label: "備註",
+    type: "textarea",
+    required: false,
+    visible: true,
+    placeholder: "可留空",
+    options: [],
+    source: "fixed",
+  },
+];
 
 const authPanel = document.querySelector("#auth-panel");
 const adminPanel = document.querySelector("#admin-panel");
 const authMessage = document.querySelector("#auth-message");
 const campaignMessage = document.querySelector("#campaign-message");
+const globalMessage = document.querySelector("#global-message");
 const ordersMessage = document.querySelector("#orders-message");
 
 const loginForm = document.querySelector("#login-form");
+const globalDefaultsForm = document.querySelector("#global-defaults-form");
 const campaignForm = document.querySelector("#campaign-form");
 const campaignSettingsForm = document.querySelector("#campaign-settings-form");
 const adminCampaignFilter = document.querySelector("#admin-campaign-filter");
@@ -24,10 +120,13 @@ const settingsDescription = document.querySelector("#settings-description");
 const settingsNotice = document.querySelector("#settings-notice");
 const settingsIsActive = document.querySelector("#settings-is-active");
 const settingsCustomFields = document.querySelector("#settings-custom-fields");
-const fieldLabelList = document.querySelector("#field-label-list");
+const globalFieldList = document.querySelector("#global-field-list");
+const campaignFieldList = document.querySelector("#campaign-field-list");
 
 let activeCampaigns = [];
 let currentOrders = [];
+let globalFieldConfig = buildBaseFixedFieldConfig();
+let campaignFieldConfig = [];
 
 function setMessage(el, text, type = "") {
   el.textContent = text;
@@ -70,36 +169,282 @@ function toISOFromDatetimeLocal(localValue) {
   return date.toISOString();
 }
 
+function buildBaseFixedFieldConfig() {
+  return BASE_FIXED_FIELDS.map((field) => ({ ...field, options: [...(field.options || [])] }));
+}
+
 function normalizeCustomFields(rawFields) {
   if (!Array.isArray(rawFields)) return [];
 
-  const normalized = [];
-  for (const field of rawFields) {
-    if (!field || typeof field !== "object") continue;
+  return rawFields
+    .map((field) => {
+      if (!field || typeof field !== "object") return null;
+      const key = String(field.key || "").trim();
+      if (!key) return null;
 
-    const key = String(field.key || "").trim();
-    const label = String(field.label || key || "").trim();
-    const type = String(field.type || "text").trim();
-    const required = Boolean(field.required);
-    const options = Array.isArray(field.options)
-      ? field.options.map((option) => String(option).trim()).filter(Boolean)
-      : [];
+      const type = String(field.type || "text").trim();
+      const label = String(field.label || key).trim();
+      const required = Boolean(field.required);
+      const options = Array.isArray(field.options)
+        ? field.options.map((option) => String(option).trim()).filter(Boolean)
+        : [];
 
-    if (!key) continue;
-
-    normalized.push({
-      key,
-      label,
-      type,
-      required,
-      options,
-    });
-  }
-
-  return normalized;
+      return { key, type, label, required, options };
+    })
+    .filter(Boolean);
 }
 
-function parseCustomFieldsInput(inputText) {
+function normalizeFieldConfig(rawFields) {
+  if (!Array.isArray(rawFields)) return [];
+
+  return rawFields
+    .map((field) => {
+      if (!field || typeof field !== "object") return null;
+      const key = String(field.key || "").trim();
+      if (!key) return null;
+
+      return {
+        key,
+        label: String(field.label || key).trim(),
+        type: String(field.type || "text").trim(),
+        required: Boolean(field.required),
+        visible: field.visible === undefined ? true : Boolean(field.visible),
+        placeholder: String(field.placeholder || ""),
+        options: Array.isArray(field.options)
+          ? field.options.map((option) => String(option).trim()).filter(Boolean)
+          : [],
+        source: field.source === "custom" ? "custom" : "fixed",
+      };
+    })
+    .filter(Boolean);
+}
+
+function buildCustomFieldDefaults(customFields) {
+  return customFields.map((field) => ({
+    key: field.key,
+    label: field.label,
+    type: field.type,
+    required: field.required,
+    visible: true,
+    placeholder: "",
+    options: [...(field.options || [])],
+    source: "custom",
+  }));
+}
+
+function mergeFieldConfig(existingConfig, fixedDefaults, customFields) {
+  const normalizedExisting = normalizeFieldConfig(existingConfig);
+  const normalizedFixed = normalizeFieldConfig(fixedDefaults).map((field) => ({
+    ...field,
+    source: "fixed",
+  }));
+  const customDefaults = buildCustomFieldDefaults(customFields);
+
+  const fixedMap = new Map(normalizedFixed.map((field) => [field.key, field]));
+  const customMap = new Map(customDefaults.map((field) => [field.key, field]));
+  const allowedKeys = new Set([...fixedMap.keys(), ...customMap.keys()]);
+
+  const result = [];
+  const used = new Set();
+
+  for (const existing of normalizedExisting) {
+    if (!allowedKeys.has(existing.key)) continue;
+
+    const fixed = fixedMap.get(existing.key);
+    const custom = customMap.get(existing.key);
+
+    let merged;
+    if (fixed) {
+      merged = {
+        ...fixed,
+        ...existing,
+        key: fixed.key,
+        type: fixed.type,
+        options: [...(fixed.options || [])],
+        source: "fixed",
+      };
+    } else {
+      merged = {
+        ...custom,
+        ...existing,
+        key: custom.key,
+        type: custom.type,
+        options: [...(custom.options || [])],
+        source: "custom",
+      };
+    }
+
+    if (PROTECTED_REQUIRED_KEYS.has(merged.key)) {
+      merged.required = true;
+      merged.visible = true;
+    }
+
+    result.push(merged);
+    used.add(merged.key);
+  }
+
+  for (const fixed of normalizedFixed) {
+    if (used.has(fixed.key)) continue;
+    const merged = { ...fixed, options: [...(fixed.options || [])], source: "fixed" };
+    if (PROTECTED_REQUIRED_KEYS.has(merged.key)) {
+      merged.required = true;
+      merged.visible = true;
+    }
+    result.push(merged);
+    used.add(fixed.key);
+  }
+
+  for (const custom of customDefaults) {
+    if (used.has(custom.key)) continue;
+    result.push({ ...custom, options: [...(custom.options || [])], source: "custom" });
+    used.add(custom.key);
+  }
+
+  return result;
+}
+
+function getSelectedCampaign() {
+  return activeCampaigns.find((campaign) => campaign.id === adminCampaignFilter.value) || null;
+}
+
+function setSignedInState(isSignedIn) {
+  authPanel.classList.toggle("hidden", isSignedIn);
+  adminPanel.classList.toggle("hidden", !isSignedIn);
+}
+
+function disableCampaignSettings(disabled) {
+  for (const element of campaignSettingsForm.elements) {
+    element.disabled = disabled;
+  }
+}
+
+function renderFieldEditor(listEl, fields, editorType) {
+  if (!fields.length) {
+    listEl.innerHTML = '<p class="hint">目前沒有欄位。</p>';
+    return;
+  }
+
+  listEl.innerHTML = fields
+    .map((field, index) => {
+      const isProtected = PROTECTED_REQUIRED_KEYS.has(field.key);
+      const sourceText = field.source === "custom" ? "自訂欄位" : "預設欄位";
+      const optionsText = field.type === "select" ? ` | options: ${(field.options || []).join("/")}` : "";
+
+      return `
+        <div class="field-editor-row" data-editor="${editorType}" data-index="${index}">
+          <div class="field-editor-head">
+            <span class="field-key">key: ${escapeHtml(field.key)} | type: ${escapeHtml(field.type)} | ${sourceText}${escapeHtml(optionsText)}</span>
+            <div class="field-editor-actions">
+              <button type="button" data-editor="${editorType}" data-index="${index}" data-action="move-up">上移</button>
+              <button type="button" data-editor="${editorType}" data-index="${index}" data-action="move-down">下移</button>
+            </div>
+          </div>
+          <div class="field-editor-grid">
+            <label>
+              欄位名稱
+              <input type="text" data-editor="${editorType}" data-index="${index}" data-action="label" value="${escapeHtml(field.label)}" />
+            </label>
+            <label>
+              Placeholder
+              <input type="text" data-editor="${editorType}" data-index="${index}" data-action="placeholder" value="${escapeHtml(field.placeholder || "")}" />
+            </label>
+          </div>
+          <div class="field-editor-grid">
+            <label class="check-line">
+              <input type="checkbox" data-editor="${editorType}" data-index="${index}" data-action="required" ${field.required ? "checked" : ""} ${isProtected ? "disabled" : ""} />
+              必填
+            </label>
+            <label class="check-line">
+              <input type="checkbox" data-editor="${editorType}" data-index="${index}" data-action="visible" ${field.visible ? "checked" : ""} ${isProtected ? "disabled" : ""} />
+              顯示
+            </label>
+          </div>
+        </div>
+      `;
+    })
+    .join("");
+}
+
+function moveField(fields, index, delta) {
+  const target = index + delta;
+  if (target < 0 || target >= fields.length) return fields;
+
+  const next = [...fields];
+  const [picked] = next.splice(index, 1);
+  next.splice(target, 0, picked);
+  return next;
+}
+
+function applyEditorAction(editorType, index, action, element) {
+  const source = editorType === "global" ? globalFieldConfig : campaignFieldConfig;
+  if (!source[index]) return;
+
+  if (action === "move-up") {
+    const moved = moveField(source, index, -1);
+    if (editorType === "global") {
+      globalFieldConfig = moved;
+      renderFieldEditor(globalFieldList, globalFieldConfig, "global");
+    } else {
+      campaignFieldConfig = moved;
+      renderFieldEditor(campaignFieldList, campaignFieldConfig, "campaign");
+    }
+    return;
+  }
+
+  if (action === "move-down") {
+    const moved = moveField(source, index, 1);
+    if (editorType === "global") {
+      globalFieldConfig = moved;
+      renderFieldEditor(globalFieldList, globalFieldConfig, "global");
+    } else {
+      campaignFieldConfig = moved;
+      renderFieldEditor(campaignFieldList, campaignFieldConfig, "campaign");
+    }
+    return;
+  }
+
+  const next = [...source];
+  const field = { ...next[index] };
+
+  if (action === "label") field.label = String(element.value || "").trim() || field.key;
+  if (action === "placeholder") field.placeholder = String(element.value || "");
+  if (action === "required") field.required = Boolean(element.checked);
+  if (action === "visible") field.visible = Boolean(element.checked);
+
+  if (PROTECTED_REQUIRED_KEYS.has(field.key)) {
+    field.required = true;
+    field.visible = true;
+  }
+
+  next[index] = field;
+
+  if (editorType === "global") {
+    globalFieldConfig = next;
+  } else {
+    campaignFieldConfig = next;
+  }
+}
+
+function renderGlobalFieldEditor() {
+  renderFieldEditor(globalFieldList, globalFieldConfig, "global");
+}
+
+function renderCampaignFieldEditor() {
+  renderFieldEditor(campaignFieldList, campaignFieldConfig, "campaign");
+}
+
+function buildLabelMapFromConfig(fieldConfig, customFields) {
+  const map = new Map();
+  for (const field of fieldConfig) {
+    map.set(field.key, field.label || field.key);
+  }
+  for (const custom of customFields) {
+    if (!map.has(custom.key)) map.set(custom.key, custom.label || custom.key);
+  }
+  return map;
+}
+
+function parseCustomFieldsJson(inputText) {
   const text = String(inputText || "").trim();
   if (!text) return [];
 
@@ -110,36 +455,29 @@ function parseCustomFieldsInput(inputText) {
     throw new Error("自訂欄位 JSON 格式錯誤");
   }
 
-  if (!Array.isArray(parsed)) {
-    throw new Error("自訂欄位必須是 JSON 陣列");
+  return normalizeCustomFields(parsed);
+}
+
+function populateCampaignSettings() {
+  const campaign = getSelectedCampaign();
+
+  if (!campaign) {
+    campaignSettingsForm.reset();
+    campaignFieldConfig = [];
+    renderCampaignFieldEditor();
+    disableCampaignSettings(true);
+    return;
   }
 
-  const normalized = normalizeCustomFields(parsed);
-  if (normalized.length !== parsed.length) {
-    throw new Error("自訂欄位格式不完整，請確認每個欄位都有 key");
-  }
+  disableCampaignSettings(false);
+  settingsTitle.value = campaign.title || "";
+  settingsDescription.value = campaign.description || "";
+  settingsNotice.value = campaign.notice || "";
+  settingsIsActive.checked = Boolean(campaign.is_active);
+  settingsCustomFields.value = JSON.stringify(campaign.custom_fields, null, 2);
 
-  const seen = new Set();
-  for (const field of normalized) {
-    if (!/^[a-zA-Z0-9_]+$/.test(field.key)) {
-      throw new Error(`欄位 key 只能用英數或底線：${field.key}`);
-    }
-
-    if (seen.has(field.key)) {
-      throw new Error(`欄位 key 重複：${field.key}`);
-    }
-    seen.add(field.key);
-
-    if (!["text", "number", "textarea", "select"].includes(field.type)) {
-      throw new Error(`欄位 type 不支援：${field.type}`);
-    }
-
-    if (field.type === "select" && field.options.length === 0) {
-      throw new Error(`select 欄位需提供 options：${field.key}`);
-    }
-  }
-
-  return normalized;
+  campaignFieldConfig = mergeFieldConfig(campaign.field_config, globalFieldConfig, campaign.custom_fields);
+  renderCampaignFieldEditor();
 }
 
 function slugifyTitle(title) {
@@ -166,81 +504,25 @@ function generateCampaignSlug(title) {
   return slug;
 }
 
-function getSelectedCampaign() {
-  return activeCampaigns.find((campaign) => campaign.id === adminCampaignFilter.value) || null;
-}
+function setFieldEditorFromEvent(event) {
+  const target = event.target;
+  if (!(target instanceof HTMLElement)) return;
 
-function setSignedInState(isSignedIn) {
-  authPanel.classList.toggle("hidden", isSignedIn);
-  adminPanel.classList.toggle("hidden", !isSignedIn);
-}
+  const editorType = target.dataset.editor;
+  const action = target.dataset.action;
+  const indexRaw = target.dataset.index;
+  if (!editorType || !action || indexRaw === undefined) return;
 
-function disableCampaignSettings(disabled) {
-  for (const element of campaignSettingsForm.elements) {
-    element.disabled = disabled;
-  }
-}
+  const index = Number(indexRaw);
+  if (!Number.isFinite(index)) return;
 
-function renderFieldLabelEditor(customFields) {
-  if (!customFields.length) {
-    fieldLabelList.innerHTML = '<p class="hint">此活動沒有自訂欄位。</p>';
+  if (event.type === "click" && (action === "move-up" || action === "move-down")) {
+    applyEditorAction(editorType, index, action, target);
     return;
   }
 
-  fieldLabelList.innerHTML = customFields
-    .map(
-      (field) => `
-      <div class="field-label-row">
-        <span class="field-key">key: ${escapeHtml(field.key)} | type: ${escapeHtml(field.type)}</span>
-        <label>
-          欄位名稱
-          <input type="text" data-label-key="${escapeHtml(field.key)}" value="${escapeHtml(field.label)}" />
-        </label>
-      </div>
-    `,
-    )
-    .join("");
-}
-
-function populateCampaignSettings() {
-  const campaign = getSelectedCampaign();
-
-  if (!campaign) {
-    campaignSettingsForm.reset();
-    fieldLabelList.innerHTML = "";
-    disableCampaignSettings(true);
-    return;
-  }
-
-  const customFields = normalizeCustomFields(campaign.custom_fields);
-
-  disableCampaignSettings(false);
-  settingsTitle.value = campaign.title || "";
-  settingsDescription.value = campaign.description || "";
-  settingsNotice.value = campaign.notice || "";
-  settingsIsActive.checked = Boolean(campaign.is_active);
-  settingsCustomFields.value = JSON.stringify(customFields, null, 2);
-  renderFieldLabelEditor(customFields);
-}
-
-function syncLabelToCustomFieldsJson(fieldKey, labelValue) {
-  let fields;
-  try {
-    fields = parseCustomFieldsInput(settingsCustomFields.value);
-  } catch {
-    return;
-  }
-
-  fields = fields.map((field) => (field.key === fieldKey ? { ...field, label: String(labelValue || "").trim() || field.key } : field));
-  settingsCustomFields.value = JSON.stringify(fields, null, 2);
-}
-
-function tryRefreshFieldLabelEditor() {
-  try {
-    const fields = parseCustomFieldsInput(settingsCustomFields.value);
-    renderFieldLabelEditor(fields);
-  } catch {
-    // Keep current editor while JSON is temporarily invalid during typing.
+  if (event.type === "input" || event.type === "change") {
+    applyEditorAction(editorType, index, action, target);
   }
 }
 
@@ -270,52 +552,106 @@ async function requireAdminUser() {
   return data;
 }
 
+async function loadGlobalFieldConfig() {
+  const supabase = getSupabase();
+  const { data, error } = await supabase
+    .from("app_settings")
+    .select("value")
+    .eq("key", SETTINGS_KEY)
+    .maybeSingle();
+
+  if (error) {
+    globalFieldConfig = buildBaseFixedFieldConfig();
+    renderGlobalFieldEditor();
+    return;
+  }
+
+  const loaded = normalizeFieldConfig(data?.value?.field_config);
+  globalFieldConfig = mergeFieldConfig(loaded, buildBaseFixedFieldConfig(), []);
+  renderGlobalFieldEditor();
+}
+
+async function saveGlobalFieldConfig() {
+  const supabase = getSupabase();
+  const normalized = mergeFieldConfig(globalFieldConfig, buildBaseFixedFieldConfig(), []);
+  globalFieldConfig = normalized;
+
+  const { error } = await supabase.from("app_settings").upsert(
+    {
+      key: SETTINGS_KEY,
+      value: {
+        field_config: normalized,
+      },
+    },
+    { onConflict: "key" },
+  );
+
+  if (error) throw error;
+  renderGlobalFieldEditor();
+}
+
 async function loadCampaignsForAdmin() {
   const supabase = getSupabase();
   const previousSelected = adminCampaignFilter.value;
 
-  const { data, error } = await supabase
+  let { data, error } = await supabase
     .from("campaigns")
-    .select("id, slug, title, description, notice, is_active, custom_fields")
+    .select("id, slug, title, description, notice, is_active, custom_fields, field_config")
     .order("created_at", { ascending: false });
+
+  if (error && /field_config/i.test(error.message || "")) {
+    const fallback = await supabase
+      .from("campaigns")
+      .select("id, slug, title, description, notice, is_active, custom_fields")
+      .order("created_at", { ascending: false });
+    data = (fallback.data || []).map((campaign) => ({ ...campaign, field_config: [] }));
+    error = fallback.error;
+  }
 
   if (error) throw error;
 
-  activeCampaigns = data || [];
+  activeCampaigns = (data || []).map((campaign) => ({
+    ...campaign,
+    custom_fields: normalizeCustomFields(campaign.custom_fields),
+    field_config: normalizeFieldConfig(campaign.field_config),
+  }));
+
   if (!activeCampaigns.length) {
     adminCampaignFilter.innerHTML = '<option value="">目前沒有活動</option>';
     ordersHead.innerHTML = "";
     ordersBody.innerHTML = "";
     disableCampaignSettings(true);
-    fieldLabelList.innerHTML = "";
+    campaignFieldConfig = [];
+    renderCampaignFieldEditor();
     return;
   }
 
   adminCampaignFilter.innerHTML = activeCampaigns
-    .map((c) => `<option value="${c.id}">${escapeHtml(c.title)}${c.is_active ? "" : " (停用)"}</option>`)
+    .map((campaign) => `<option value="${campaign.id}">${escapeHtml(campaign.title)}${campaign.is_active ? "" : " (停用)"}</option>`)
     .join("");
 
-  if (activeCampaigns.some((c) => c.id === previousSelected)) {
+  if (activeCampaigns.some((campaign) => campaign.id === previousSelected)) {
     adminCampaignFilter.value = previousSelected;
   }
 
   populateCampaignSettings();
 }
 
-function renderOrdersHeader(customFields) {
-  const customHeaders = customFields.map((field) => `<th>${escapeHtml(field.label)}</th>`).join("");
+function renderOrdersHeader(campaign) {
+  const customFields = campaign?.custom_fields || [];
+  const labelMap = buildLabelMapFromConfig(campaignFieldConfig, customFields);
 
   ordersHead.innerHTML = `
     <tr>
-      <th>姓名</th>
-      <th>手機</th>
-      <th>Email</th>
-      <th>數量</th>
-      <th>匯款帳號</th>
-      <th>匯款時間</th>
-      <th>交易方式</th>
-      ${customHeaders}
-      <th>備註</th>
+      <th>${escapeHtml(labelMap.get("customer_name") || "姓名")}</th>
+      <th>${escapeHtml(labelMap.get("phone") || "手機")}</th>
+      <th>${escapeHtml(labelMap.get("email") || "Email")}</th>
+      <th>${escapeHtml(labelMap.get("quantity") || "數量")}</th>
+      <th>${escapeHtml(labelMap.get("transfer_account") || "匯款帳號")}</th>
+      <th>${escapeHtml(labelMap.get("transfer_time") || "匯款時間")}</th>
+      <th>${escapeHtml(labelMap.get("transaction_method") || "交易方式")}</th>
+      ${customFields.map((field) => `<th>${escapeHtml(labelMap.get(field.key) || field.label)}</th>`).join("")}
+      <th>${escapeHtml(labelMap.get("note") || "備註")}</th>
       <th>狀態</th>
       <th>更新</th>
       <th>刪除</th>
@@ -359,8 +695,8 @@ function renderTransactionMethodSelect(order) {
 
 function renderOrders(rows) {
   const campaign = getSelectedCampaign();
-  const customFields = normalizeCustomFields(campaign?.custom_fields);
-  renderOrdersHeader(customFields);
+  const customFields = campaign?.custom_fields || [];
+  renderOrdersHeader(campaign);
 
   if (!rows.length) {
     ordersBody.innerHTML = "";
@@ -464,7 +800,7 @@ function collectOrderPayload(orderId) {
   if (!STATUS_OPTIONS.includes(status)) throw new Error("狀態錯誤");
 
   const campaign = getSelectedCampaign();
-  const customFields = normalizeCustomFields(campaign?.custom_fields);
+  const customFields = campaign?.custom_fields || [];
   const extraData = { ...(baseOrder.extra_data || {}) };
 
   for (const field of customFields) {
@@ -500,18 +836,21 @@ async function deleteOrder(orderId) {
   if (error) throw error;
 }
 
-function toCsvText(rows, customFields) {
+function toCsvText(rows, campaign) {
+  const customFields = campaign?.custom_fields || [];
+  const labelMap = buildLabelMapFromConfig(campaignFieldConfig, customFields);
+
   const headers = [
     "活動",
-    "姓名",
-    "手機",
-    "Email",
-    "數量",
-    "匯款帳號",
-    "匯款時間",
-    "交易方式",
-    ...customFields.map((field) => field.label),
-    "備註",
+    labelMap.get("customer_name") || "姓名",
+    labelMap.get("phone") || "手機",
+    labelMap.get("email") || "Email",
+    labelMap.get("quantity") || "數量",
+    labelMap.get("transfer_account") || "匯款帳號",
+    labelMap.get("transfer_time") || "匯款時間",
+    labelMap.get("transaction_method") || "交易方式",
+    ...customFields.map((field) => labelMap.get(field.key) || field.label),
+    labelMap.get("note") || "備註",
     "狀態",
     "建立時間",
     "更新時間",
@@ -571,11 +910,7 @@ loginForm.addEventListener("submit", async (event) => {
     const email = document.querySelector("#admin-email").value.trim();
     const password = document.querySelector("#admin-password").value;
 
-    const { error } = await supabase.auth.signInWithPassword({
-      email,
-      password,
-    });
-
+    const { error } = await supabase.auth.signInWithPassword({ email, password });
     if (error) throw error;
 
     const adminRow = await requireAdminUser();
@@ -585,12 +920,26 @@ loginForm.addEventListener("submit", async (event) => {
     }
 
     setSignedInState(true);
+    await loadGlobalFieldConfig();
     await loadCampaignsForAdmin();
     await loadOrders();
     setMessage(ordersMessage, `已載入 ${currentOrders.length} 筆。`, "success");
   } catch (error) {
     setSignedInState(false);
     setMessage(authMessage, `登入失敗：${error.message}`, "error");
+  }
+});
+
+globalDefaultsForm.addEventListener("submit", async (event) => {
+  event.preventDefault();
+  setMessage(globalMessage, "儲存中...");
+
+  try {
+    await saveGlobalFieldConfig();
+    await loadCampaignsForAdmin();
+    setMessage(globalMessage, "全域預設已更新，新活動會套用。", "success");
+  } catch (error) {
+    setMessage(globalMessage, `儲存失敗：${error.message}`, "error");
   }
 });
 
@@ -603,13 +952,14 @@ campaignForm.addEventListener("submit", async (event) => {
     const title = document.querySelector("#campaign-title").value.trim();
     const description = document.querySelector("#campaign-description").value.trim();
     const notice = document.querySelector("#campaign-notice").value.trim();
-    const customFieldsText = document.querySelector("#campaign-custom-fields").value;
-    const customFields = parseCustomFieldsInput(customFieldsText);
-    const slug = generateCampaignSlug(title);
+    const customFields = parseCustomFieldsJson(document.querySelector("#campaign-custom-fields").value);
 
     if (!title) throw new Error("請輸入活動標題");
 
-    const { data, error } = await supabase
+    const slug = generateCampaignSlug(title);
+    const fieldConfig = mergeFieldConfig([], globalFieldConfig, customFields);
+
+    let { data, error } = await supabase
       .from("campaigns")
       .insert({
         slug,
@@ -617,17 +967,35 @@ campaignForm.addEventListener("submit", async (event) => {
         description,
         notice,
         custom_fields: customFields,
+        field_config: fieldConfig,
         is_active: true,
       })
       .select("id")
       .single();
 
+    if (error && /field_config/i.test(error.message || "")) {
+      const fallback = await supabase
+        .from("campaigns")
+        .insert({
+          slug,
+          title,
+          description,
+          notice,
+          custom_fields: customFields,
+          is_active: true,
+        })
+        .select("id")
+        .single();
+      data = fallback.data;
+      error = fallback.error;
+    }
+
     if (error) throw error;
 
     campaignForm.reset();
     setMessage(campaignMessage, `活動建立完成（代碼：${slug}）。`, "success");
-    await loadCampaignsForAdmin();
 
+    await loadCampaignsForAdmin();
     if (data?.id) {
       adminCampaignFilter.value = data.id;
       populateCampaignSettings();
@@ -651,20 +1019,39 @@ campaignSettingsForm.addEventListener("submit", async (event) => {
     const description = settingsDescription.value.trim();
     const notice = settingsNotice.value.trim();
     const isActive = settingsIsActive.checked;
-    const customFields = parseCustomFieldsInput(settingsCustomFields.value);
+
+    const parsedCustomFields = parseCustomFieldsJson(settingsCustomFields.value);
 
     if (!title) throw new Error("活動標題不可空白");
 
-    const { error } = await supabase
+    const normalizedFieldConfig = mergeFieldConfig(campaignFieldConfig, globalFieldConfig, parsedCustomFields);
+    campaignFieldConfig = normalizedFieldConfig;
+
+    let { error } = await supabase
       .from("campaigns")
       .update({
         title,
         description,
         notice,
         is_active: isActive,
-        custom_fields: customFields,
+        custom_fields: parsedCustomFields,
+        field_config: normalizedFieldConfig,
       })
       .eq("id", campaign.id);
+
+    if (error && /field_config/i.test(error.message || "")) {
+      const fallback = await supabase
+        .from("campaigns")
+        .update({
+          title,
+          description,
+          notice,
+          is_active: isActive,
+          custom_fields: parsedCustomFields,
+        })
+        .eq("id", campaign.id);
+      error = fallback.error;
+    }
 
     if (error) throw error;
 
@@ -679,17 +1066,22 @@ campaignSettingsForm.addEventListener("submit", async (event) => {
 });
 
 settingsCustomFields.addEventListener("input", () => {
-  tryRefreshFieldLabelEditor();
+  try {
+    const parsed = parseCustomFieldsJson(settingsCustomFields.value);
+    campaignFieldConfig = mergeFieldConfig(campaignFieldConfig, globalFieldConfig, parsed);
+    renderCampaignFieldEditor();
+  } catch {
+    // Skip while JSON is mid-edit.
+  }
 });
 
-fieldLabelList.addEventListener("input", (event) => {
-  const target = event.target;
-  if (!(target instanceof HTMLInputElement)) return;
+globalFieldList.addEventListener("click", setFieldEditorFromEvent);
+globalFieldList.addEventListener("input", setFieldEditorFromEvent);
+globalFieldList.addEventListener("change", setFieldEditorFromEvent);
 
-  const key = target.dataset.labelKey;
-  if (!key) return;
-  syncLabelToCustomFieldsJson(key, target.value);
-});
+campaignFieldList.addEventListener("click", setFieldEditorFromEvent);
+campaignFieldList.addEventListener("input", setFieldEditorFromEvent);
+campaignFieldList.addEventListener("change", setFieldEditorFromEvent);
 
 reloadOrdersBtn.addEventListener("click", async () => {
   setMessage(ordersMessage, "載入中...");
@@ -755,9 +1147,8 @@ exportCsvBtn.addEventListener("click", async () => {
     }
 
     const campaign = getSelectedCampaign();
-    const customFields = normalizeCustomFields(campaign?.custom_fields);
     const safeSlug = campaign?.slug || "orders";
-    const csv = toCsvText(currentOrders, customFields);
+    const csv = toCsvText(currentOrders, campaign);
     downloadCsv(`${safeSlug}-${new Date().toISOString().slice(0, 10)}.csv`, csv);
     setMessage(ordersMessage, "CSV 匯出完成。", "success");
   } catch (error) {
@@ -790,6 +1181,7 @@ logoutBtn.addEventListener("click", async () => {
     }
 
     setSignedInState(true);
+    await loadGlobalFieldConfig();
     await loadCampaignsForAdmin();
     await loadOrders();
     setMessage(ordersMessage, `已載入 ${currentOrders.length} 筆。`, "success");

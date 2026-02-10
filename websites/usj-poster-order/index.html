@@ -36,57 +36,7 @@
 
           <section class="form-block">
             <h3>填寫資料</h3>
-
-            <label>
-              姓名
-              <input id="customer-name" type="text" required maxlength="30" />
-            </label>
-
-            <label>
-              手機
-              <input id="phone" type="tel" required maxlength="20" placeholder="例如 0912345678" />
-            </label>
-
-            <label>
-              Email
-              <input id="email" type="email" required maxlength="120" />
-            </label>
-
-            <label>
-              數量
-              <input id="quantity" type="number" required min="1" max="99" value="1" />
-            </label>
-
-            <label>
-              匯款帳號
-              <input
-                id="transfer-account"
-                type="text"
-                required
-                maxlength="80"
-                placeholder="例如 12345 或 完整帳號"
-              />
-            </label>
-
-            <label>
-              匯款時間
-              <input id="transfer-time" type="datetime-local" required />
-            </label>
-
-            <label>
-              交易方式
-              <select id="transaction-method" required>
-                <option value="面交">面交</option>
-                <option value="賣貨便">賣貨便</option>
-              </select>
-            </label>
-
-            <div id="custom-fields-container" class="stack"></div>
-
-            <label>
-              備註
-              <textarea id="note" maxlength="300" rows="3" placeholder="可留空"></textarea>
-            </label>
+            <div id="order-fields-container" class="stack"></div>
           </section>
 
           <button type="submit">送出訂單</button>

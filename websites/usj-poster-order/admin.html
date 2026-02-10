@@ -39,6 +39,16 @@
         </div>
 
         <section class="section-divider stack">
+          <h3>全域預設欄位模板（建立活動前可改）</h3>
+          <form id="global-defaults-form" class="stack compact-card">
+            <p class="hint">新活動會自動套用這份模板；關鍵欄位不可刪除或隱藏。</p>
+            <div id="global-field-list" class="stack"></div>
+            <button type="submit">儲存全域預設</button>
+            <p id="global-message" class="message" aria-live="polite"></p>
+          </form>
+        </section>
+
+        <section class="section-divider stack">
           <h3>訂單列表</h3>
           <div class="toolbar">
             <label>
@@ -67,11 +77,13 @@
               自訂欄位 (JSON 陣列)
               <textarea id="settings-custom-fields" rows="6"></textarea>
             </label>
-            <div id="field-label-editor" class="stack compact-card">
-              <h4>欄位名稱快速修改</h4>
-              <p class="hint">修改後會同步更新上方 JSON 內容。</p>
-              <div id="field-label-list" class="stack"></div>
+
+            <div class="stack compact-card">
+              <h4>活動欄位覆寫（建立後可改）</h4>
+              <p class="hint">可調整欄位名稱、排序、必填、顯示與 placeholder。</p>
+              <div id="campaign-field-list" class="stack"></div>
             </div>
+
             <label class="inline-check">
               <input id="settings-is-active" type="checkbox" />
               活動啟用（取消勾選後前台不顯示）
@@ -94,7 +106,7 @@
             活動標題
             <input id="campaign-title" type="text" required maxlength="80" />
           </label>
-          <p class="hint">活動代碼會自動產生，你不用手動填寫。</p>
+          <p class="hint">活動代碼會自動產生，並套用目前全域預設模板。</p>
           <label>
             活動說明
             <textarea id="campaign-description" rows="3" maxlength="300"></textarea>

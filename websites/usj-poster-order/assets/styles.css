@@ -192,6 +192,45 @@ button:hover {
   font-size: 0.82rem;
 }
 
+.field-editor-row {
+  display: grid;
+  gap: 0.5rem;
+  padding: 0.65rem;
+  border: 1px solid var(--line);
+  border-radius: 8px;
+  background: #fff;
+}
+
+.field-editor-head {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  gap: 0.5rem;
+}
+
+.field-editor-actions {
+  display: flex;
+  gap: 0.35rem;
+}
+
+.field-editor-actions button {
+  padding: 0.35rem 0.45rem;
+  font-size: 0.78rem;
+}
+
+.field-editor-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(160px, 1fr));
+  gap: 0.5rem;
+}
+
+.check-line {
+  display: flex;
+  align-items: center;
+  gap: 0.4rem;
+  font-size: 0.85rem;
+}
+
 .inline-check {
   display: flex;
   align-items: center;
