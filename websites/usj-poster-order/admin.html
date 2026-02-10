@@ -10,7 +10,7 @@
     <header class="site-header">
       <div class="container">
         <h1>管理頁</h1>
-        <p>使用 Email 一次性密碼登入，管理活動與訂單內容。</p>
+        <p>使用帳號密碼登入，管理活動與訂單內容。</p>
       </div>
     </header>
 
@@ -19,11 +19,15 @@
         <h2>管理者登入</h2>
         <form id="login-form" class="stack">
           <label>
-            管理者 Email
+            帳號 (Email)
             <input id="admin-email" type="email" required />
           </label>
-          <button type="submit">寄送登入連結</button>
-          <p class="hint">請使用你已加入管理員名單的 Email。</p>
+          <label>
+            密碼
+            <input id="admin-password" type="password" required minlength="6" />
+          </label>
+          <button type="submit">登入</button>
+          <p class="hint">請使用已建立在 Supabase Authentication 的管理員帳號。</p>
           <p id="auth-message" class="message" aria-live="polite"></p>
         </form>
       </section>

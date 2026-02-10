@@ -176,6 +176,26 @@ async function requireSession() {
   return data.session;
 }
 
+async function requireAdminUser() {
+  const supabase = getSupabase();
+  const {
+    data: { user },
+    error: userError,
+  } = await supabase.auth.getUser();
+
+  if (userError) throw userError;
+  if (!user?.email) return null;
+
+  const { data, error } = await supabase
+    .from("admins")
+    .select("email")
+    .eq("email", user.email)
+    .maybeSingle();
+
+  if (error) throw error;
+  return data;
+}
+
 async function loadCampaignsForAdmin() {
   const supabase = getSupabase();
   const previousSelected = adminCampaignFilter.value;
@@ -469,22 +489,33 @@ function downloadCsv(filename, text) {
 
 loginForm.addEventListener("submit", async (event) => {
   event.preventDefault();
-  setMessage(authMessage, "寄送中...");
+  setMessage(authMessage, "登入中...");
 
   try {
     const supabase = getSupabase();
     const email = document.querySelector("#admin-email").value.trim();
-    const emailRedirectTo = `${window.location.origin}${window.location.pathname}`;
+    const password = document.querySelector("#admin-password").value;
 
-    const { error } = await supabase.auth.signInWithOtp({
+    const { error } = await supabase.auth.signInWithPassword({
       email,
-      options: { emailRedirectTo },
+      password,
     });
 
     if (error) throw error;
-    setMessage(authMessage, "登入連結已寄出，請到 Email 點擊連結。", "success");
+
+    const adminRow = await requireAdminUser();
+    if (!adminRow) {
+      await supabase.auth.signOut();
+      throw new Error("此帳號沒有管理權限");
+    }
+
+    setSignedInState(true);
+    await loadCampaignsForAdmin();
+    await loadOrders();
+    setMessage(ordersMessage, `已載入 ${currentOrders.length} 筆。`, "success");
   } catch (error) {
-    setMessage(authMessage, `寄送失敗：${error.message}`, "error");
+    setSignedInState(false);
+    setMessage(authMessage, `登入失敗：${error.message}`, "error");
   }
 });
 
@@ -655,6 +686,15 @@ logoutBtn.addEventListener("click", async () => {
     const session = await requireSession();
     if (!session) {
       setSignedInState(false);
+      return;
+    }
+
+    const adminRow = await requireAdminUser();
+    if (!adminRow) {
+      const supabase = getSupabase();
+      await supabase.auth.signOut();
+      setSignedInState(false);
+      setMessage(authMessage, "此帳號沒有管理權限，請使用管理員帳號登入。", "error");
       return;
     }
 

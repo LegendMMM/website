@@ -6,7 +6,7 @@
 - 前台表單：使用者填寫訂購資訊
 - 固定欄位：含「交易方式（面交 / 賣貨便）」
 - 訂單查詢：姓名 + 手機末3碼
-- 管理頁：Email 一次性密碼登入（OTP）
+- 管理頁：帳號密碼登入（Email + Password）
 - 管理功能：建立/編輯活動、查看隱私欄位、編輯整筆訂單、匯出 CSV
 - 自訂欄位：每個活動可設定不同欄位（決定每筆訂單有哪些資料）
 - 可擴充：可建立多個活動（campaign），前台會自動讀取活動清單
@@ -25,10 +25,9 @@
    - Project URL
    - `anon` public key
 5. 打開 `assets/config.js`，填入 URL 與 anon key。
-6. 到 Authentication > URL Configuration：
-   - 新增 `Site URL`（你的 GitHub Pages 網址）
-   - 新增 `Redirect URLs`：`https://<username>.github.io/<repo>/websites/usj-poster-order/admin.html`
-7. 到 Authentication > Providers > Email，確認 Email 登入啟用。
+6. 到 Authentication > Providers > Email，啟用 Email + Password。
+7. 到 Authentication > Users 建立管理者帳號（Email + Password）。
+8. 確認 `public.admins` 有同一個 Email（本 SQL 已預設加入：`49125466easongo@gmail.com`）。
 
 ## GitHub Pages 部署
 1. 推送程式到 GitHub。
@@ -41,7 +40,7 @@
 
 ## 使用流程
 - 一般使用者：打開前台 `index.html`，填寫訂購資訊。
-- 管理者：打開 `admin.html`，輸入 Email 收到一次性登入連結。
+- 管理者：打開 `admin.html`，輸入 Email + Password 登入。
 - 登入後可：
   - 建立新活動（slug + title + 自訂欄位）
   - 修改既有活動（標題、說明、是否啟用、自訂欄位）
