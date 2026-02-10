@@ -10,6 +10,7 @@ const orderCampaignSelect = document.querySelector("#campaign-id");
 const queryCampaignSelect = document.querySelector("#query-campaign-slug");
 const queryResultsBody = document.querySelector("#query-results");
 const customFieldsContainer = document.querySelector("#custom-fields-container");
+const campaignNotice = document.querySelector("#campaign-notice");
 
 let campaigns = [];
 
@@ -72,6 +73,12 @@ function normalizeCustomFields(rawFields) {
 
 function getSelectedCampaign() {
   return campaigns.find((campaign) => campaign.id === orderCampaignSelect.value) || null;
+}
+
+function renderCampaignNotice() {
+  const campaign = getSelectedCampaign();
+  const noticeText = String(campaign?.notice || "").trim();
+  campaignNotice.textContent = noticeText || "此活動目前沒有額外注意事項。";
 }
 
 function renderCustomFields() {
@@ -142,6 +149,7 @@ function renderCampaignOptions() {
     orderCampaignSelect.innerHTML = '<option value="">目前沒有活動</option>';
     queryCampaignSelect.innerHTML = '<option value="">目前沒有活動</option>';
     customFieldsContainer.innerHTML = "";
+    campaignNotice.textContent = "目前沒有可報名活動。";
     return;
   }
 
@@ -165,13 +173,14 @@ function renderCampaignOptions() {
   }
 
   renderCustomFields();
+  renderCampaignNotice();
 }
 
 async function loadCampaigns() {
   const supabase = getSupabase();
   const { data, error } = await supabase
     .from("campaigns")
-    .select("id, slug, title, custom_fields")
+    .select("id, slug, title, notice, custom_fields")
     .eq("is_active", true)
     .order("created_at", { ascending: false });
 
@@ -203,6 +212,7 @@ function renderQueryResults(rows) {
 
 orderCampaignSelect.addEventListener("change", () => {
   renderCustomFields();
+  renderCampaignNotice();
 });
 
 orderForm.addEventListener("submit", async (event) => {
@@ -251,7 +261,8 @@ orderForm.addEventListener("submit", async (event) => {
     document.querySelector("#quantity").value = "1";
     document.querySelector("#transaction-method").value = "面交";
     renderCustomFields();
-    setMessage(orderFormMessage, "送出成功，請保留姓名與手機末3碼以便查詢。", "success");
+    renderCampaignNotice();
+    setMessage(orderFormMessage, "送出成功，請保留姓名或電話以便查詢。", "success");
   } catch (error) {
     setMessage(orderFormMessage, `送出失敗：${error.message}`, "error");
   }
@@ -266,22 +277,22 @@ queryForm.addEventListener("submit", async (event) => {
     const supabase = getSupabase();
     const campaignSlug = queryCampaignSelect.value;
     const customerName = document.querySelector("#query-name").value.trim();
-    const phoneLast3 = digitsOnly(document.querySelector("#query-phone-last3").value);
+    const phoneDigits = digitsOnly(document.querySelector("#query-phone").value);
 
     if (!campaignSlug) throw new Error("請先選擇活動");
-    if (!customerName) throw new Error("請輸入姓名");
-    if (phoneLast3.length !== 3) throw new Error("手機末3碼格式錯誤");
+    if (!customerName && !phoneDigits) throw new Error("姓名或電話至少填一項");
+    if (phoneDigits && phoneDigits.length < 3) throw new Error("若要用電話查詢，請至少輸入 3 碼");
 
     const { data, error } = await supabase.rpc("search_order_status", {
       p_campaign_slug: campaignSlug,
-      p_customer_name: customerName,
-      p_phone_last3: phoneLast3,
+      p_query_name: customerName || null,
+      p_query_phone: phoneDigits || null,
     });
 
     if (error) throw error;
 
     if (!data || data.length === 0) {
-      setMessage(queryMessage, "查無資料，請確認姓名、手機末3碼與活動是否正確。");
+      setMessage(queryMessage, "查無資料，請確認活動與姓名或電話是否正確。");
       return;
     }
 

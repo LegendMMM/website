@@ -71,6 +71,39 @@ h3 {
   gap: 0.75rem;
 }
 
+.form-block {
+  border: 1px solid var(--line);
+  border-radius: 10px;
+  padding: 0.85rem;
+  background: #f9fbfe;
+  display: grid;
+  gap: 0.75rem;
+}
+
+.form-block h3 {
+  margin: 0;
+  font-size: 1rem;
+}
+
+.notice-box {
+  border: 1px dashed #9fb6cf;
+  border-radius: 8px;
+  background: #f3f8ff;
+  padding: 0.65rem;
+}
+
+.notice-title {
+  margin: 0 0 0.25rem;
+  font-weight: 600;
+  color: #214e78;
+}
+
+.notice-content {
+  margin: 0;
+  white-space: pre-wrap;
+  line-height: 1.45;
+}
+
 label {
   display: grid;
   gap: 0.35rem;
@@ -145,6 +178,20 @@ button:hover {
   margin: 0 0 0.25rem;
 }
 
+.field-label-row {
+  display: grid;
+  gap: 0.4rem;
+  padding: 0.55rem;
+  border: 1px solid var(--line);
+  border-radius: 8px;
+  background: #fff;
+}
+
+.field-key {
+  color: var(--muted);
+  font-size: 0.82rem;
+}
+
 .inline-check {
   display: flex;
   align-items: center;
@@ -160,6 +207,10 @@ button:hover {
 table {
   width: 100%;
   border-collapse: collapse;
+  min-width: 520px;
+}
+
+.admin-orders-table {
   min-width: 1200px;
 }
 

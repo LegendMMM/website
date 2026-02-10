@@ -5,9 +5,11 @@
 ## 功能
 - 前台表單：使用者填寫訂購資訊
 - 固定欄位：含「交易方式（面交 / 賣貨便）」
-- 訂單查詢：姓名 + 手機末3碼
+- 活動注意事項：依不同活動顯示不同內容
+- 訂單查詢：姓名或電話皆可查詢
 - 管理頁：帳號密碼登入（Email + Password）
 - 管理功能：建立/編輯活動、查看隱私欄位、編輯整筆訂單、匯出 CSV
+- 欄位名稱編輯：可在活動設定頁快速修改自訂欄位名稱
 - 自訂欄位：每個活動可設定不同欄位（決定每筆訂單有哪些資料）
 - 可擴充：可建立多個活動（campaign），前台會自動讀取活動清單
 
@@ -20,7 +22,7 @@
 ## Supabase 設定步驟
 1. 在 Supabase 建立新 Project。
 2. 打開 SQL Editor，貼上 `supabase/schema.sql` 內容並執行。
-3. 如果你是從舊版本升級，一樣直接重跑這份 SQL（它包含升級欄位：`transaction_method`、`custom_fields`、`extra_data`）。
+3. 如果你是從舊版本升級，一樣直接重跑這份 SQL（它包含升級欄位：`transaction_method`、`custom_fields`、`extra_data`、`notice`）。
 4. 到 Project Settings > API，找到：
    - Project URL
    - `anon` public key
@@ -42,8 +44,9 @@
 - 一般使用者：打開前台 `index.html`，填寫訂購資訊。
 - 管理者：打開 `admin.html`，輸入 Email + Password 登入。
 - 登入後可：
-  - 建立新活動（slug + title + 自訂欄位）
-  - 修改既有活動（標題、說明、是否啟用、自訂欄位）
+  - 建立新活動（slug + title + 注意事項 + 自訂欄位）
+  - 修改既有活動（標題、說明、注意事項、是否啟用、自訂欄位）
+  - 使用「欄位名稱快速修改」調整既有欄位顯示名稱
   - 切換活動查看訂單
   - 直接修改整筆訂單內容（不只狀態）
   - 匯出 CSV

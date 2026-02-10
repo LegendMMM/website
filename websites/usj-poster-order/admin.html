@@ -60,6 +60,10 @@
             <textarea id="campaign-description" rows="3" maxlength="300"></textarea>
           </label>
           <label>
+            前台注意事項
+            <textarea id="campaign-notice" rows="3" maxlength="1000" placeholder="會顯示在前台活動選擇下方。"></textarea>
+          </label>
+          <label>
             自訂欄位 (JSON 陣列，可留空)
             <textarea
               id="campaign-custom-fields"
@@ -93,9 +97,18 @@
               <textarea id="settings-description" rows="2" maxlength="300"></textarea>
             </label>
             <label>
+              前台注意事項
+              <textarea id="settings-notice" rows="3" maxlength="1000"></textarea>
+            </label>
+            <label>
               自訂欄位 (JSON 陣列)
               <textarea id="settings-custom-fields" rows="6"></textarea>
             </label>
+            <div id="field-label-editor" class="stack compact-card">
+              <h4>欄位名稱快速修改</h4>
+              <p class="hint">修改後會同步更新上方 JSON 內容。</p>
+              <div id="field-label-list" class="stack"></div>
+            </div>
             <label class="inline-check">
               <input id="settings-is-active" type="checkbox" />
               活動啟用（取消勾選後前台不顯示）
@@ -105,7 +118,7 @@
 
           <p id="orders-message" class="message" aria-live="polite"></p>
           <div class="table-wrap">
-            <table>
+            <table class="admin-orders-table">
               <thead id="orders-head"></thead>
               <tbody id="orders-body"></tbody>
             </table>

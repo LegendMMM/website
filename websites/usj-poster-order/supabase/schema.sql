@@ -14,6 +14,7 @@ create table if not exists public.campaigns (
   slug text not null unique check (slug ~ '^[a-z0-9-]+$'),
   title text not null,
   description text not null default '',
+  notice text not null default '',
   custom_fields jsonb not null default '[]'::jsonb,
   is_active boolean not null default true,
   created_at timestamptz not null default now()
@@ -40,6 +41,8 @@ create table if not exists public.orders (
 -- Upgrade existing databases safely.
 alter table public.campaigns
   add column if not exists custom_fields jsonb not null default '[]'::jsonb;
+alter table public.campaigns
+  add column if not exists notice text not null default '';
 
 alter table public.orders
   add column if not exists transaction_method text not null default '面交';
@@ -49,6 +52,8 @@ alter table public.orders
 
 -- Ensure columns have expected defaults and not-null.
 alter table public.campaigns
+  alter column notice set default '',
+  alter column notice set not null,
   alter column custom_fields set default '[]'::jsonb,
   alter column custom_fields set not null;
 
@@ -95,6 +100,7 @@ $$;
 
 create index if not exists idx_orders_campaign_created_at on public.orders(campaign_id, created_at desc);
 create index if not exists idx_orders_customer_lookup on public.orders(lower(customer_name), phone_last3);
+create index if not exists idx_orders_phone_digits on public.orders((regexp_replace(phone, '\D', '', 'g')));
 
 create or replace function public.set_orders_derived_fields()
 returns trigger
@@ -207,10 +213,12 @@ for delete
 to authenticated
 using (public.is_admin());
 
+drop function if exists public.search_order_status(text, text, text);
+
 create or replace function public.search_order_status(
   p_campaign_slug text,
-  p_customer_name text,
-  p_phone_last3 text
+  p_query_name text,
+  p_query_phone text
 )
 returns table (
   campaign_title text,
@@ -223,6 +231,11 @@ language sql
 security definer
 set search_path = public
 as $$
+  with q as (
+    select
+      nullif(lower(trim(coalesce(p_query_name, ''))), '') as query_name,
+      regexp_replace(coalesce(p_query_phone, ''), '\D', '', 'g') as query_phone_digits
+  )
   select
     c.title as campaign_title,
     o.customer_name,
@@ -231,9 +244,18 @@ as $$
     o.created_at as submitted_at
   from public.orders o
   join public.campaigns c on c.id = o.campaign_id
+  cross join q
   where c.slug = p_campaign_slug
-    and lower(trim(o.customer_name)) = lower(trim(p_customer_name))
-    and o.phone_last3 = p_phone_last3
+    and (
+      (q.query_name is not null and lower(trim(o.customer_name)) = q.query_name)
+      or (
+        q.query_phone_digits <> ''
+        and (
+          regexp_replace(o.phone, '\D', '', 'g') = q.query_phone_digits
+          or (length(q.query_phone_digits) = 3 and o.phone_last3 = q.query_phone_digits)
+        )
+      )
+    )
   order by o.created_at desc
   limit 50;
 $$;
@@ -246,6 +268,13 @@ values ('49125466easongo@gmail.com')
 on conflict (email) do nothing;
 
 -- Create a first campaign sample.
-insert into public.campaigns(slug, title, description, custom_fields, is_active)
-values ('usj-poster-initial', '環球影城海報冊代購（第一梯）', '請填寫訂購資訊。', '[]'::jsonb, true)
+insert into public.campaigns(slug, title, description, notice, custom_fields, is_active)
+values (
+  'usj-poster-initial',
+  '環球影城海報冊代購（第一梯）',
+  '請填寫訂購資訊。',
+  '匯款後請保留明細，若選擇賣貨便請於備註提供寄件所需資訊。',
+  '[]'::jsonb,
+  true
+)
 on conflict (slug) do nothing;

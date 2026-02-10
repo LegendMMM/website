@@ -19,6 +19,13 @@ const reloadOrdersBtn = document.querySelector("#reload-orders-btn");
 const exportCsvBtn = document.querySelector("#export-csv-btn");
 const logoutBtn = document.querySelector("#logout-btn");
 
+const settingsTitle = document.querySelector("#settings-title");
+const settingsDescription = document.querySelector("#settings-description");
+const settingsNotice = document.querySelector("#settings-notice");
+const settingsIsActive = document.querySelector("#settings-is-active");
+const settingsCustomFields = document.querySelector("#settings-custom-fields");
+const fieldLabelList = document.querySelector("#field-label-list");
+
 let activeCampaigns = [];
 let currentOrders = [];
 
@@ -150,24 +157,67 @@ function disableCampaignSettings(disabled) {
   }
 }
 
+function renderFieldLabelEditor(customFields) {
+  if (!customFields.length) {
+    fieldLabelList.innerHTML = '<p class="hint">此活動沒有自訂欄位。</p>';
+    return;
+  }
+
+  fieldLabelList.innerHTML = customFields
+    .map(
+      (field) => `
+      <div class="field-label-row">
+        <span class="field-key">key: ${escapeHtml(field.key)} | type: ${escapeHtml(field.type)}</span>
+        <label>
+          欄位名稱
+          <input type="text" data-label-key="${escapeHtml(field.key)}" value="${escapeHtml(field.label)}" />
+        </label>
+      </div>
+    `,
+    )
+    .join("");
+}
+
 function populateCampaignSettings() {
   const campaign = getSelectedCampaign();
 
   if (!campaign) {
     campaignSettingsForm.reset();
+    fieldLabelList.innerHTML = "";
     disableCampaignSettings(true);
     return;
   }
 
+  const customFields = normalizeCustomFields(campaign.custom_fields);
+
   disableCampaignSettings(false);
-  document.querySelector("#settings-title").value = campaign.title || "";
-  document.querySelector("#settings-description").value = campaign.description || "";
-  document.querySelector("#settings-is-active").checked = Boolean(campaign.is_active);
-  document.querySelector("#settings-custom-fields").value = JSON.stringify(
-    normalizeCustomFields(campaign.custom_fields),
-    null,
-    2,
-  );
+  settingsTitle.value = campaign.title || "";
+  settingsDescription.value = campaign.description || "";
+  settingsNotice.value = campaign.notice || "";
+  settingsIsActive.checked = Boolean(campaign.is_active);
+  settingsCustomFields.value = JSON.stringify(customFields, null, 2);
+  renderFieldLabelEditor(customFields);
+}
+
+function syncLabelToCustomFieldsJson(fieldKey, labelValue) {
+  let fields;
+  try {
+    fields = parseCustomFieldsInput(settingsCustomFields.value);
+  } catch {
+    return;
+  }
+
+  fields = fields.map((field) => (field.key === fieldKey ? { ...field, label: String(labelValue || "").trim() || field.key } : field));
+  settingsCustomFields.value = JSON.stringify(fields, null, 2);
+}
+
+function tryRefreshFieldLabelEditor() {
+  try {
+    const fields = parseCustomFieldsInput(settingsCustomFields.value);
+    renderFieldLabelEditor(fields);
+  } catch {
+    // Keep current editor while JSON is temporarily invalid during typing.
+  }
 }
 
 async function requireSession() {
@@ -202,7 +252,7 @@ async function loadCampaignsForAdmin() {
 
   const { data, error } = await supabase
     .from("campaigns")
-    .select("id, slug, title, description, is_active, custom_fields")
+    .select("id, slug, title, description, notice, is_active, custom_fields")
     .order("created_at", { ascending: false });
 
   if (error) throw error;
@@ -213,6 +263,7 @@ async function loadCampaignsForAdmin() {
     ordersHead.innerHTML = "";
     ordersBody.innerHTML = "";
     disableCampaignSettings(true);
+    fieldLabelList.innerHTML = "";
     return;
   }
 
@@ -528,6 +579,7 @@ campaignForm.addEventListener("submit", async (event) => {
     const slug = document.querySelector("#campaign-slug").value.trim();
     const title = document.querySelector("#campaign-title").value.trim();
     const description = document.querySelector("#campaign-description").value.trim();
+    const notice = document.querySelector("#campaign-notice").value.trim();
     const customFieldsText = document.querySelector("#campaign-custom-fields").value;
     const customFields = parseCustomFieldsInput(customFieldsText);
 
@@ -539,6 +591,7 @@ campaignForm.addEventListener("submit", async (event) => {
         slug,
         title,
         description,
+        notice,
         custom_fields: customFields,
         is_active: true,
       })
@@ -570,11 +623,11 @@ campaignSettingsForm.addEventListener("submit", async (event) => {
     const campaign = getSelectedCampaign();
     if (!campaign) throw new Error("請先選擇活動");
 
-    const title = document.querySelector("#settings-title").value.trim();
-    const description = document.querySelector("#settings-description").value.trim();
-    const isActive = document.querySelector("#settings-is-active").checked;
-    const customFieldsText = document.querySelector("#settings-custom-fields").value;
-    const customFields = parseCustomFieldsInput(customFieldsText);
+    const title = settingsTitle.value.trim();
+    const description = settingsDescription.value.trim();
+    const notice = settingsNotice.value.trim();
+    const isActive = settingsIsActive.checked;
+    const customFields = parseCustomFieldsInput(settingsCustomFields.value);
 
     if (!title) throw new Error("活動標題不可空白");
 
@@ -583,6 +636,7 @@ campaignSettingsForm.addEventListener("submit", async (event) => {
       .update({
         title,
         description,
+        notice,
         is_active: isActive,
         custom_fields: customFields,
       })
@@ -598,6 +652,19 @@ campaignSettingsForm.addEventListener("submit", async (event) => {
   } catch (error) {
     setMessage(ordersMessage, `活動設定更新失敗：${error.message}`, "error");
   }
+});
+
+settingsCustomFields.addEventListener("input", () => {
+  tryRefreshFieldLabelEditor();
+});
+
+fieldLabelList.addEventListener("input", (event) => {
+  const target = event.target;
+  if (!(target instanceof HTMLInputElement)) return;
+
+  const key = target.dataset.labelKey;
+  if (!key) return;
+  syncLabelToCustomFieldsJson(key, target.value);
 });
 
 reloadOrdersBtn.addEventListener("click", async () => {

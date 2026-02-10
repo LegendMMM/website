@@ -10,7 +10,7 @@
     <header class="site-header">
       <div class="container">
         <h1>環球影城海報冊代購</h1>
-        <p>填寫訂購資訊後送出，可使用姓名 + 手機末3碼查詢狀態。</p>
+        <p>填寫訂購資訊後送出，可用姓名或電話查詢訂單狀態。</p>
       </div>
     </header>
 
@@ -18,61 +18,72 @@
       <section class="card">
         <h2>填寫訂購表單</h2>
         <form id="order-form" class="stack">
-          <label>
-            代購活動
-            <select id="campaign-id" required></select>
-          </label>
+          <section class="form-block">
+            <h3>代購活動</h3>
+            <label>
+              活動選擇
+              <select id="campaign-id" required></select>
+            </label>
+            <div class="notice-box">
+              <p class="notice-title">注意事項</p>
+              <p id="campaign-notice" class="notice-content">請先選擇活動後查看注意事項。</p>
+            </div>
+          </section>
 
-          <label>
-            姓名
-            <input id="customer-name" type="text" required maxlength="30" />
-          </label>
+          <section class="form-block">
+            <h3>填寫資料</h3>
 
-          <label>
-            手機
-            <input id="phone" type="tel" required maxlength="20" placeholder="例如 0912345678" />
-          </label>
+            <label>
+              姓名
+              <input id="customer-name" type="text" required maxlength="30" />
+            </label>
 
-          <label>
-            Email
-            <input id="email" type="email" required maxlength="120" />
-          </label>
+            <label>
+              手機
+              <input id="phone" type="tel" required maxlength="20" placeholder="例如 0912345678" />
+            </label>
 
-          <label>
-            數量
-            <input id="quantity" type="number" required min="1" max="99" value="1" />
-          </label>
+            <label>
+              Email
+              <input id="email" type="email" required maxlength="120" />
+            </label>
 
-          <label>
-            匯款帳號
-            <input
-              id="transfer-account"
-              type="text"
-              required
-              maxlength="80"
-              placeholder="例如 12345 或 完整帳號"
-            />
-          </label>
+            <label>
+              數量
+              <input id="quantity" type="number" required min="1" max="99" value="1" />
+            </label>
 
-          <label>
-            匯款時間
-            <input id="transfer-time" type="datetime-local" required />
-          </label>
+            <label>
+              匯款帳號
+              <input
+                id="transfer-account"
+                type="text"
+                required
+                maxlength="80"
+                placeholder="例如 12345 或 完整帳號"
+              />
+            </label>
 
-          <label>
-            交易方式
-            <select id="transaction-method" required>
-              <option value="面交">面交</option>
-              <option value="賣貨便">賣貨便</option>
-            </select>
-          </label>
+            <label>
+              匯款時間
+              <input id="transfer-time" type="datetime-local" required />
+            </label>
 
-          <div id="custom-fields-container" class="stack"></div>
+            <label>
+              交易方式
+              <select id="transaction-method" required>
+                <option value="面交">面交</option>
+                <option value="賣貨便">賣貨便</option>
+              </select>
+            </label>
 
-          <label>
-            備註
-            <textarea id="note" maxlength="300" rows="3" placeholder="可留空"></textarea>
-          </label>
+            <div id="custom-fields-container" class="stack"></div>
+
+            <label>
+              備註
+              <textarea id="note" maxlength="300" rows="3" placeholder="可留空"></textarea>
+            </label>
+          </section>
 
           <button type="submit">送出訂單</button>
           <p id="order-form-message" class="message" aria-live="polite"></p>
@@ -88,16 +99,17 @@
           </label>
 
           <label>
-            姓名
-            <input id="query-name" type="text" required maxlength="30" />
+            姓名 (可留空)
+            <input id="query-name" type="text" maxlength="30" />
           </label>
 
           <label>
-            手機末3碼
-            <input id="query-phone-last3" type="text" required maxlength="3" pattern="[0-9]{3}" />
+            手機 (可留空)
+            <input id="query-phone" type="tel" maxlength="20" placeholder="例如 0912345678" />
           </label>
 
           <button type="submit">查詢</button>
+          <p class="hint">姓名或電話至少填一項。</p>
           <p id="query-message" class="message" aria-live="polite"></p>
         </form>
 
