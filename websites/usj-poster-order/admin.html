@@ -1,0 +1,94 @@
+<!doctype html>
+<html lang="zh-Hant">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>管理頁 | 環球影城海報冊代購</title>
+    <link rel="stylesheet" href="./assets/styles.css" />
+  </head>
+  <body>
+    <header class="site-header">
+      <div class="container">
+        <h1>管理頁</h1>
+        <p>使用 Email 一次性密碼登入，管理活動與訂單狀態。</p>
+      </div>
+    </header>
+
+    <main class="container admin-layout">
+      <section class="card" id="auth-panel">
+        <h2>管理者登入</h2>
+        <form id="login-form" class="stack">
+          <label>
+            管理者 Email
+            <input id="admin-email" type="email" required />
+          </label>
+          <button type="submit">寄送登入連結</button>
+          <p class="hint">請使用你已加入管理員名單的 Email。</p>
+          <p id="auth-message" class="message" aria-live="polite"></p>
+        </form>
+      </section>
+
+      <section class="card hidden" id="admin-panel">
+        <div class="admin-header">
+          <h2>活動與訂單管理</h2>
+          <button id="logout-btn" type="button">登出</button>
+        </div>
+
+        <form id="campaign-form" class="stack section-divider">
+          <h3>建立新活動表單</h3>
+          <label>
+            活動代碼 (slug)
+            <input id="campaign-slug" type="text" required maxlength="50" pattern="[a-z0-9-]+" placeholder="例如 usj-poster-2026-03" />
+          </label>
+          <label>
+            活動標題
+            <input id="campaign-title" type="text" required maxlength="80" />
+          </label>
+          <label>
+            活動說明
+            <textarea id="campaign-description" rows="3" maxlength="300"></textarea>
+          </label>
+          <button type="submit">建立活動</button>
+          <p id="campaign-message" class="message" aria-live="polite"></p>
+        </form>
+
+        <section class="section-divider">
+          <h3>訂單列表</h3>
+          <div class="toolbar">
+            <label>
+              選擇活動
+              <select id="admin-campaign-filter"></select>
+            </label>
+            <button id="reload-orders-btn" type="button">重新整理</button>
+            <button id="export-csv-btn" type="button">匯出 CSV</button>
+          </div>
+          <p id="orders-message" class="message" aria-live="polite"></p>
+          <div class="table-wrap">
+            <table>
+              <thead>
+                <tr>
+                  <th>姓名</th>
+                  <th>手機</th>
+                  <th>Email</th>
+                  <th>數量</th>
+                  <th>匯款帳號</th>
+                  <th>匯款時間</th>
+                  <th>備註</th>
+                  <th>狀態</th>
+                  <th>更新</th>
+                </tr>
+              </thead>
+              <tbody id="orders-body"></tbody>
+            </table>
+          </div>
+        </section>
+      </section>
+    </main>
+
+    <footer class="container footer">
+      <a href="./index.html">回前台頁面</a>
+    </footer>
+
+    <script type="module" src="./assets/admin.js"></script>
+  </body>
+</html>

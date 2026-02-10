@@ -1,0 +1,117 @@
+<!doctype html>
+<html lang="zh-Hant">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>環球影城海報冊代購</title>
+    <link rel="stylesheet" href="./assets/styles.css" />
+  </head>
+  <body>
+    <header class="site-header">
+      <div class="container">
+        <h1>環球影城海報冊代購</h1>
+        <p>填寫訂購資訊後送出，可使用姓名 + 手機末3碼查詢狀態。</p>
+      </div>
+    </header>
+
+    <main class="container grid">
+      <section class="card">
+        <h2>填寫訂購表單</h2>
+        <form id="order-form" class="stack">
+          <label>
+            代購活動
+            <select id="campaign-id" required></select>
+          </label>
+
+          <label>
+            姓名
+            <input id="customer-name" type="text" required maxlength="30" />
+          </label>
+
+          <label>
+            手機
+            <input id="phone" type="tel" required maxlength="20" placeholder="例如 0912345678" />
+          </label>
+
+          <label>
+            Email
+            <input id="email" type="email" required maxlength="120" />
+          </label>
+
+          <label>
+            數量
+            <input id="quantity" type="number" required min="1" max="99" value="1" />
+          </label>
+
+          <label>
+            匯款帳號
+            <input
+              id="transfer-account"
+              type="text"
+              required
+              maxlength="80"
+              placeholder="例如 12345 或 完整帳號"
+            />
+          </label>
+
+          <label>
+            匯款時間
+            <input id="transfer-time" type="datetime-local" required />
+          </label>
+
+          <label>
+            備註
+            <textarea id="note" maxlength="300" rows="3" placeholder="可留空"></textarea>
+          </label>
+
+          <button type="submit">送出訂單</button>
+          <p id="order-form-message" class="message" aria-live="polite"></p>
+        </form>
+      </section>
+
+      <section class="card">
+        <h2>查詢訂單狀態</h2>
+        <form id="query-form" class="stack">
+          <label>
+            代購活動
+            <select id="query-campaign-slug" required></select>
+          </label>
+
+          <label>
+            姓名
+            <input id="query-name" type="text" required maxlength="30" />
+          </label>
+
+          <label>
+            手機末3碼
+            <input id="query-phone-last3" type="text" required maxlength="3" pattern="[0-9]{3}" />
+          </label>
+
+          <button type="submit">查詢</button>
+          <p id="query-message" class="message" aria-live="polite"></p>
+        </form>
+
+        <div class="table-wrap">
+          <table>
+            <thead>
+              <tr>
+                <th>活動</th>
+                <th>姓名</th>
+                <th>數量</th>
+                <th>狀態</th>
+                <th>送出時間</th>
+              </tr>
+            </thead>
+            <tbody id="query-results"></tbody>
+          </table>
+        </div>
+      </section>
+    </main>
+
+    <footer class="container footer">
+      <a href="./admin.html">管理頁入口</a>
+    </footer>
+
+    <script type="module" src="./assets/app.js"></script>
+  </body>
+</html>
