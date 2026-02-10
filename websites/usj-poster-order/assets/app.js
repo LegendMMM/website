@@ -98,6 +98,18 @@ const queryCampaignSelect = document.querySelector("#query-campaign-slug");
 const queryResultsBody = document.querySelector("#query-results");
 const campaignDescriptionDisplay = document.querySelector("#campaign-description-display");
 const campaignNotice = document.querySelector("#campaign-notice");
+const entryHub = document.querySelector("#entry-hub");
+const orderPanel = document.querySelector("#order-panel");
+const queryPanel = document.querySelector("#query-panel");
+const orderStep1 = document.querySelector("#order-step-1");
+const orderStep2 = document.querySelector("#order-step-2");
+const stepIndicators = document.querySelectorAll("[data-step-indicator]");
+const entryOrderBtn = document.querySelector("#entry-order-btn");
+const entryQueryBtn = document.querySelector("#entry-query-btn");
+const backToHubFromOrderBtn = document.querySelector("#back-to-hub-from-order");
+const backToHubFromQueryBtn = document.querySelector("#back-to-hub-from-query");
+const goToStep2Btn = document.querySelector("#go-to-step-2");
+const backToStep1Btn = document.querySelector("#back-to-step-1");
 
 let campaigns = [];
 let defaultFieldConfig = buildBaseFixedFieldConfig();
@@ -107,6 +119,22 @@ function setMessage(el, text, type = "") {
   el.textContent = text;
   el.classList.remove("error", "success");
   if (type) el.classList.add(type);
+}
+
+function setActivePanel(panel) {
+  entryHub.classList.toggle("hidden", panel !== "hub");
+  orderPanel.classList.toggle("hidden", panel !== "order");
+  queryPanel.classList.toggle("hidden", panel !== "query");
+}
+
+function setOrderStep(step) {
+  const isStep1 = step === 1;
+  orderStep1.classList.toggle("hidden", !isStep1);
+  orderStep2.classList.toggle("hidden", isStep1);
+
+  for (const item of stepIndicators) {
+    item.classList.toggle("active", Number(item.dataset.stepIndicator) === step);
+  }
 }
 
 function escapeHtml(input) {
@@ -554,6 +582,38 @@ function renderQueryResults(rows) {
     .join("");
 }
 
+entryOrderBtn.addEventListener("click", () => {
+  setActivePanel("order");
+  setOrderStep(1);
+});
+
+entryQueryBtn.addEventListener("click", () => {
+  setActivePanel("query");
+});
+
+backToHubFromOrderBtn.addEventListener("click", () => {
+  setActivePanel("hub");
+  setOrderStep(1);
+});
+
+backToHubFromQueryBtn.addEventListener("click", () => {
+  setActivePanel("hub");
+});
+
+goToStep2Btn.addEventListener("click", () => {
+  if (!orderCampaignSelect.value) {
+    setMessage(orderFormMessage, "請先選擇活動再繼續。", "error");
+    return;
+  }
+
+  setMessage(orderFormMessage, "");
+  setOrderStep(2);
+});
+
+backToStep1Btn.addEventListener("click", () => {
+  setOrderStep(1);
+});
+
 orderCampaignSelect.addEventListener("change", () => {
   const selectedCampaign = getSelectedCampaign();
   activeFieldConfig = selectedCampaign ? buildCampaignFieldConfig(selectedCampaign) : [];
@@ -590,6 +650,7 @@ orderForm.addEventListener("submit", async (event) => {
     activeFieldConfig = selectedCampaign ? buildCampaignFieldConfig(selectedCampaign) : [];
     renderOrderFields();
     renderCampaignInfo();
+    setOrderStep(1);
     setMessage(orderFormMessage, "送出成功，請保留姓名或電話以便查詢。", "success");
   } catch (error) {
     setMessage(orderFormMessage, `送出失敗：${error.message}`, "error");
@@ -633,6 +694,8 @@ queryForm.addEventListener("submit", async (event) => {
 
 (async function bootstrap() {
   try {
+    setActivePanel("hub");
+    setOrderStep(1);
     await loadDefaultFieldConfig();
     await loadCampaigns();
   } catch (error) {

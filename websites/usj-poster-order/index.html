@@ -4,22 +4,60 @@
     <meta charset="UTF-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1.0" />
     <title>環球影城海報冊代購</title>
-    <link rel="stylesheet" href="./assets/styles.css?v=neo-coral-20260211-1" />
+    <link rel="stylesheet" href="./assets/styles.css?v=split-wizard-20260211-2" />
   </head>
-  <body>
+  <body class="public-page">
     <header class="site-header">
       <div class="container">
+        <p class="hero-chip">USJ 代購活動</p>
         <h1>環球影城海報冊代購</h1>
         <p>填寫訂購資訊後送出，可用姓名或電話查詢訂單狀態。</p>
       </div>
     </header>
 
-    <main class="container grid">
-      <section class="card">
-        <h2>填寫訂購表單</h2>
+    <main class="container page-stack">
+      <section class="card hub-card" id="entry-hub">
+        <h2>先選擇操作，再進入對應流程</h2>
+        <p class="muted-text">下單與查詢分成兩個入口，操作更直覺。</p>
+
+        <div class="split-hero">
+          <article class="entry-panel">
+            <h3>我要下單</h3>
+            <p>先選活動、看注意事項，再填寫完整訂購資料。</p>
+            <ul class="entry-list">
+              <li>分步填寫，降低漏填機率</li>
+              <li>送出後可用姓名或電話查詢</li>
+            </ul>
+            <button type="button" id="entry-order-btn">前往填寫訂單</button>
+          </article>
+
+          <article class="entry-panel">
+            <h3>我要查詢</h3>
+            <p>快速查詢目前進度，掌握代購最新狀態。</p>
+            <ul class="entry-list">
+              <li>支援姓名或電話查詢</li>
+              <li>顯示活動、數量、狀態與時間</li>
+            </ul>
+            <button type="button" id="entry-query-btn" class="secondary-btn">前往查詢頁</button>
+          </article>
+        </div>
+      </section>
+
+      <section class="card flow-panel hidden" id="order-panel">
+        <div class="panel-head">
+          <h2>我要下單</h2>
+          <button type="button" id="back-to-hub-from-order" class="ghost-btn">回入口</button>
+        </div>
+        <p class="panel-subtitle">依照步驟完成下單：先選活動，再填寫資料並送出。</p>
+
+        <div class="wizard-steps">
+          <div class="wizard-step active" data-step-indicator="1">1 選擇活動</div>
+          <div class="wizard-step" data-step-indicator="2">2 填寫資料</div>
+        </div>
+
         <form id="order-form" class="stack">
-          <section class="form-block">
-            <h3>代購活動</h3>
+          <section class="form-block wizard-stage" id="order-step-1">
+            <h3>第 1 步：選擇活動</h3>
             <label>
               活動選擇
               <select id="campaign-id" required></select>
@@ -32,20 +70,29 @@
               <p class="notice-title">注意事項</p>
               <p id="campaign-notice" class="notice-content">請先選擇活動後查看注意事項。</p>
             </div>
+            <button type="button" id="go-to-step-2">下一步：填寫資料</button>
           </section>
 
-          <section class="form-block">
-            <h3>填寫資料</h3>
+          <section class="form-block wizard-stage hidden" id="order-step-2">
+            <h3>第 2 步：填寫資料</h3>
             <div id="order-fields-container" class="stack"></div>
+            <div class="step-actions">
+              <button type="button" id="back-to-step-1" class="secondary-btn">返回上一步</button>
+              <button type="submit">送出訂單</button>
+            </div>
           </section>
 
-          <button type="submit">送出訂單</button>
           <p id="order-form-message" class="message" aria-live="polite"></p>
         </form>
       </section>
 
-      <section class="card">
-        <h2>查詢訂單狀態</h2>
+      <section class="card query-stage hidden" id="query-panel">
+        <div class="panel-head">
+          <h2>我要查詢</h2>
+          <button type="button" id="back-to-hub-from-query" class="ghost-btn">回入口</button>
+        </div>
+        <p class="panel-subtitle">可輸入姓名或電話其中一項，快速查詢訂單進度。</p>
+
         <form id="query-form" class="stack">
           <label>
             代購活動

@@ -1,3 +1,5 @@
+@import url("https://fonts.googleapis.com/css2?family=Montserrat:wght@600;700;800&family=Noto+Sans+TC:wght@400;500;700;800&display=swap");
+
 :root {
   --bg: #fdf6f2;
   --bg-soft: #f2f6ff;
@@ -24,11 +26,22 @@ body {
   margin: 0;
   font-family: "Noto Sans TC", "PingFang TC", "Microsoft JhengHei", sans-serif;
   color: var(--text);
+  min-height: 100vh;
+}
+
+.public-page {
+  background:
+    radial-gradient(circle at 12% 12%, #ffcfc5 0%, transparent 31%),
+    radial-gradient(circle at 88% 18%, #d5e5ff 0%, transparent 37%),
+    linear-gradient(180deg, var(--bg) 0%, var(--bg-soft) 100%);
+}
+
+.admin-page,
+body:not(.public-page) {
   background:
     radial-gradient(circle at 10% 10%, #ffd8d0 0%, transparent 28%),
     radial-gradient(circle at 90% 15%, #dce8ff 0%, transparent 34%),
     linear-gradient(180deg, var(--bg) 0%, var(--bg-soft) 100%);
-  min-height: 100vh;
 }
 
 .container {
@@ -47,11 +60,26 @@ body {
 .site-header::after {
   content: "";
   position: absolute;
-  inset: auto -12% -40% auto;
-  width: 320px;
-  height: 320px;
+  inset: auto -10% -35% auto;
+  width: 340px;
+  height: 340px;
   border-radius: 999px;
   background: radial-gradient(circle, rgba(242, 109, 95, 0.26), rgba(242, 109, 95, 0));
+}
+
+.hero-chip {
+  margin: 0 0 0.5rem;
+  display: inline-flex;
+  align-items: center;
+  gap: 0.35rem;
+  font-size: 0.76rem;
+  font-weight: 700;
+  letter-spacing: 0.03em;
+  text-transform: uppercase;
+  color: #9f342b;
+  background: #ffe4de;
+  padding: 0.22rem 0.58rem;
+  border-radius: 999px;
 }
 
 .site-header h1 {
@@ -70,6 +98,12 @@ body {
   display: grid;
   gap: 1rem;
   grid-template-columns: repeat(auto-fit, minmax(280px, 1fr));
+}
+
+.page-stack {
+  padding: 1.6rem 0 2.2rem;
+  display: grid;
+  gap: 1.15rem;
 }
 
 .admin-layout {
@@ -116,9 +150,78 @@ h4 {
   gap: 0.75rem;
 }
 
+.hub-card {
+  padding: 1.3rem;
+}
+
+.muted-text {
+  margin: 0 0 0.35rem;
+  color: var(--muted);
+}
+
+.entry-actions {
+  margin-top: 0.8rem;
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 0.7rem;
+}
+
+.split-hero {
+  margin-top: 0.4rem;
+  display: grid;
+  gap: 0.95rem;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+}
+
+.entry-panel {
+  border: 1px solid #dce4f2;
+  border-radius: 14px;
+  background: linear-gradient(180deg, #ffffff 0%, #f9fbff 100%);
+  padding: 1rem;
+  display: grid;
+  gap: 0.68rem;
+}
+
+.entry-panel h3 {
+  margin: 0;
+  color: #1d3961;
+}
+
+.entry-panel p {
+  margin: 0;
+  color: #4d607a;
+  font-size: 0.92rem;
+}
+
+.entry-list {
+  margin: 0;
+  padding: 0 0 0 1.1rem;
+  color: #4b5c75;
+  display: grid;
+  gap: 0.36rem;
+  font-size: 0.9rem;
+}
+
+.flow-panel,
+.query-stage {
+  padding: 1.1rem;
+}
+
+.panel-subtitle {
+  margin: 0 0 0.85rem;
+  color: var(--muted);
+  font-size: 0.92rem;
+}
+
 .form-block h3 {
   margin: 0;
   font-size: 1rem;
+}
+
+.wizard-stage {
+  border: 1px solid #e0e6f2;
+  border-radius: 14px;
+  background: linear-gradient(180deg, #ffffff 0%, #f9fbff 100%);
 }
 
 .notice-box {
@@ -153,6 +256,23 @@ select,
 textarea,
 button {
   font: inherit;
+}
+
+.secondary-btn {
+  background: linear-gradient(140deg, var(--brand) 0%, #2b5a92 100%);
+  box-shadow: 0 8px 20px rgba(31, 63, 111, 0.24);
+}
+
+.ghost-btn {
+  background: #fff;
+  color: var(--brand);
+  border: 1px solid #ccd8ea;
+  box-shadow: none;
+}
+
+.ghost-btn:hover {
+  filter: none;
+  background: #f4f8ff;
 }
 
 input,
@@ -226,6 +346,49 @@ button:active {
   flex-wrap: wrap;
   gap: 0.6rem;
   align-items: flex-end;
+}
+
+.panel-head {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  gap: 0.8rem;
+  margin-bottom: 0.3rem;
+}
+
+.panel-head h2 {
+  margin: 0;
+}
+
+.wizard-steps {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 0.6rem;
+  margin-bottom: 0.9rem;
+}
+
+.wizard-step {
+  padding: 0.58rem 0.66rem;
+  border-radius: 999px;
+  border: 1px solid #d9e2f2;
+  background: #f7fbff;
+  color: #4b5f7b;
+  font-size: 0.85rem;
+  text-align: center;
+  font-weight: 700;
+  letter-spacing: 0.01em;
+}
+
+.wizard-step.active {
+  border-color: #f2bcb4;
+  background: linear-gradient(135deg, #fff2ef 0%, #ffe6df 100%);
+  color: #97392f;
+}
+
+.step-actions {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 0.6rem;
 }
 
 .compact-card {
@@ -353,7 +516,7 @@ tbody tr:hover {
 }
 
 .footer {
-  padding: 1rem 0 2rem;
+  padding: 0 0 2rem;
 }
 
 .footer a {
@@ -394,7 +557,7 @@ tbody tr:hover {
 @keyframes card-rise {
   from {
     opacity: 0;
-    transform: translateY(8px);
+    transform: translateY(12px);
   }
   to {
     opacity: 1;
@@ -406,6 +569,15 @@ tbody tr:hover {
   .admin-header {
     flex-direction: column;
     align-items: flex-start;
+  }
+
+  .entry-actions,
+  .step-actions {
+    grid-template-columns: 1fr;
+  }
+
+  .split-hero {
+    grid-template-columns: 1fr;
   }
 
   .site-header {
