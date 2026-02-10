@@ -38,33 +38,6 @@
           <button id="logout-btn" type="button">登出</button>
         </div>
 
-        <form id="campaign-form" class="stack section-divider">
-          <h3>建立新活動表單</h3>
-          <label>
-            活動標題
-            <input id="campaign-title" type="text" required maxlength="80" />
-          </label>
-          <p class="hint">活動代碼會自動產生，你不用手動填寫。</p>
-          <label>
-            活動說明
-            <textarea id="campaign-description" rows="3" maxlength="300"></textarea>
-          </label>
-          <label>
-            前台注意事項
-            <textarea id="campaign-notice" rows="3" maxlength="1000" placeholder="會顯示在前台活動選擇下方。"></textarea>
-          </label>
-          <label>
-            自訂欄位 (JSON 陣列，可留空)
-            <textarea
-              id="campaign-custom-fields"
-              rows="6"
-              placeholder='[{"key":"line_id","label":"LINE ID","type":"text","required":true},{"key":"pickup_type","label":"取貨方式","type":"select","options":["店到店","面交"]}]'
-            ></textarea>
-          </label>
-          <button type="submit">建立活動</button>
-          <p id="campaign-message" class="message" aria-live="polite"></p>
-        </form>
-
         <section class="section-divider stack">
           <h3>訂單列表</h3>
           <div class="toolbar">
@@ -114,6 +87,33 @@
             </table>
           </div>
         </section>
+
+        <form id="campaign-form" class="stack section-divider">
+          <h3>建立新活動表單</h3>
+          <label>
+            活動標題
+            <input id="campaign-title" type="text" required maxlength="80" />
+          </label>
+          <p class="hint">活動代碼會自動產生，你不用手動填寫。</p>
+          <label>
+            活動說明
+            <textarea id="campaign-description" rows="3" maxlength="300"></textarea>
+          </label>
+          <label>
+            前台注意事項
+            <textarea id="campaign-notice" rows="3" maxlength="1000" placeholder="會顯示在前台活動選擇下方。"></textarea>
+          </label>
+          <label>
+            自訂欄位 (JSON 陣列，可留空)
+            <textarea
+              id="campaign-custom-fields"
+              rows="6"
+              placeholder='[{"key":"line_id","label":"LINE ID","type":"text","required":true},{"key":"pickup_type","label":"取貨方式","type":"select","options":["店到店","面交"]}]'
+            ></textarea>
+          </label>
+          <button type="submit">建立活動</button>
+          <p id="campaign-message" class="message" aria-live="polite"></p>
+        </form>
       </section>
     </main>
 

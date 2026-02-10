@@ -10,6 +10,7 @@ const orderCampaignSelect = document.querySelector("#campaign-id");
 const queryCampaignSelect = document.querySelector("#query-campaign-slug");
 const queryResultsBody = document.querySelector("#query-results");
 const customFieldsContainer = document.querySelector("#custom-fields-container");
+const campaignDescriptionDisplay = document.querySelector("#campaign-description-display");
 const campaignNotice = document.querySelector("#campaign-notice");
 
 let campaigns = [];
@@ -75,9 +76,11 @@ function getSelectedCampaign() {
   return campaigns.find((campaign) => campaign.id === orderCampaignSelect.value) || null;
 }
 
-function renderCampaignNotice() {
+function renderCampaignInfo() {
   const campaign = getSelectedCampaign();
+  const descriptionText = String(campaign?.description || "").trim();
   const noticeText = String(campaign?.notice || "").trim();
+  campaignDescriptionDisplay.textContent = descriptionText || "此活動目前沒有活動說明。";
   campaignNotice.textContent = noticeText || "此活動目前沒有額外注意事項。";
 }
 
@@ -149,6 +152,7 @@ function renderCampaignOptions() {
     orderCampaignSelect.innerHTML = '<option value="">目前沒有活動</option>';
     queryCampaignSelect.innerHTML = '<option value="">目前沒有活動</option>';
     customFieldsContainer.innerHTML = "";
+    campaignDescriptionDisplay.textContent = "目前沒有可報名活動。";
     campaignNotice.textContent = "目前沒有可報名活動。";
     return;
   }
@@ -173,14 +177,14 @@ function renderCampaignOptions() {
   }
 
   renderCustomFields();
-  renderCampaignNotice();
+  renderCampaignInfo();
 }
 
 async function loadCampaigns() {
   const supabase = getSupabase();
   const { data, error } = await supabase
     .from("campaigns")
-    .select("id, slug, title, notice, custom_fields")
+    .select("id, slug, title, description, notice, custom_fields")
     .eq("is_active", true)
     .order("created_at", { ascending: false });
 
@@ -212,7 +216,7 @@ function renderQueryResults(rows) {
 
 orderCampaignSelect.addEventListener("change", () => {
   renderCustomFields();
-  renderCampaignNotice();
+  renderCampaignInfo();
 });
 
 orderForm.addEventListener("submit", async (event) => {
@@ -261,7 +265,7 @@ orderForm.addEventListener("submit", async (event) => {
     document.querySelector("#quantity").value = "1";
     document.querySelector("#transaction-method").value = "面交";
     renderCustomFields();
-    renderCampaignNotice();
+    renderCampaignInfo();
     setMessage(orderFormMessage, "送出成功，請保留姓名或電話以便查詢。", "success");
   } catch (error) {
     setMessage(orderFormMessage, `送出失敗：${error.message}`, "error");
