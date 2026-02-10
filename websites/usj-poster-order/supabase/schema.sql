@@ -1,5 +1,6 @@
 -- Run this file in Supabase SQL Editor.
 -- It creates tables, policies, triggers, and query function used by this website.
+-- Safe to rerun for upgrades.
 
 create extension if not exists pgcrypto;
 
@@ -13,6 +14,7 @@ create table if not exists public.campaigns (
   slug text not null unique check (slug ~ '^[a-z0-9-]+$'),
   title text not null,
   description text not null default '',
+  custom_fields jsonb not null default '[]'::jsonb,
   is_active boolean not null default true,
   created_at timestamptz not null default now()
 );
@@ -27,11 +29,69 @@ create table if not exists public.orders (
   quantity integer not null check (quantity > 0),
   transfer_account text not null,
   transfer_time timestamptz not null,
+  transaction_method text not null default '面交',
   note text not null default '',
+  extra_data jsonb not null default '{}'::jsonb,
   status text not null default '已匯款' check (status in ('已匯款', '已採購', '已到貨', '已完成')),
   created_at timestamptz not null default now(),
   updated_at timestamptz not null default now()
 );
+
+-- Upgrade existing databases safely.
+alter table public.campaigns
+  add column if not exists custom_fields jsonb not null default '[]'::jsonb;
+
+alter table public.orders
+  add column if not exists transaction_method text not null default '面交';
+
+alter table public.orders
+  add column if not exists extra_data jsonb not null default '{}'::jsonb;
+
+-- Ensure columns have expected defaults and not-null.
+alter table public.campaigns
+  alter column custom_fields set default '[]'::jsonb,
+  alter column custom_fields set not null;
+
+alter table public.orders
+  alter column transaction_method set default '面交',
+  alter column transaction_method set not null,
+  alter column extra_data set default '{}'::jsonb,
+  alter column extra_data set not null;
+
+-- Ensure check constraints exist.
+do $$
+begin
+  if not exists (
+    select 1
+    from pg_constraint
+    where conname = 'campaigns_custom_fields_array_check'
+  ) then
+    alter table public.campaigns
+      add constraint campaigns_custom_fields_array_check
+      check (jsonb_typeof(custom_fields) = 'array');
+  end if;
+
+  if not exists (
+    select 1
+    from pg_constraint
+    where conname = 'orders_transaction_method_check'
+  ) then
+    alter table public.orders
+      add constraint orders_transaction_method_check
+      check (transaction_method in ('面交', '賣貨便'));
+  end if;
+
+  if not exists (
+    select 1
+    from pg_constraint
+    where conname = 'orders_extra_data_object_check'
+  ) then
+    alter table public.orders
+      add constraint orders_extra_data_object_check
+      check (jsonb_typeof(extra_data) = 'object');
+  end if;
+end;
+$$;
 
 create index if not exists idx_orders_campaign_created_at on public.orders(campaign_id, created_at desc);
 create index if not exists idx_orders_customer_lookup on public.orders(lower(customer_name), phone_last3);
@@ -181,12 +241,11 @@ $$;
 grant execute on function public.search_order_status(text, text, text) to anon, authenticated;
 
 -- Create your first admin account email manually.
--- Replace with your own email.
 insert into public.admins(email)
 values ('49125466easongo@gmail.com')
 on conflict (email) do nothing;
 
 -- Create a first campaign sample.
-insert into public.campaigns(slug, title, description, is_active)
-values ('usj-poster-initial', '環球影城海報冊代購（第一梯）', '請填寫訂購資訊。', true)
+insert into public.campaigns(slug, title, description, custom_fields, is_active)
+values ('usj-poster-initial', '環球影城海報冊代購（第一梯）', '請填寫訂購資訊。', '[]'::jsonb, true)
 on conflict (slug) do nothing;

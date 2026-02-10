@@ -9,6 +9,7 @@ const queryMessage = document.querySelector("#query-message");
 const orderCampaignSelect = document.querySelector("#campaign-id");
 const queryCampaignSelect = document.querySelector("#query-campaign-slug");
 const queryResultsBody = document.querySelector("#query-results");
+const customFieldsContainer = document.querySelector("#custom-fields-container");
 
 let campaigns = [];
 
@@ -40,27 +41,137 @@ function formatDate(dateText) {
   });
 }
 
+function escapeHtml(input) {
+  return String(input)
+    .replaceAll("&", "&amp;")
+    .replaceAll("<", "&lt;")
+    .replaceAll(">", "&gt;")
+    .replaceAll('"', "&quot;")
+    .replaceAll("'", "&#039;");
+}
+
+function normalizeCustomFields(rawFields) {
+  if (!Array.isArray(rawFields)) return [];
+
+  return rawFields
+    .map((field) => {
+      if (!field || typeof field !== "object") return null;
+      const key = String(field.key || "").trim();
+      const label = String(field.label || key || "").trim();
+      const type = String(field.type || "text").trim();
+      const required = Boolean(field.required);
+      const options = Array.isArray(field.options)
+        ? field.options.map((item) => String(item).trim()).filter(Boolean)
+        : [];
+
+      if (!key) return null;
+      return { key, label, type, required, options };
+    })
+    .filter(Boolean);
+}
+
+function getSelectedCampaign() {
+  return campaigns.find((campaign) => campaign.id === orderCampaignSelect.value) || null;
+}
+
+function renderCustomFields() {
+  const campaign = getSelectedCampaign();
+  const customFields = normalizeCustomFields(campaign?.custom_fields);
+
+  if (!customFields.length) {
+    customFieldsContainer.innerHTML = "";
+    return;
+  }
+
+  customFieldsContainer.innerHTML = customFields
+    .map((field) => {
+      const reqAttr = field.required ? "required" : "";
+      const requiredMark = field.required ? " *" : "";
+      const safeKey = escapeHtml(field.key);
+      const safeLabel = escapeHtml(field.label + requiredMark);
+
+      if (field.type === "textarea") {
+        return `
+          <label>
+            ${safeLabel}
+            <textarea data-custom-key="${safeKey}" rows="3" ${reqAttr}></textarea>
+          </label>
+        `;
+      }
+
+      if (field.type === "select") {
+        const options = field.options.length ? field.options : [""];
+        const optionHtml = options
+          .map((option) => `<option value="${escapeHtml(option)}">${escapeHtml(option || "請選擇")}</option>`)
+          .join("");
+        return `
+          <label>
+            ${safeLabel}
+            <select data-custom-key="${safeKey}" ${reqAttr}>${optionHtml}</select>
+          </label>
+        `;
+      }
+
+      const inputType = field.type === "number" ? "number" : "text";
+      return `
+        <label>
+          ${safeLabel}
+          <input data-custom-key="${safeKey}" type="${inputType}" ${reqAttr} />
+        </label>
+      `;
+    })
+    .join("");
+}
+
+function collectCustomFieldValues() {
+  const values = {};
+  const elements = customFieldsContainer.querySelectorAll("[data-custom-key]");
+
+  for (const element of elements) {
+    const key = element.getAttribute("data-custom-key");
+    if (!key) continue;
+    const value = element.value?.trim?.() ?? "";
+    values[key] = value;
+  }
+
+  return values;
+}
+
 function renderCampaignOptions() {
   if (!campaigns.length) {
     orderCampaignSelect.innerHTML = '<option value="">目前沒有活動</option>';
     queryCampaignSelect.innerHTML = '<option value="">目前沒有活動</option>';
+    customFieldsContainer.innerHTML = "";
     return;
   }
 
+  const previousOrderCampaign = orderCampaignSelect.value;
+  const previousQueryCampaign = queryCampaignSelect.value;
+
   orderCampaignSelect.innerHTML = campaigns
-    .map((c) => `<option value="${c.id}">${c.title}</option>`)
+    .map((c) => `<option value="${c.id}">${escapeHtml(c.title)}</option>`)
     .join("");
 
   queryCampaignSelect.innerHTML = campaigns
-    .map((c) => `<option value="${c.slug}">${c.title}</option>`)
+    .map((c) => `<option value="${c.slug}">${escapeHtml(c.title)}</option>`)
     .join("");
+
+  if (campaigns.some((c) => c.id === previousOrderCampaign)) {
+    orderCampaignSelect.value = previousOrderCampaign;
+  }
+
+  if (campaigns.some((c) => c.slug === previousQueryCampaign)) {
+    queryCampaignSelect.value = previousQueryCampaign;
+  }
+
+  renderCustomFields();
 }
 
 async function loadCampaigns() {
   const supabase = getSupabase();
   const { data, error } = await supabase
     .from("campaigns")
-    .select("id, slug, title")
+    .select("id, slug, title, custom_fields")
     .eq("is_active", true)
     .order("created_at", { ascending: false });
 
@@ -79,16 +190,20 @@ function renderQueryResults(rows) {
     .map(
       (row) => `
       <tr>
-        <td>${row.campaign_title}</td>
-        <td>${row.customer_name}</td>
+        <td>${escapeHtml(row.campaign_title)}</td>
+        <td>${escapeHtml(row.customer_name)}</td>
         <td>${row.quantity}</td>
-        <td>${row.status}</td>
+        <td>${escapeHtml(row.status)}</td>
         <td>${formatDate(row.submitted_at)}</td>
       </tr>
     `,
     )
     .join("");
 }
+
+orderCampaignSelect.addEventListener("change", () => {
+  renderCustomFields();
+});
 
 orderForm.addEventListener("submit", async (event) => {
   event.preventDefault();
@@ -103,7 +218,9 @@ orderForm.addEventListener("submit", async (event) => {
     const quantity = Number(document.querySelector("#quantity").value);
     const transferAccount = document.querySelector("#transfer-account").value.trim();
     const transferTime = toLocalISO(document.querySelector("#transfer-time").value);
+    const transactionMethod = document.querySelector("#transaction-method").value;
     const note = document.querySelector("#note").value.trim();
+    const extraData = collectCustomFieldValues();
 
     if (!campaignId) throw new Error("目前沒有可訂購活動");
     if (!customerName) throw new Error("請輸入姓名");
@@ -112,6 +229,7 @@ orderForm.addEventListener("submit", async (event) => {
     if (!Number.isFinite(quantity) || quantity <= 0) throw new Error("請輸入正確數量");
     if (!transferAccount) throw new Error("請輸入匯款帳號");
     if (!transferTime) throw new Error("請輸入正確的匯款時間");
+    if (!["面交", "賣貨便"].includes(transactionMethod)) throw new Error("交易方式錯誤");
 
     const { error } = await supabase.from("orders").insert({
       campaign_id: campaignId,
@@ -121,7 +239,9 @@ orderForm.addEventListener("submit", async (event) => {
       quantity,
       transfer_account: transferAccount,
       transfer_time: transferTime,
+      transaction_method: transactionMethod,
       note,
+      extra_data: extraData,
       status: STATUS_DEFAULT,
     });
 
@@ -129,6 +249,8 @@ orderForm.addEventListener("submit", async (event) => {
 
     orderForm.reset();
     document.querySelector("#quantity").value = "1";
+    document.querySelector("#transaction-method").value = "面交";
+    renderCustomFields();
     setMessage(orderFormMessage, "送出成功，請保留姓名與手機末3碼以便查詢。", "success");
   } catch (error) {
     setMessage(orderFormMessage, `送出失敗：${error.message}`, "error");
@@ -173,6 +295,7 @@ queryForm.addEventListener("submit", async (event) => {
 (async function bootstrap() {
   try {
     await loadCampaigns();
+    document.querySelector("#transaction-method").value = "面交";
   } catch (error) {
     setMessage(orderFormMessage, `初始化失敗：${error.message}`, "error");
     setMessage(queryMessage, `初始化失敗：${error.message}`, "error");

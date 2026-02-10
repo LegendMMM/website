@@ -134,6 +134,23 @@ button:hover {
   align-items: flex-end;
 }
 
+.compact-card {
+  border: 1px solid var(--line);
+  border-radius: 8px;
+  padding: 0.8rem;
+  background: #f9fbfe;
+}
+
+.compact-card h4 {
+  margin: 0 0 0.25rem;
+}
+
+.inline-check {
+  display: flex;
+  align-items: center;
+  gap: 0.45rem;
+}
+
 .table-wrap {
   overflow-x: auto;
   border: 1px solid var(--line);
@@ -143,7 +160,7 @@ button:hover {
 table {
   width: 100%;
   border-collapse: collapse;
-  min-width: 780px;
+  min-width: 1200px;
 }
 
 th,
@@ -186,6 +203,23 @@ th {
 
 .status-select {
   min-width: 110px;
+}
+
+.table-wrap input,
+.table-wrap select,
+.table-wrap textarea {
+  width: 100%;
+  min-width: 120px;
+  padding: 0.4rem 0.45rem;
+  font-size: 0.86rem;
+}
+
+.table-wrap textarea {
+  min-height: 70px;
+}
+
+.table-wrap button {
+  white-space: nowrap;
 }
 
 @media (max-width: 760px) {
