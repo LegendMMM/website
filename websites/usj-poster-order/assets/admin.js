@@ -142,6 +142,30 @@ function parseCustomFieldsInput(inputText) {
   return normalized;
 }
 
+function slugifyTitle(title) {
+  return String(title || "")
+    .toLowerCase()
+    .normalize("NFKD")
+    .replace(/[\u0300-\u036f]/g, "")
+    .replace(/[^a-z0-9]+/g, "-")
+    .replace(/^-+|-+$/g, "")
+    .replace(/-{2,}/g, "-");
+}
+
+function generateCampaignSlug(title) {
+  const base = (slugifyTitle(title) || "campaign").slice(0, 28);
+  const dayCode = new Date().toISOString().slice(0, 10).replace(/-/g, "");
+  let suffix = Math.random().toString(36).slice(2, 6);
+  let slug = `${base}-${dayCode}-${suffix}`;
+
+  while (activeCampaigns.some((campaign) => campaign.slug === slug)) {
+    suffix = Math.random().toString(36).slice(2, 6);
+    slug = `${base}-${dayCode}-${suffix}`;
+  }
+
+  return slug;
+}
+
 function getSelectedCampaign() {
   return activeCampaigns.find((campaign) => campaign.id === adminCampaignFilter.value) || null;
 }
@@ -576,14 +600,14 @@ campaignForm.addEventListener("submit", async (event) => {
 
   try {
     const supabase = getSupabase();
-    const slug = document.querySelector("#campaign-slug").value.trim();
     const title = document.querySelector("#campaign-title").value.trim();
     const description = document.querySelector("#campaign-description").value.trim();
     const notice = document.querySelector("#campaign-notice").value.trim();
     const customFieldsText = document.querySelector("#campaign-custom-fields").value;
     const customFields = parseCustomFieldsInput(customFieldsText);
+    const slug = generateCampaignSlug(title);
 
-    if (!slug || !title) throw new Error("請輸入活動代碼與標題");
+    if (!title) throw new Error("請輸入活動標題");
 
     const { data, error } = await supabase
       .from("campaigns")
@@ -601,7 +625,7 @@ campaignForm.addEventListener("submit", async (event) => {
     if (error) throw error;
 
     campaignForm.reset();
-    setMessage(campaignMessage, "活動建立完成。", "success");
+    setMessage(campaignMessage, `活動建立完成（代碼：${slug}）。`, "success");
     await loadCampaignsForAdmin();
 
     if (data?.id) {

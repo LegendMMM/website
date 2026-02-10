@@ -41,20 +41,10 @@
         <form id="campaign-form" class="stack section-divider">
           <h3>建立新活動表單</h3>
           <label>
-            活動代碼 (slug)
-            <input
-              id="campaign-slug"
-              type="text"
-              required
-              maxlength="50"
-              pattern="[a-z0-9-]+"
-              placeholder="例如 usj-poster-2026-03"
-            />
-          </label>
-          <label>
             活動標題
             <input id="campaign-title" type="text" required maxlength="80" />
           </label>
+          <p class="hint">活動代碼會自動產生，你不用手動填寫。</p>
           <label>
             活動說明
             <textarea id="campaign-description" rows="3" maxlength="300"></textarea>
