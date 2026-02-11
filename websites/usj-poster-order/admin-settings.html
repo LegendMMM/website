@@ -3,14 +3,14 @@
   <head>
     <meta charset="UTF-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-    <title>管理中心 | 環球影城海報冊代購</title>
+    <title>系統設定 | 環球影城海報冊代購</title>
     <link rel="stylesheet" href="./assets/styles.css?v=admin-c-20260211-2" />
   </head>
-  <body class="admin-page" data-admin-page="dashboard">
+  <body class="admin-page" data-admin-page="settings">
     <header class="site-header">
       <div class="container">
-        <h1>管理中心</h1>
-        <p>登入後可進入活動管理、訂單管理、系統設定三個分頁。</p>
+        <h1>系統設定</h1>
+        <p>管理全域狀態選項，供活動與訂單頁使用。</p>
       </div>
     </header>
 
@@ -27,7 +27,6 @@
             <input id="admin-password" type="password" required minlength="6" />
           </label>
           <button type="submit">登入</button>
-          <p class="hint">請使用已建立在 Supabase Authentication 的管理員帳號。</p>
           <p id="auth-message" class="message" aria-live="polite"></p>
         </form>
       </section>
@@ -35,32 +34,35 @@
       <section class="card hidden" id="admin-panel">
         <div class="admin-shell-head">
           <div>
-            <h2>後台分頁入口</h2>
-            <p class="hint">可依工作情境切換到獨立頁面。</p>
+            <h2>狀態選項設定</h2>
+            <p class="hint">這裡新增或調整全域狀態，活動可選擇沿用或覆寫。</p>
           </div>
           <button data-action="logout" type="button">登出</button>
         </div>
 
         <nav class="admin-nav">
-          <a href="./admin.html" class="current">管理首頁</a>
+          <a href="./admin.html">管理首頁</a>
           <a href="./admin-campaigns.html">活動管理</a>
           <a href="./admin-orders.html">訂單管理</a>
-          <a href="./admin-settings.html">系統設定</a>
+          <a href="./admin-settings.html" class="current">系統設定</a>
         </nav>
 
-        <section class="admin-grid-links section-divider">
-          <a class="admin-link-card" href="./admin-campaigns.html">
-            <h3>活動管理</h3>
-            <p>建立活動、調整活動欄位、修改活動說明與注意事項。</p>
-          </a>
-          <a class="admin-link-card" href="./admin-orders.html">
-            <h3>訂單管理</h3>
-            <p>編輯每筆訂單內容、自由切換狀態、匯出 CSV。</p>
-          </a>
-          <a class="admin-link-card" href="./admin-settings.html">
-            <h3>系統設定</h3>
-            <p>新增與修改全域狀態選項，供各活動引用或覆寫。</p>
-          </a>
+        <section class="section-divider stack">
+          <form id="global-status-form" class="stack compact-card">
+            <h3>全域狀態清單</h3>
+            <p class="hint">訂單頁可自由切換為這份清單中的任一狀態。</p>
+            <div id="global-status-list" class="stack"></div>
+            <div class="toolbar">
+              <button id="add-global-status-btn" type="button">新增狀態</button>
+              <button type="submit">儲存全域狀態</button>
+            </div>
+            <p id="global-status-message" class="message" aria-live="polite"></p>
+          </form>
+
+          <div class="compact-card stack">
+            <h4>預覽</h4>
+            <div id="global-status-preview" class="status-chip-row"></div>
+          </div>
         </section>
       </section>
     </main>

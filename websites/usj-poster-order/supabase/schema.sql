@@ -23,6 +23,7 @@ create table if not exists public.campaigns (
   notice text not null default '',
   custom_fields jsonb not null default '[]'::jsonb,
   field_config jsonb not null default '[]'::jsonb,
+  status_options jsonb not null default '[]'::jsonb,
   is_active boolean not null default true,
   created_at timestamptz not null default now()
 );
@@ -41,9 +42,19 @@ create table if not exists public.orders (
   note text not null default '',
   extra_data jsonb not null default '{}'::jsonb,
   field_snapshot jsonb not null default '[]'::jsonb,
-  status text not null default '已匯款' check (status in ('已匯款', '已採購', '已到貨', '已完成')),
+  status text not null default '已匯款',
   created_at timestamptz not null default now(),
   updated_at timestamptz not null default now()
+);
+
+create table if not exists public.order_status_logs (
+  id uuid primary key default gen_random_uuid(),
+  order_id uuid not null references public.orders(id) on delete cascade,
+  campaign_id uuid not null references public.campaigns(id) on delete cascade,
+  old_status text,
+  new_status text not null,
+  changed_by text,
+  changed_at timestamptz not null default now()
 );
 
 -- Upgrade existing databases safely.
@@ -53,6 +64,8 @@ alter table public.campaigns
   add column if not exists notice text not null default '';
 alter table public.campaigns
   add column if not exists field_config jsonb not null default '[]'::jsonb;
+alter table public.campaigns
+  add column if not exists status_options jsonb not null default '[]'::jsonb;
 
 alter table public.orders
   add column if not exists transaction_method text not null default '面交';
@@ -69,7 +82,9 @@ alter table public.campaigns
   alter column custom_fields set default '[]'::jsonb,
   alter column custom_fields set not null,
   alter column field_config set default '[]'::jsonb,
-  alter column field_config set not null;
+  alter column field_config set not null,
+  alter column status_options set default '[]'::jsonb,
+  alter column status_options set not null;
 
 alter table public.orders
   alter column transaction_method set default '面交',
@@ -105,6 +120,16 @@ begin
   if not exists (
     select 1
     from pg_constraint
+    where conname = 'campaigns_status_options_array_check'
+  ) then
+    alter table public.campaigns
+      add constraint campaigns_status_options_array_check
+      check (jsonb_typeof(status_options) = 'array');
+  end if;
+
+  if not exists (
+    select 1
+    from pg_constraint
     where conname = 'orders_transaction_method_check'
   ) then
     alter table public.orders
@@ -134,9 +159,28 @@ begin
 end;
 $$;
 
+do $$
+declare
+  rec record;
+begin
+  for rec in
+    select conname
+    from pg_constraint
+    where conrelid = 'public.orders'::regclass
+      and contype = 'c'
+      and pg_get_constraintdef(oid) ilike '%status%'
+      and pg_get_constraintdef(oid) ilike '%已匯款%'
+  loop
+    execute format('alter table public.orders drop constraint %I', rec.conname);
+  end loop;
+end;
+$$;
+
 create index if not exists idx_orders_campaign_created_at on public.orders(campaign_id, created_at desc);
 create index if not exists idx_orders_customer_lookup on public.orders(lower(customer_name), phone_last3);
 create index if not exists idx_orders_phone_digits on public.orders((regexp_replace(phone, '\D', '', 'g')));
+create index if not exists idx_order_status_logs_campaign_changed_at on public.order_status_logs(campaign_id, changed_at desc);
+create index if not exists idx_order_status_logs_order_changed_at on public.order_status_logs(order_id, changed_at desc);
 
 create or replace function public.set_orders_derived_fields()
 returns trigger
@@ -156,11 +200,30 @@ begin
 end;
 $$;
 
+create or replace function public.log_order_status_change()
+returns trigger
+language plpgsql
+as $$
+begin
+  if tg_op = 'UPDATE' and new.status is distinct from old.status then
+    insert into public.order_status_logs(order_id, campaign_id, old_status, new_status, changed_by)
+    values (new.id, new.campaign_id, old.status, new.status, auth.email());
+  end if;
+  return new;
+end;
+$$;
+
 drop trigger if exists trg_orders_derived_fields on public.orders;
 create trigger trg_orders_derived_fields
 before insert or update on public.orders
 for each row
 execute function public.set_orders_derived_fields();
+
+drop trigger if exists trg_orders_status_log on public.orders;
+create trigger trg_orders_status_log
+after update on public.orders
+for each row
+execute function public.log_order_status_change();
 
 create or replace function public.is_admin()
 returns boolean
@@ -178,6 +241,7 @@ alter table public.admins enable row level security;
 alter table public.app_settings enable row level security;
 alter table public.campaigns enable row level security;
 alter table public.orders enable row level security;
+alter table public.order_status_logs enable row level security;
 
 -- admins table policies
 
@@ -195,7 +259,7 @@ create policy app_settings_public_read_defaults
 on public.app_settings
 for select
 to anon, authenticated
-using (key = 'order_form_defaults' or public.is_admin());
+using (key in ('order_form_defaults', 'order_status_options') or public.is_admin());
 
 drop policy if exists app_settings_admin_insert on public.app_settings;
 create policy app_settings_admin_insert
@@ -281,6 +345,27 @@ for delete
 to authenticated
 using (public.is_admin());
 
+drop policy if exists order_status_logs_admin_select on public.order_status_logs;
+create policy order_status_logs_admin_select
+on public.order_status_logs
+for select
+to authenticated
+using (public.is_admin());
+
+drop policy if exists order_status_logs_admin_insert on public.order_status_logs;
+create policy order_status_logs_admin_insert
+on public.order_status_logs
+for insert
+to authenticated
+with check (public.is_admin());
+
+drop policy if exists order_status_logs_admin_delete on public.order_status_logs;
+create policy order_status_logs_admin_delete
+on public.order_status_logs
+for delete
+to authenticated
+using (public.is_admin());
+
 drop function if exists public.search_order_status(text, text, text);
 
 create or replace function public.search_order_status(
@@ -350,6 +435,16 @@ values (
       jsonb_build_object('key', 'transaction_method', 'label', '交易方式', 'type', 'select', 'required', true, 'visible', true, 'placeholder', '', 'options', jsonb_build_array('面交', '賣貨便'), 'source', 'fixed'),
       jsonb_build_object('key', 'note', 'label', '備註', 'type', 'textarea', 'required', false, 'visible', true, 'placeholder', '可留空', 'options', '[]'::jsonb, 'source', 'fixed')
     )
+  )
+)
+on conflict (key) do nothing;
+
+insert into public.app_settings(key, value)
+values (
+  'order_status_options',
+  jsonb_build_object(
+    'options',
+    jsonb_build_array('已匯款', '已採購', '已到貨', '已完成')
   )
 )
 on conflict (key) do nothing;

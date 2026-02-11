@@ -1,6 +1,6 @@
 import { getSupabase } from "./supabaseClient.js";
 
-const STATUS_DEFAULT = "已匯款";
+const STATUS_FALLBACK = "已匯款";
 
 const PROTECTED_REQUIRED_KEYS = new Set([
   "customer_name",
@@ -114,6 +114,7 @@ const backToStep1Btn = document.querySelector("#back-to-step-1");
 let campaigns = [];
 let defaultFieldConfig = buildBaseFixedFieldConfig();
 let activeFieldConfig = [];
+let globalStatusOptions = [STATUS_FALLBACK];
 
 function setMessage(el, text, type = "") {
   el.textContent = text;
@@ -198,6 +199,19 @@ function normalizeCustomFields(rawFields) {
       };
     })
     .filter(Boolean);
+}
+
+function normalizeStatusOptions(rawOptions) {
+  if (!Array.isArray(rawOptions)) return [];
+  const seen = new Set();
+  const result = [];
+  for (const option of rawOptions) {
+    const text = String(option || "").trim();
+    if (!text || seen.has(text)) continue;
+    seen.add(text);
+    result.push(text);
+  }
+  return result;
 }
 
 function normalizeFieldConfig(rawFields) {
@@ -461,23 +475,60 @@ async function loadDefaultFieldConfig() {
   });
 }
 
+async function loadGlobalStatusOptions() {
+  const supabase = getSupabase();
+  const { data, error } = await supabase
+    .from("app_settings")
+    .select("value")
+    .eq("key", "order_status_options")
+    .maybeSingle();
+
+  if (error) {
+    globalStatusOptions = [STATUS_FALLBACK];
+    return;
+  }
+
+  const loaded = normalizeStatusOptions(data?.value?.options);
+  globalStatusOptions = loaded.length ? loaded : [STATUS_FALLBACK];
+}
+
 async function loadCampaigns() {
   const supabase = getSupabase();
   let query = supabase
     .from("campaigns")
-    .select("id, slug, title, description, notice, custom_fields, field_config")
+    .select("id, slug, title, description, notice, custom_fields, field_config, status_options")
     .eq("is_active", true)
     .order("created_at", { ascending: false });
 
   let { data, error } = await query;
 
+  if (error && /status_options/i.test(error.message || "")) {
+    const fallback = await supabase
+      .from("campaigns")
+      .select("id, slug, title, description, notice, custom_fields, field_config")
+      .eq("is_active", true)
+      .order("created_at", { ascending: false });
+    data = (fallback.data || []).map((campaign) => ({ ...campaign, status_options: [] }));
+    error = fallback.error;
+  }
+
   if (error && /field_config/i.test(error.message || "")) {
+    const fallback = await supabase
+      .from("campaigns")
+      .select("id, slug, title, description, notice, custom_fields, status_options")
+      .eq("is_active", true)
+      .order("created_at", { ascending: false });
+    data = (fallback.data || []).map((campaign) => ({ ...campaign, field_config: [] }));
+    error = fallback.error;
+  }
+
+  if (error && /field_config|status_options/i.test(error.message || "")) {
     const fallback = await supabase
       .from("campaigns")
       .select("id, slug, title, description, notice, custom_fields")
       .eq("is_active", true)
       .order("created_at", { ascending: false });
-    data = (fallback.data || []).map((campaign) => ({ ...campaign, field_config: [] }));
+    data = (fallback.data || []).map((campaign) => ({ ...campaign, field_config: [], status_options: [] }));
     error = fallback.error;
   }
 
@@ -487,6 +538,7 @@ async function loadCampaigns() {
     ...campaign,
     custom_fields: normalizeCustomFields(campaign.custom_fields),
     field_config: normalizeFieldConfig(campaign.field_config),
+    status_options: normalizeStatusOptions(campaign.status_options),
   }));
 
   renderCampaignOptions();
@@ -514,7 +566,13 @@ function validateVisibleRequiredFields(visibleFields, values) {
   }
 }
 
-function buildOrderInsertPayload(campaignId, values) {
+function resolveStatusOptionsForCampaign(campaign) {
+  const campaignStatuses = normalizeStatusOptions(campaign?.status_options);
+  if (campaignStatuses.length) return campaignStatuses;
+  return globalStatusOptions.length ? globalStatusOptions : [STATUS_FALLBACK];
+}
+
+function buildOrderInsertPayload(campaignId, values, initialStatus) {
   const quantity = Number(values.quantity);
   const transferTime = toLocalISO(values.transfer_time);
 
@@ -557,7 +615,7 @@ function buildOrderInsertPayload(campaignId, values) {
     note: values.note || "",
     extra_data: extraData,
     field_snapshot: fieldSnapshot,
-    status: STATUS_DEFAULT,
+    status: initialStatus || STATUS_FALLBACK,
   };
 }
 
@@ -628,12 +686,14 @@ orderForm.addEventListener("submit", async (event) => {
   try {
     const campaignId = orderCampaignSelect.value;
     if (!campaignId) throw new Error("目前沒有可訂購活動");
+    const selectedCampaign = getSelectedCampaign();
 
     const visibleFields = getVisibleFieldConfig();
     const values = collectVisibleFieldValues();
     validateVisibleRequiredFields(visibleFields, values);
 
-    const payload = buildOrderInsertPayload(campaignId, values);
+    const initialStatus = resolveStatusOptionsForCampaign(selectedCampaign)[0] || STATUS_FALLBACK;
+    const payload = buildOrderInsertPayload(campaignId, values, initialStatus);
     const supabase = getSupabase();
     let { error } = await supabase.from("orders").insert(payload);
 
@@ -646,7 +706,6 @@ orderForm.addEventListener("submit", async (event) => {
 
     if (error) throw error;
 
-    const selectedCampaign = getSelectedCampaign();
     activeFieldConfig = selectedCampaign ? buildCampaignFieldConfig(selectedCampaign) : [];
     renderOrderFields();
     renderCampaignInfo();
@@ -697,6 +756,7 @@ queryForm.addEventListener("submit", async (event) => {
     setActivePanel("hub");
     setOrderStep(1);
     await loadDefaultFieldConfig();
+    await loadGlobalStatusOptions();
     await loadCampaigns();
   } catch (error) {
     setMessage(orderFormMessage, `初始化失敗：${error.message}`, "error");

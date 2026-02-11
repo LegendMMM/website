@@ -1,0 +1,149 @@
+<!doctype html>
+<html lang="zh-Hant">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>活動管理 | 環球影城海報冊代購</title>
+    <link rel="stylesheet" href="./assets/styles.css?v=admin-c-20260211-2" />
+  </head>
+  <body class="admin-page" data-admin-page="campaigns">
+    <header class="site-header">
+      <div class="container">
+        <h1>活動管理</h1>
+        <p>管理活動資料、欄位模板與活動專屬狀態選項。</p>
+      </div>
+    </header>
+
+    <main class="container admin-layout">
+      <section class="card" id="auth-panel">
+        <h2>管理者登入</h2>
+        <form id="login-form" class="stack">
+          <label>
+            帳號 (Email)
+            <input id="admin-email" type="email" required />
+          </label>
+          <label>
+            密碼
+            <input id="admin-password" type="password" required minlength="6" />
+          </label>
+          <button type="submit">登入</button>
+          <p id="auth-message" class="message" aria-live="polite"></p>
+        </form>
+      </section>
+
+      <section class="card hidden" id="admin-panel">
+        <div class="admin-shell-head">
+          <div>
+            <h2>活動配置</h2>
+            <p class="hint">可在建立活動前後調整欄位與狀態。</p>
+          </div>
+          <button data-action="logout" type="button">登出</button>
+        </div>
+
+        <nav class="admin-nav">
+          <a href="./admin.html">管理首頁</a>
+          <a href="./admin-campaigns.html" class="current">活動管理</a>
+          <a href="./admin-orders.html">訂單管理</a>
+          <a href="./admin-settings.html">系統設定</a>
+        </nav>
+
+        <section class="section-divider stack">
+          <h3>全域預設欄位模板（建立活動前可改）</h3>
+          <form id="global-defaults-form" class="stack compact-card">
+            <p class="hint">新活動會套用此模板。關鍵欄位不可刪除或隱藏。</p>
+            <div id="global-field-list" class="stack"></div>
+            <button type="submit">儲存全域預設</button>
+            <p id="global-message" class="message" aria-live="polite"></p>
+          </form>
+        </section>
+
+        <section class="section-divider stack">
+          <h3>活動設定（建立後可改）</h3>
+          <div class="toolbar">
+            <label>
+              選擇活動
+              <select id="campaigns-filter"></select>
+            </label>
+            <button id="reload-campaigns-btn" type="button">重新整理</button>
+          </div>
+
+          <form id="campaign-settings-form" class="stack compact-card">
+            <label>
+              活動標題
+              <input id="settings-title" type="text" required maxlength="80" />
+            </label>
+            <label>
+              活動說明
+              <textarea id="settings-description" rows="2" maxlength="300"></textarea>
+            </label>
+            <label>
+              前台注意事項
+              <textarea id="settings-notice" rows="3" maxlength="1000"></textarea>
+            </label>
+            <label>
+              自訂欄位 (JSON 陣列)
+              <textarea id="settings-custom-fields" rows="6"></textarea>
+            </label>
+
+            <div class="stack compact-card">
+              <h4>活動欄位覆寫</h4>
+              <p class="hint">可調整欄位名稱、排序、必填、顯示與 placeholder。</p>
+              <div id="campaign-field-list" class="stack"></div>
+            </div>
+
+            <div class="stack compact-card">
+              <h4>活動狀態選項（可覆寫全域）</h4>
+              <label class="inline-check">
+                <input id="campaign-use-global-status" type="checkbox" />
+                使用全域狀態選項
+              </label>
+              <p class="hint">取消勾選後，可定義此活動自己的狀態清單。</p>
+              <div id="campaign-status-editor" class="stack">
+                <div id="campaign-status-list" class="stack"></div>
+                <button id="add-campaign-status-btn" type="button">新增活動狀態</button>
+              </div>
+            </div>
+
+            <label class="inline-check">
+              <input id="settings-is-active" type="checkbox" />
+              活動啟用（取消勾選後前台不顯示）
+            </label>
+            <button type="submit">儲存活動設定</button>
+            <p id="campaign-settings-message" class="message" aria-live="polite"></p>
+          </form>
+        </section>
+
+        <section class="section-divider stack">
+          <h3>建立新活動</h3>
+          <form id="campaign-form" class="stack">
+            <label>
+              活動標題
+              <input id="campaign-title" type="text" required maxlength="80" />
+            </label>
+            <p class="hint">活動代碼 (slug) 會自動產生，預設使用全域狀態選項。</p>
+            <label>
+              活動說明
+              <textarea id="campaign-description" rows="3" maxlength="300"></textarea>
+            </label>
+            <label>
+              前台注意事項
+              <textarea id="campaign-notice" rows="3" maxlength="1000"></textarea>
+            </label>
+            <label>
+              自訂欄位 (JSON 陣列，可留空)
+              <textarea id="campaign-custom-fields" rows="6"></textarea>
+            </label>
+            <button type="submit">建立活動</button>
+            <p id="campaign-message" class="message" aria-live="polite"></p>
+          </form>
+        </section>
+      </section>
+    </main>
+
+    <footer class="container footer">
+      <a href="./index.html">回前台頁面</a>
+    </footer>
+
+    <script type="module" src="./assets/admin-shell.js"></script>
+  </body>
+</html>

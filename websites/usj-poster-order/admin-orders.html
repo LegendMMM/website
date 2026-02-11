@@ -1,0 +1,107 @@
+<!doctype html>
+<html lang="zh-Hant">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>訂單管理 | 環球影城海報冊代購</title>
+    <link rel="stylesheet" href="./assets/styles.css?v=admin-c-20260211-2" />
+  </head>
+  <body class="admin-page" data-admin-page="orders">
+    <header class="site-header">
+      <div class="container">
+        <h1>訂單管理</h1>
+        <p>編輯整筆訂單內容，並可自由切換狀態選項。</p>
+      </div>
+    </header>
+
+    <main class="container admin-layout">
+      <section class="card" id="auth-panel">
+        <h2>管理者登入</h2>
+        <form id="login-form" class="stack">
+          <label>
+            帳號 (Email)
+            <input id="admin-email" type="email" required />
+          </label>
+          <label>
+            密碼
+            <input id="admin-password" type="password" required minlength="6" />
+          </label>
+          <button type="submit">登入</button>
+          <p id="auth-message" class="message" aria-live="polite"></p>
+        </form>
+      </section>
+
+      <section class="card hidden" id="admin-panel">
+        <div class="admin-shell-head">
+          <div>
+            <h2>訂單與狀態紀錄</h2>
+            <p class="hint">狀態下拉由活動設定或全域設定帶入。</p>
+          </div>
+          <button data-action="logout" type="button">登出</button>
+        </div>
+
+        <nav class="admin-nav">
+          <a href="./admin.html">管理首頁</a>
+          <a href="./admin-campaigns.html">活動管理</a>
+          <a href="./admin-orders.html" class="current">訂單管理</a>
+          <a href="./admin-settings.html">系統設定</a>
+        </nav>
+
+        <div class="subnav-tabs section-divider">
+          <button type="button" class="tab-btn active" data-orders-view="list">訂單列表</button>
+          <button type="button" class="tab-btn" data-orders-view="logs">狀態紀錄</button>
+        </div>
+
+        <section id="orders-list-view" class="stack">
+          <div class="toolbar">
+            <label>
+              選擇活動
+              <select id="orders-campaign-filter"></select>
+            </label>
+            <button id="reload-orders-btn" type="button">重新整理</button>
+            <button id="export-csv-btn" type="button">匯出 CSV</button>
+          </div>
+
+          <p id="orders-message" class="message" aria-live="polite"></p>
+          <div class="table-wrap">
+            <table class="admin-orders-table">
+              <thead id="orders-head"></thead>
+              <tbody id="orders-body"></tbody>
+            </table>
+          </div>
+        </section>
+
+        <section id="orders-logs-view" class="stack hidden section-divider">
+          <div class="toolbar">
+            <label>
+              選擇活動
+              <select id="logs-campaign-filter"></select>
+            </label>
+            <button id="reload-logs-btn" type="button">重新整理紀錄</button>
+          </div>
+          <p id="logs-message" class="message" aria-live="polite"></p>
+          <div class="table-wrap">
+            <table>
+              <thead>
+                <tr>
+                  <th>訂單 ID</th>
+                  <th>原狀態</th>
+                  <th>新狀態</th>
+                  <th>操作者</th>
+                  <th>時間</th>
+                </tr>
+              </thead>
+              <tbody id="status-logs-body"></tbody>
+            </table>
+          </div>
+        </section>
+      </section>
+    </main>
+
+    <footer class="container footer">
+      <a href="./index.html">回前台頁面</a>
+    </footer>
+
+    <script type="module" src="./assets/admin-shell.js"></script>
+  </body>
+</html>

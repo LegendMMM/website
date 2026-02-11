@@ -7,7 +7,13 @@
 - 活動說明 / 注意事項：依不同活動顯示不同內容
 - 訂單查詢：姓名或電話皆可查詢
 - 管理頁：帳號密碼登入（Email + Password）
-- 管理功能：建立/編輯活動、查看隱私欄位、編輯整筆訂單、匯出 CSV
+- 管理功能：
+  - `admin.html` 管理首頁
+  - `admin-campaigns.html` 活動管理
+  - `admin-orders.html` 訂單管理
+  - `admin-settings.html` 系統設定（可新增/修改全域狀態）
+  - 訂單狀態可自由切換（依全域或活動自訂狀態清單）
+  - 匯出 CSV
 - B+ 欄位模板：
   - 全域預設欄位模板（建立活動前可改）
   - 活動欄位覆寫（建立活動後可改）
@@ -18,14 +24,17 @@
 
 ## 目錄
 - `index.html`: 前台填單與查詢
-- `admin.html`: 管理頁
+- `admin.html`: 管理首頁（登入與分頁入口）
+- `admin-campaigns.html`: 活動管理
+- `admin-orders.html`: 訂單管理
+- `admin-settings.html`: 系統設定
 - `assets/config.js`: Supabase 設定（需自行填入）
 - `supabase/schema.sql`: 資料表與權限 SQL
 
 ## Supabase 設定步驟
 1. 在 Supabase 建立新 Project。
 2. 打開 SQL Editor，貼上 `supabase/schema.sql` 內容並執行。
-3. 如果你是從舊版本升級，一樣直接重跑這份 SQL（它包含升級欄位：`transaction_method`、`custom_fields`、`extra_data`、`notice`、`field_config`、`field_snapshot`，以及 `app_settings`）。
+3. 如果你是從舊版本升級，一樣直接重跑這份 SQL（它包含升級欄位：`transaction_method`、`custom_fields`、`extra_data`、`notice`、`field_config`、`field_snapshot`、`status_options`，以及狀態紀錄表 `order_status_logs` 和 `app_settings`）。
 4. 到 Project Settings > API，找到：
    - Project URL
    - `anon` public key
@@ -48,11 +57,13 @@
 - 管理者：打開 `admin.html`，輸入 Email + Password 登入。
 - 登入後可：
   - 建立新活動（只填標題，slug 自動產生）
-  - 修改既有活動（標題、說明、注意事項、是否啟用、自訂欄位）
+  - 修改既有活動（標題、說明、注意事項、是否啟用、自訂欄位、活動專屬狀態）
   - 修改全域預設欄位模板（新活動會套用）
   - 修改活動欄位覆寫（欄位名稱/順序/必填/顯示/placeholder）
+  - 在系統設定維護全域狀態清單
   - 切換活動查看訂單
-  - 直接修改整筆訂單內容（不只狀態）
+  - 直接修改整筆訂單內容（不只狀態，且可自由切換狀態）
+  - 查看狀態變更紀錄
   - 匯出 CSV
 
 ## 未來開新代購活動
