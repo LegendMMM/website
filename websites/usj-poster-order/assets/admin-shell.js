@@ -119,7 +119,6 @@ const campaignSettingsForm = document.querySelector("#campaign-settings-form");
 const campaignSettingsMessage = document.querySelector("#campaign-settings-message");
 const settingsTitle = document.querySelector("#settings-title");
 const settingsDescription = document.querySelector("#settings-description");
-const settingsNotice = document.querySelector("#settings-notice");
 const settingsIsActive = document.querySelector("#settings-is-active");
 const settingsCustomFields = document.querySelector("#settings-custom-fields");
 const campaignFieldList = document.querySelector("#campaign-field-list");
@@ -760,14 +759,14 @@ async function loadCampaignsForAdmin() {
 
   let query = supabase
     .from("campaigns")
-    .select("id, slug, title, description, notice, is_active, custom_fields, field_config, status_options")
+    .select("id, slug, title, description, is_active, custom_fields, field_config, status_options")
     .order("created_at", { ascending: false });
   let { data, error } = await query;
 
   if (error && /status_options/i.test(error.message || "")) {
     const fallback = await supabase
       .from("campaigns")
-      .select("id, slug, title, description, notice, is_active, custom_fields, field_config")
+      .select("id, slug, title, description, is_active, custom_fields, field_config")
       .order("created_at", { ascending: false });
     data = (fallback.data || []).map((campaign) => ({ ...campaign, status_options: [] }));
     error = fallback.error;
@@ -776,7 +775,7 @@ async function loadCampaignsForAdmin() {
   if (error && /field_config/i.test(error.message || "")) {
     const fallback = await supabase
       .from("campaigns")
-      .select("id, slug, title, description, notice, is_active, custom_fields, status_options")
+      .select("id, slug, title, description, is_active, custom_fields, status_options")
       .order("created_at", { ascending: false });
     data = (fallback.data || []).map((campaign) => ({ ...campaign, field_config: [] }));
     error = fallback.error;
@@ -785,7 +784,7 @@ async function loadCampaignsForAdmin() {
   if (error && /field_config|status_options/i.test(error.message || "")) {
     const fallback = await supabase
       .from("campaigns")
-      .select("id, slug, title, description, notice, is_active, custom_fields")
+      .select("id, slug, title, description, is_active, custom_fields")
       .order("created_at", { ascending: false });
     data = (fallback.data || []).map((campaign) => ({ ...campaign, field_config: [], status_options: [] }));
     error = fallback.error;
@@ -849,7 +848,6 @@ function populateCampaignSettings() {
 
   settingsTitle.value = campaign.title || "";
   settingsDescription.value = campaign.description || "";
-  settingsNotice.value = campaign.notice || "";
   settingsIsActive.checked = Boolean(campaign.is_active);
   settingsCustomFields.value = JSON.stringify(campaign.custom_fields, null, 2);
 
@@ -1323,10 +1321,10 @@ campaignForm?.addEventListener("submit", async (event) => {
   try {
     const title = document.querySelector("#campaign-title").value.trim();
     const description = document.querySelector("#campaign-description").value.trim();
-    const notice = document.querySelector("#campaign-notice").value.trim();
     const customFields = parseCustomFieldsJson(document.querySelector("#campaign-custom-fields").value);
 
     if (!title) throw new Error("請輸入活動標題");
+    if (description.length > 3000) throw new Error("活動說明不可超過 3000 字");
 
     const slug = generateCampaignSlug(title);
     const fieldConfig = mergeFieldConfig([], globalFieldConfig, customFields);
@@ -1337,7 +1335,6 @@ campaignForm?.addEventListener("submit", async (event) => {
         slug,
         title,
         description,
-        notice,
         custom_fields: customFields,
         field_config: fieldConfig,
         status_options: [],
@@ -1353,7 +1350,6 @@ campaignForm?.addEventListener("submit", async (event) => {
           slug,
           title,
           description,
-          notice,
           custom_fields: customFields,
           is_active: true,
         })
@@ -1388,10 +1384,10 @@ campaignSettingsForm?.addEventListener("submit", async (event) => {
 
     const title = settingsTitle.value.trim();
     const description = settingsDescription.value.trim();
-    const notice = settingsNotice.value.trim();
     const isActive = settingsIsActive.checked;
     const parsedCustomFields = parseCustomFieldsJson(settingsCustomFields.value);
     if (!title) throw new Error("活動標題不可空白");
+    if (description.length > 3000) throw new Error("活動說明不可超過 3000 字");
 
     campaignFieldConfig = mergeFieldConfig(campaignFieldConfig, globalFieldConfig, parsedCustomFields);
     if (!campaignUseGlobalStatus.checked) {
@@ -1404,7 +1400,6 @@ campaignSettingsForm?.addEventListener("submit", async (event) => {
       .update({
         title,
         description,
-        notice,
         is_active: isActive,
         custom_fields: parsedCustomFields,
         field_config: campaignFieldConfig,
@@ -1418,7 +1413,6 @@ campaignSettingsForm?.addEventListener("submit", async (event) => {
         .update({
           title,
           description,
-          notice,
           is_active: isActive,
           custom_fields: parsedCustomFields,
           field_config: campaignFieldConfig,

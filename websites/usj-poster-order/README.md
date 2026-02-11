@@ -4,7 +4,8 @@
 
 ## 功能
 - 前台表單：使用者填寫訂購資訊
-- 活動說明 / 注意事項：依不同活動顯示不同內容
+- 活動說明：依不同活動顯示不同內容（支援簡易 Markdown）
+- 活動說明長度上限：3000 字
 - 訂單查詢：姓名或電話皆可查詢
 - 管理頁：帳號密碼登入（Email + Password）
 - 管理功能：
@@ -34,7 +35,7 @@
 ## Supabase 設定步驟
 1. 在 Supabase 建立新 Project。
 2. 打開 SQL Editor，貼上 `supabase/schema.sql` 內容並執行。
-3. 如果你是從舊版本升級，一樣直接重跑這份 SQL（它包含升級欄位：`transaction_method`、`custom_fields`、`extra_data`、`notice`、`field_config`、`field_snapshot`、`status_options`，以及狀態紀錄表 `order_status_logs` 和 `app_settings`）。
+3. 如果你是從舊版本升級，一樣直接重跑這份 SQL（它包含升級欄位：`transaction_method`、`custom_fields`、`extra_data`、`field_config`、`field_snapshot`、`status_options`，以及狀態紀錄表 `order_status_logs` 和 `app_settings`，並會移除舊的 `notice` 欄位）。
 4. 到 Project Settings > API，找到：
    - Project URL
    - `anon` public key
@@ -57,7 +58,7 @@
 - 管理者：打開 `admin.html`，輸入 Email + Password 登入。
 - 登入後可：
   - 建立新活動（只填標題，slug 自動產生）
-  - 修改既有活動（標題、說明、注意事項、是否啟用、自訂欄位、活動專屬狀態）
+  - 修改既有活動（標題、活動說明、是否啟用、自訂欄位、活動專屬狀態）
   - 修改全域預設欄位模板（新活動會套用）
   - 修改活動欄位覆寫（欄位名稱/順序/必填/顯示/placeholder）
   - 在系統設定維護全域狀態清單

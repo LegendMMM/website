@@ -97,7 +97,6 @@ const orderCampaignSelect = document.querySelector("#campaign-id");
 const queryCampaignSelect = document.querySelector("#query-campaign-slug");
 const queryResultsBody = document.querySelector("#query-results");
 const campaignDescriptionDisplay = document.querySelector("#campaign-description-display");
-const campaignNotice = document.querySelector("#campaign-notice");
 const entryHub = document.querySelector("#entry-hub");
 const orderPanel = document.querySelector("#order-panel");
 const queryPanel = document.querySelector("#query-panel");
@@ -157,7 +156,7 @@ function renderSimpleMarkdown(input) {
     .replace(/==([^=\n]+)==/g, "<mark>$1</mark>");
 }
 
-function setNoticeContent(element, text, fallbackText) {
+function setMarkdownContent(element, text, fallbackText) {
   if (!element) return;
   const content = String(text || "").trim() || fallbackText;
   element.innerHTML = renderSimpleMarkdown(content);
@@ -354,10 +353,7 @@ function getVisibleFieldConfig() {
 function renderCampaignInfo() {
   const campaign = getSelectedCampaign();
   const descriptionText = String(campaign?.description || "").trim();
-  const noticeText = String(campaign?.notice || "").trim();
-
-  setNoticeContent(campaignDescriptionDisplay, descriptionText, "此活動目前沒有活動說明。");
-  setNoticeContent(campaignNotice, noticeText, "此活動目前沒有額外注意事項。");
+  setMarkdownContent(campaignDescriptionDisplay, descriptionText, "此活動目前沒有活動說明。");
 }
 
 function renderFieldInput(field) {
@@ -421,8 +417,7 @@ function renderCampaignOptions() {
     orderCampaignSelect.innerHTML = '<option value="">目前沒有活動</option>';
     queryCampaignSelect.innerHTML = '<option value="">目前沒有活動</option>';
     orderFieldsContainer.innerHTML = "";
-    setNoticeContent(campaignDescriptionDisplay, "", "目前沒有可報名活動。");
-    setNoticeContent(campaignNotice, "", "目前沒有可報名活動。");
+    setMarkdownContent(campaignDescriptionDisplay, "", "目前沒有可報名活動。");
     return;
   }
 
@@ -512,7 +507,7 @@ async function loadCampaigns() {
   const supabase = getSupabase();
   let query = supabase
     .from("campaigns")
-    .select("id, slug, title, description, notice, custom_fields, field_config, status_options")
+    .select("id, slug, title, description, custom_fields, field_config, status_options")
     .eq("is_active", true)
     .order("created_at", { ascending: false });
 
@@ -521,7 +516,7 @@ async function loadCampaigns() {
   if (error && /status_options/i.test(error.message || "")) {
     const fallback = await supabase
       .from("campaigns")
-      .select("id, slug, title, description, notice, custom_fields, field_config")
+      .select("id, slug, title, description, custom_fields, field_config")
       .eq("is_active", true)
       .order("created_at", { ascending: false });
     data = (fallback.data || []).map((campaign) => ({ ...campaign, status_options: [] }));
@@ -531,7 +526,7 @@ async function loadCampaigns() {
   if (error && /field_config/i.test(error.message || "")) {
     const fallback = await supabase
       .from("campaigns")
-      .select("id, slug, title, description, notice, custom_fields, status_options")
+      .select("id, slug, title, description, custom_fields, status_options")
       .eq("is_active", true)
       .order("created_at", { ascending: false });
     data = (fallback.data || []).map((campaign) => ({ ...campaign, field_config: [] }));
@@ -541,7 +536,7 @@ async function loadCampaigns() {
   if (error && /field_config|status_options/i.test(error.message || "")) {
     const fallback = await supabase
       .from("campaigns")
-      .select("id, slug, title, description, notice, custom_fields")
+      .select("id, slug, title, description, custom_fields")
       .eq("is_active", true)
       .order("created_at", { ascending: false });
     data = (fallback.data || []).map((campaign) => ({ ...campaign, field_config: [], status_options: [] }));

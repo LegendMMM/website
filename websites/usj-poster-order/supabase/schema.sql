@@ -20,7 +20,6 @@ create table if not exists public.campaigns (
   slug text not null unique check (slug ~ '^[a-z0-9-]+$'),
   title text not null,
   description text not null default '',
-  notice text not null default '',
   custom_fields jsonb not null default '[]'::jsonb,
   field_config jsonb not null default '[]'::jsonb,
   status_options jsonb not null default '[]'::jsonb,
@@ -61,8 +60,6 @@ create table if not exists public.order_status_logs (
 alter table public.campaigns
   add column if not exists custom_fields jsonb not null default '[]'::jsonb;
 alter table public.campaigns
-  add column if not exists notice text not null default '';
-alter table public.campaigns
   add column if not exists field_config jsonb not null default '[]'::jsonb;
 alter table public.campaigns
   add column if not exists status_options jsonb not null default '[]'::jsonb;
@@ -77,14 +74,46 @@ alter table public.orders
 
 -- Ensure columns have expected defaults and not-null.
 alter table public.campaigns
-  alter column notice set default '',
-  alter column notice set not null,
+  alter column description set default '',
+  alter column description set not null,
   alter column custom_fields set default '[]'::jsonb,
   alter column custom_fields set not null,
   alter column field_config set default '[]'::jsonb,
   alter column field_config set not null,
   alter column status_options set default '[]'::jsonb,
   alter column status_options set not null;
+
+-- Migrate and remove legacy notice column if it exists.
+do $$
+begin
+  if exists (
+    select 1
+    from information_schema.columns
+    where table_schema = 'public'
+      and table_name = 'campaigns'
+      and column_name = 'notice'
+  ) then
+    update public.campaigns
+    set description = left(
+      trim(
+        concat_ws(
+          E'\n\n',
+          nullif(trim(coalesce(description, '')), ''),
+          nullif(trim(coalesce(notice, '')), '')
+        )
+      ),
+      3000
+    )
+    where nullif(trim(coalesce(notice, '')), '') is not null;
+
+    alter table public.campaigns drop column notice;
+  end if;
+end;
+$$;
+
+update public.campaigns
+set description = left(coalesce(description, ''), 3000)
+where char_length(coalesce(description, '')) > 3000;
 
 alter table public.orders
   alter column transaction_method set default '面交',
@@ -125,6 +154,16 @@ begin
     alter table public.campaigns
       add constraint campaigns_status_options_array_check
       check (jsonb_typeof(status_options) = 'array');
+  end if;
+
+  if not exists (
+    select 1
+    from pg_constraint
+    where conname = 'campaigns_description_length_check'
+  ) then
+    alter table public.campaigns
+      add constraint campaigns_description_length_check
+      check (char_length(description) <= 3000);
   end if;
 
   if not exists (
@@ -649,12 +688,11 @@ values (
 on conflict (key) do nothing;
 
 -- Create a first campaign sample.
-insert into public.campaigns(slug, title, description, notice, custom_fields, is_active)
+insert into public.campaigns(slug, title, description, custom_fields, is_active)
 values (
   'usj-poster-initial',
   '環球影城海報冊代購（第一梯）',
-  '請填寫訂購資訊。',
-  '匯款後請保留明細，若選擇賣貨便請於備註提供寄件所需資訊。',
+  '請填寫訂購資訊。' || E'\n\n' || '匯款後請保留明細，若選擇賣貨便請於備註提供寄件所需資訊。',
   '[]'::jsonb,
   true
 )
