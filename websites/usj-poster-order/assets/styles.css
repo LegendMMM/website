@@ -22,6 +22,10 @@
   box-sizing: border-box;
 }
 
+html {
+  -webkit-text-size-adjust: 100%;
+}
+
 body {
   margin: 0;
   font-family: "Noto Sans TC", "PingFang TC", "Microsoft JhengHei", sans-serif;
@@ -182,6 +186,10 @@ h4 {
   gap: 0.68rem;
 }
 
+.entry-panel button {
+  width: 100%;
+}
+
 .entry-panel h3 {
   margin: 0;
   color: #1d3961;
@@ -285,6 +293,11 @@ textarea {
   color: var(--text);
 }
 
+input,
+select {
+  min-height: 44px;
+}
+
 input::placeholder,
 textarea::placeholder {
   color: #9ba8ba;
@@ -302,6 +315,7 @@ button {
   border: none;
   border-radius: 10px;
   padding: 0.66rem 0.95rem;
+  min-height: 44px;
   background: linear-gradient(140deg, var(--accent) 0%, var(--accent-strong) 100%);
   color: #fff;
   font-weight: 600;
@@ -346,6 +360,10 @@ button:active {
   flex-wrap: wrap;
   gap: 0.6rem;
   align-items: flex-end;
+}
+
+.toolbar > * {
+  flex: 0 1 auto;
 }
 
 .panel-head {
@@ -469,6 +487,7 @@ input[type="checkbox"] {
 
 .table-wrap {
   overflow-x: auto;
+  -webkit-overflow-scrolling: touch;
   border: 1px solid #d8dfec;
   border-radius: 10px;
   background: #fff;
@@ -542,6 +561,7 @@ tbody tr:hover {
 .table-wrap textarea {
   width: 100%;
   min-width: 120px;
+  min-height: 36px;
   padding: 0.4rem 0.45rem;
   font-size: 0.86rem;
 }
@@ -565,10 +585,53 @@ tbody tr:hover {
   }
 }
 
+@media (max-width: 1024px) {
+  .container {
+    width: min(1120px, 94vw);
+  }
+
+  .site-header {
+    padding: 2rem 0;
+  }
+
+  .site-header::after {
+    width: 280px;
+    height: 280px;
+    inset: auto -16% -30% auto;
+  }
+
+  .page-stack,
+  .admin-layout {
+    padding-top: 1.25rem;
+  }
+
+  .toolbar > * {
+    flex: 1 1 220px;
+  }
+
+  .admin-orders-table {
+    min-width: 1000px;
+  }
+}
+
 @media (max-width: 760px) {
+  .container {
+    width: min(1120px, 95vw);
+  }
+
+  .page-stack,
+  .admin-layout {
+    padding: 1rem 0 1.8rem;
+    gap: 0.95rem;
+  }
+
   .admin-header {
     flex-direction: column;
     align-items: flex-start;
+  }
+
+  .admin-header button {
+    width: 100%;
   }
 
   .entry-actions,
@@ -580,12 +643,166 @@ tbody tr:hover {
     grid-template-columns: 1fr;
   }
 
+  .flow-panel,
+  .query-stage,
+  .hub-card {
+    padding: 0.95rem;
+  }
+
+  .panel-head {
+    flex-direction: column;
+    align-items: flex-start;
+    gap: 0.55rem;
+  }
+
+  .panel-head .ghost-btn {
+    width: 100%;
+  }
+
+  .wizard-steps {
+    grid-template-columns: 1fr;
+    gap: 0.5rem;
+  }
+
+  .wizard-step {
+    text-align: left;
+    padding: 0.5rem 0.7rem;
+  }
+
+  .toolbar {
+    width: 100%;
+    align-items: stretch;
+  }
+
+  .toolbar label,
+  .toolbar button {
+    width: 100%;
+    margin: 0;
+  }
+
+  .field-editor-head {
+    flex-direction: column;
+    align-items: flex-start;
+  }
+
+  .field-editor-actions {
+    width: 100%;
+  }
+
+  .field-editor-actions button {
+    flex: 1 1 0;
+  }
+
+  .field-editor-grid {
+    grid-template-columns: 1fr;
+  }
+
+  .check-line {
+    flex-wrap: wrap;
+  }
+
+  input,
+  select,
+  textarea {
+    font-size: 16px;
+  }
+
   .site-header {
-    padding: 1.7rem 0;
+    padding: 1.45rem 0;
+  }
+
+  .site-header h1 {
+    font-size: clamp(1.4rem, 7vw, 1.75rem);
+  }
+
+  .site-header p {
+    font-size: 0.93rem;
+    line-height: 1.45;
+  }
+
+  .hero-chip {
+    font-size: 0.7rem;
+    padding: 0.2rem 0.5rem;
   }
 
   .card {
     border-radius: 14px;
     padding: 0.88rem;
+  }
+}
+
+@media (max-width: 640px) {
+  .query-table {
+    min-width: 0;
+  }
+
+  #query-panel .table-wrap {
+    overflow: visible;
+    border: 0;
+    background: transparent;
+  }
+
+  .query-table thead {
+    display: none;
+  }
+
+  .query-table tbody {
+    display: grid;
+    gap: 0.65rem;
+  }
+
+  .query-table tr {
+    display: block;
+    border: 1px solid #dbe3f2;
+    border-radius: 12px;
+    background: #fff;
+    padding: 0.2rem 0.68rem;
+    box-shadow: 0 4px 14px rgba(25, 45, 78, 0.06);
+  }
+
+  .query-table td {
+    display: flex;
+    justify-content: space-between;
+    gap: 0.8rem;
+    align-items: flex-start;
+    border: none;
+    padding: 0.5rem 0;
+    font-size: 0.88rem;
+  }
+
+  .query-table td::before {
+    font-weight: 700;
+    color: #2a4268;
+    flex-shrink: 0;
+  }
+
+  .query-table td:nth-child(1)::before {
+    content: "活動";
+  }
+
+  .query-table td:nth-child(2)::before {
+    content: "姓名";
+  }
+
+  .query-table td:nth-child(3)::before {
+    content: "數量";
+  }
+
+  .query-table td:nth-child(4)::before {
+    content: "狀態";
+  }
+
+  .query-table td:nth-child(5)::before {
+    content: "送出時間";
+  }
+
+  .admin-layout .table-wrap::before {
+    content: "提示：可左右滑動查看完整欄位";
+    display: block;
+    padding: 0.45rem 0.6rem;
+    border-bottom: 1px solid #e3e9f5;
+    font-size: 0.8rem;
+    color: #60718b;
+    background: #f7faff;
   }
 }
