@@ -213,6 +213,201 @@ begin
 end;
 $$;
 
+drop function if exists public.create_order_secure(
+  uuid,
+  text,
+  text,
+  text,
+  integer,
+  text,
+  timestamptz,
+  text,
+  text,
+  jsonb,
+  jsonb,
+  text,
+  text
+);
+
+create or replace function public.create_order_secure(
+  p_campaign_id uuid,
+  p_customer_name text,
+  p_phone text,
+  p_email text,
+  p_quantity integer,
+  p_transfer_account text,
+  p_transfer_time timestamptz,
+  p_transaction_method text,
+  p_note text default '',
+  p_extra_data jsonb default '{}'::jsonb,
+  p_field_snapshot jsonb default '[]'::jsonb,
+  p_status text default null,
+  p_hp text default null
+)
+returns uuid
+language plpgsql
+security definer
+set search_path = public
+as $$
+declare
+  v_campaign public.campaigns%rowtype;
+  v_phone_digits text;
+  v_effective_status text;
+  v_status_options text[];
+  v_global_status_options text[];
+  v_note text := left(trim(coalesce(p_note, '')), 1000);
+  v_extra_data jsonb := coalesce(p_extra_data, '{}'::jsonb);
+  v_field_snapshot jsonb := coalesce(p_field_snapshot, '[]'::jsonb);
+  v_order_id uuid;
+begin
+  if nullif(trim(coalesce(p_hp, '')), '') is not null then
+    raise exception 'invalid request';
+  end if;
+
+  select *
+  into v_campaign
+  from public.campaigns
+  where id = p_campaign_id
+    and is_active = true;
+
+  if not found then
+    raise exception '活動不存在或未開放';
+  end if;
+
+  v_phone_digits := regexp_replace(coalesce(p_phone, ''), '\D', '', 'g');
+  if length(v_phone_digits) < 8 or length(v_phone_digits) > 20 then
+    raise exception '手機格式錯誤';
+  end if;
+
+  if nullif(trim(coalesce(p_customer_name, '')), '') is null then
+    raise exception '請輸入姓名';
+  end if;
+  if length(trim(p_customer_name)) > 60 then
+    raise exception '姓名長度不可超過 60 字';
+  end if;
+
+  if nullif(trim(coalesce(p_email, '')), '') is null then
+    raise exception '請輸入 Email';
+  end if;
+  if p_email !~* '^[^@\s]+@[^@\s]+\.[^@\s]+$' then
+    raise exception 'Email 格式錯誤';
+  end if;
+
+  if p_quantity is null or p_quantity < 1 or p_quantity > 999 then
+    raise exception '數量需介於 1 到 999';
+  end if;
+
+  if nullif(trim(coalesce(p_transfer_account, '')), '') is null then
+    raise exception '請輸入匯款帳號';
+  end if;
+  if length(trim(p_transfer_account)) > 80 then
+    raise exception '匯款帳號長度不可超過 80 字';
+  end if;
+
+  if p_transfer_time is null then
+    raise exception '請輸入匯款時間';
+  end if;
+
+  if coalesce(p_transaction_method, '') not in ('面交', '賣貨便') then
+    raise exception '交易方式錯誤';
+  end if;
+
+  if jsonb_typeof(v_extra_data) <> 'object' then
+    raise exception 'extra_data 必須為 object';
+  end if;
+  if jsonb_typeof(v_field_snapshot) <> 'array' then
+    raise exception 'field_snapshot 必須為 array';
+  end if;
+  if jsonb_array_length(v_field_snapshot) > 80 then
+    raise exception '欄位設定超過上限';
+  end if;
+
+  if exists (
+    select 1
+    from public.orders o
+    where o.campaign_id = p_campaign_id
+      and regexp_replace(o.phone, '\D', '', 'g') = v_phone_digits
+      and o.created_at > now() - interval '30 seconds'
+  ) then
+    raise exception '送單過於頻繁，請稍後再試';
+  end if;
+
+  if exists (
+    select 1
+    from public.orders o
+    where o.campaign_id = p_campaign_id
+      and lower(trim(o.customer_name)) = lower(trim(p_customer_name))
+      and regexp_replace(o.phone, '\D', '', 'g') = v_phone_digits
+      and o.quantity = p_quantity
+      and o.transfer_time = p_transfer_time
+      and o.created_at > now() - interval '24 hours'
+  ) then
+    raise exception '疑似重複送單，若需更正請聯絡管理員';
+  end if;
+
+  select coalesce(array_agg(value), array[]::text[])
+  into v_status_options
+  from jsonb_array_elements_text(coalesce(v_campaign.status_options, '[]'::jsonb)) as t(value)
+  where nullif(trim(value), '') is not null;
+
+  select coalesce(array_agg(value), array[]::text[])
+  into v_global_status_options
+  from public.app_settings s
+  cross join lateral jsonb_array_elements_text(coalesce(s.value->'options', '[]'::jsonb)) as t(value)
+  where s.key = 'order_status_options'
+    and nullif(trim(value), '') is not null;
+
+  if coalesce(array_length(v_status_options, 1), 0) = 0 then
+    v_status_options := v_global_status_options;
+  end if;
+
+  if coalesce(array_length(v_status_options, 1), 0) = 0 then
+    v_status_options := array['已匯款'];
+  end if;
+
+  v_effective_status := nullif(trim(coalesce(p_status, '')), '');
+  if v_effective_status is null then
+    v_effective_status := v_status_options[1];
+  end if;
+
+  if not (v_effective_status = any(v_status_options)) then
+    raise exception '狀態值無效';
+  end if;
+
+  insert into public.orders(
+    campaign_id,
+    customer_name,
+    phone,
+    email,
+    quantity,
+    transfer_account,
+    transfer_time,
+    transaction_method,
+    note,
+    extra_data,
+    field_snapshot,
+    status
+  )
+  values (
+    p_campaign_id,
+    trim(p_customer_name),
+    p_phone,
+    lower(trim(p_email)),
+    p_quantity,
+    trim(p_transfer_account),
+    p_transfer_time,
+    p_transaction_method,
+    v_note,
+    v_extra_data,
+    v_field_snapshot,
+    v_effective_status
+  )
+  returning id into v_order_id;
+
+  return v_order_id;
+end;
+$$;
+
 drop trigger if exists trg_orders_derived_fields on public.orders;
 create trigger trg_orders_derived_fields
 before insert or update on public.orders
@@ -317,11 +512,12 @@ using (public.is_admin());
 -- orders policies
 
 drop policy if exists orders_public_insert on public.orders;
-create policy orders_public_insert
+drop policy if exists orders_admin_insert on public.orders;
+create policy orders_admin_insert
 on public.orders
 for insert
-to anon, authenticated
-with check (true);
+to authenticated
+with check (public.is_admin());
 
 drop policy if exists orders_admin_select on public.orders;
 create policy orders_admin_select
@@ -413,7 +609,10 @@ as $$
   limit 50;
 $$;
 
+revoke all on function public.search_order_status(text, text, text) from public;
 grant execute on function public.search_order_status(text, text, text) to anon, authenticated;
+revoke all on function public.create_order_secure(uuid, text, text, text, integer, text, timestamptz, text, text, jsonb, jsonb, text, text) from public;
+grant execute on function public.create_order_secure(uuid, text, text, text, integer, text, timestamptz, text, text, jsonb, jsonb, text, text) to anon, authenticated;
 
 -- Create your first admin account email manually.
 insert into public.admins(email)

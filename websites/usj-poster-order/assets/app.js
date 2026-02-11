@@ -110,6 +110,7 @@ const backToHubFromOrderBtn = document.querySelector("#back-to-hub-from-order");
 const backToHubFromQueryBtn = document.querySelector("#back-to-hub-from-query");
 const goToStep2Btn = document.querySelector("#go-to-step-2");
 const backToStep1Btn = document.querySelector("#back-to-step-1");
+const orderHoneypotInput = document.querySelector("#order-website");
 
 let campaigns = [];
 let defaultFieldConfig = buildBaseFixedFieldConfig();
@@ -619,6 +620,37 @@ function buildOrderInsertPayload(campaignId, values, initialStatus) {
   };
 }
 
+function isSecureOrderRpcMissing(error) {
+  const text = String(error?.message || "");
+  return /create_order_secure|function .* does not exist|PGRST202|schema cache/i.test(text);
+}
+
+async function submitOrderSecure(payload, honeypotValue) {
+  const supabase = getSupabase();
+  const { error } = await supabase.rpc("create_order_secure", {
+    p_campaign_id: payload.campaign_id,
+    p_customer_name: payload.customer_name,
+    p_phone: payload.phone,
+    p_email: payload.email,
+    p_quantity: payload.quantity,
+    p_transfer_account: payload.transfer_account,
+    p_transfer_time: payload.transfer_time,
+    p_transaction_method: payload.transaction_method,
+    p_note: payload.note || "",
+    p_extra_data: payload.extra_data || {},
+    p_field_snapshot: payload.field_snapshot || [],
+    p_status: payload.status || null,
+    p_hp: honeypotValue || "",
+  });
+
+  if (error) {
+    if (isSecureOrderRpcMissing(error)) {
+      throw new Error("系統尚未完成安全升級，請先在 Supabase 執行最新 schema.sql。");
+    }
+    throw error;
+  }
+}
+
 function renderQueryResults(rows) {
   if (!rows.length) {
     queryResultsBody.innerHTML = "";
@@ -684,6 +716,11 @@ orderForm.addEventListener("submit", async (event) => {
   setMessage(orderFormMessage, "送出中...");
 
   try {
+    const honeypotValue = orderHoneypotInput?.value || "";
+    if (honeypotValue.trim()) {
+      throw new Error("送出失敗，請重新整理後再試。");
+    }
+
     const campaignId = orderCampaignSelect.value;
     if (!campaignId) throw new Error("目前沒有可訂購活動");
     const selectedCampaign = getSelectedCampaign();
@@ -694,21 +731,12 @@ orderForm.addEventListener("submit", async (event) => {
 
     const initialStatus = resolveStatusOptionsForCampaign(selectedCampaign)[0] || STATUS_FALLBACK;
     const payload = buildOrderInsertPayload(campaignId, values, initialStatus);
-    const supabase = getSupabase();
-    let { error } = await supabase.from("orders").insert(payload);
-
-    if (error && /field_snapshot/i.test(error.message || "")) {
-      const fallbackPayload = { ...payload };
-      delete fallbackPayload.field_snapshot;
-      const fallback = await supabase.from("orders").insert(fallbackPayload);
-      error = fallback.error;
-    }
-
-    if (error) throw error;
+    await submitOrderSecure(payload, honeypotValue);
 
     activeFieldConfig = selectedCampaign ? buildCampaignFieldConfig(selectedCampaign) : [];
     renderOrderFields();
     renderCampaignInfo();
+    if (orderHoneypotInput) orderHoneypotInput.value = "";
     setOrderStep(1);
     setMessage(orderFormMessage, "送出成功，請保留姓名或電話以便查詢。", "success");
   } catch (error) {

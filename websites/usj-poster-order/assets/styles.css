@@ -253,6 +253,14 @@ h4 {
   color: #3b4459;
 }
 
+.honeypot-wrap {
+  position: absolute;
+  left: -99999px;
+  width: 1px;
+  height: 1px;
+  overflow: hidden;
+}
+
 label {
   display: grid;
   gap: 0.35rem;

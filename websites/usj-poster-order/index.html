@@ -76,6 +76,10 @@
           <section class="form-block wizard-stage hidden" id="order-step-2">
             <h3>第 2 步：填寫資料</h3>
             <div id="order-fields-container" class="stack"></div>
+            <div class="honeypot-wrap" aria-hidden="true">
+              <label for="order-website">網站</label>
+              <input id="order-website" name="website" type="text" tabindex="-1" autocomplete="off" />
+            </div>
             <div class="step-actions">
               <button type="button" id="back-to-step-1" class="secondary-btn">返回上一步</button>
               <button type="submit">送出訂單</button>

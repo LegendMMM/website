@@ -75,3 +75,5 @@
 - `anon key` 是公開用金鑰，可放在前端；真正權限由 RLS policy 控管。
 - 匯款帳號、手機、Email 等敏感資料只允許管理者在 `orders` 表查詢。
 - 前台查詢走 `search_order_status` 函式，不會回傳匯款帳號等敏感欄位。
+- 前台送單已改為 `create_order_secure`（RPC 安全寫入），一般使用者不再能直接 `insert orders`。
+- 若你剛升級程式，請務必在 Supabase 重新執行一次 `/supabase/schema.sql` 才會生效。
