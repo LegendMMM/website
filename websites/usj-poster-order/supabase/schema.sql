@@ -345,17 +345,17 @@ begin
     raise exception '疑似重複送單，若需更正請聯絡管理員';
   end if;
 
-  select coalesce(array_agg(value), array[]::text[])
+  select coalesce(array_agg(t.value), array[]::text[])
   into v_status_options
   from jsonb_array_elements_text(coalesce(v_campaign.status_options, '[]'::jsonb)) as t(value)
-  where nullif(trim(value), '') is not null;
+  where nullif(trim(t.value), '') is not null;
 
-  select coalesce(array_agg(value), array[]::text[])
+  select coalesce(array_agg(t.value), array[]::text[])
   into v_global_status_options
   from public.app_settings s
   cross join lateral jsonb_array_elements_text(coalesce(s.value->'options', '[]'::jsonb)) as t(value)
   where s.key = 'order_status_options'
-    and nullif(trim(value), '') is not null;
+    and nullif(trim(t.value), '') is not null;
 
   if coalesce(array_length(v_status_options, 1), 0) = 0 then
     v_status_options := v_global_status_options;
