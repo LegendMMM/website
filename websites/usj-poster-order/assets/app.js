@@ -148,6 +148,21 @@ function escapeHtml(input) {
     .replaceAll("'", "&#039;");
 }
 
+function renderSimpleMarkdown(input) {
+  const escaped = escapeHtml(input).replace(/\r\n?/g, "\n");
+  return escaped
+    .replace(/\*\*([^*\n]+)\*\*/g, "<strong>$1</strong>")
+    .replace(/__([^_\n]+)__/g, "<strong>$1</strong>")
+    .replace(/\*([^*\n]+)\*/g, "<em>$1</em>")
+    .replace(/==([^=\n]+)==/g, "<mark>$1</mark>");
+}
+
+function setNoticeContent(element, text, fallbackText) {
+  if (!element) return;
+  const content = String(text || "").trim() || fallbackText;
+  element.innerHTML = renderSimpleMarkdown(content);
+}
+
 function digitsOnly(input) {
   return (input || "").replace(/\D/g, "");
 }
@@ -341,8 +356,8 @@ function renderCampaignInfo() {
   const descriptionText = String(campaign?.description || "").trim();
   const noticeText = String(campaign?.notice || "").trim();
 
-  campaignDescriptionDisplay.textContent = descriptionText || "此活動目前沒有活動說明。";
-  campaignNotice.textContent = noticeText || "此活動目前沒有額外注意事項。";
+  setNoticeContent(campaignDescriptionDisplay, descriptionText, "此活動目前沒有活動說明。");
+  setNoticeContent(campaignNotice, noticeText, "此活動目前沒有額外注意事項。");
 }
 
 function renderFieldInput(field) {
@@ -406,8 +421,8 @@ function renderCampaignOptions() {
     orderCampaignSelect.innerHTML = '<option value="">目前沒有活動</option>';
     queryCampaignSelect.innerHTML = '<option value="">目前沒有活動</option>';
     orderFieldsContainer.innerHTML = "";
-    campaignDescriptionDisplay.textContent = "目前沒有可報名活動。";
-    campaignNotice.textContent = "目前沒有可報名活動。";
+    setNoticeContent(campaignDescriptionDisplay, "", "目前沒有可報名活動。");
+    setNoticeContent(campaignNotice, "", "目前沒有可報名活動。");
     return;
   }
 
