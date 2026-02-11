@@ -284,10 +284,13 @@ h4 {
 }
 
 .notice-content mark {
-  background: #fff2a8;
-  color: #2f3643;
-  border-radius: 0.2em;
-  padding: 0 0.18em;
+  background: linear-gradient(180deg, #eef6ff 0%, #d8e8f5 100%);
+  color: #2f4a5f;
+  border: 1px solid #c3d7e6;
+  border-radius: 0.28em;
+  padding: 0 0.22em;
+  box-decoration-break: clone;
+  -webkit-box-decoration-break: clone;
 }
 
 .honeypot-wrap {
