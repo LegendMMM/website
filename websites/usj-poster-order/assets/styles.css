@@ -525,6 +525,20 @@ button:active {
 
 .orders-filter-actions {
   padding-top: 0.2rem;
+  align-items: center;
+}
+
+.orders-inline-toggle {
+  margin-right: auto;
+  min-height: 44px;
+  display: inline-flex;
+  align-items: center;
+  gap: 0.42rem;
+  border: 1px solid #d2dbe4;
+  border-radius: 6px;
+  padding: 0.45rem 0.7rem;
+  background: #ffffff;
+  color: #4a5a70;
 }
 
 .orders-preset-toolbar {
@@ -1075,6 +1089,12 @@ tbody tr:hover {
 
   .orders-preset-toolbar label {
     min-width: 0;
+  }
+
+  .orders-inline-toggle {
+    width: 100%;
+    justify-content: flex-start;
+    margin-right: 0;
   }
 
   .field-editor-head {
