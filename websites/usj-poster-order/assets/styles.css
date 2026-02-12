@@ -414,6 +414,27 @@ button:active {
   flex: 0 1 auto;
 }
 
+.orders-filter-card {
+  gap: 0.7rem;
+}
+
+.orders-filter-card h3 {
+  margin: 0;
+  font-size: 1rem;
+}
+
+.filter-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(180px, 1fr));
+  gap: 0.55rem;
+}
+
+.quick-filter-row {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.45rem;
+}
+
 .panel-head {
   display: flex;
   justify-content: space-between;
@@ -873,6 +894,14 @@ tbody tr:hover {
   .toolbar {
     width: 100%;
     align-items: stretch;
+  }
+
+  .filter-grid {
+    grid-template-columns: 1fr;
+  }
+
+  .quick-filter-row .tab-btn {
+    flex: 1 1 calc(50% - 0.45rem);
   }
 
   .toolbar label,

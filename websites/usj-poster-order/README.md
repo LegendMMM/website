@@ -13,6 +13,8 @@
   - `admin-campaigns.html` 活動管理
   - `admin-orders.html` 訂單管理
   - `admin-settings.html` 系統設定（可新增/修改全域狀態）
+  - 訂單進階篩選（關鍵字、狀態、交易方式、時間區間、數量區間、未完成）
+  - 常用篩選預設（儲存/套用/刪除）
   - 訂單狀態可自由切換（依全域或活動自訂狀態清單）
   - 匯出 CSV
 - B+ 欄位模板：
@@ -31,18 +33,20 @@
 - `admin-settings.html`: 系統設定
 - `assets/config.js`: Supabase 設定（需自行填入）
 - `supabase/schema.sql`: 資料表與權限 SQL
+- `supabase/seed.sql`: 預設資料（管理員、預設欄位、預設狀態、示範活動）
 
 ## Supabase 設定步驟
 1. 在 Supabase 建立新 Project。
 2. 打開 SQL Editor，貼上 `supabase/schema.sql` 內容並執行。
-3. 如果你是從舊版本升級，一樣直接重跑這份 SQL（它包含升級欄位：`transaction_method`、`custom_fields`、`extra_data`、`field_config`、`field_snapshot`、`status_options`，以及狀態紀錄表 `order_status_logs` 和 `app_settings`，並會移除舊的 `notice` 欄位）。
-4. 到 Project Settings > API，找到：
+3. 新專案建議再執行一次 `supabase/seed.sql`，建立預設設定與示範活動。
+4. 如果你是從舊版本升級，至少要重跑 `schema.sql`（它包含升級欄位：`transaction_method`、`custom_fields`、`extra_data`、`field_config`、`field_snapshot`、`status_options`，以及狀態紀錄表 `order_status_logs` 和 `app_settings`，並會移除舊的 `notice` 欄位）。
+5. 到 Project Settings > API，找到：
    - Project URL
    - `anon` public key
-5. 打開 `assets/config.js`，填入 URL 與 anon key。
-6. 到 Authentication > Providers > Email，啟用 Email + Password。
-7. 到 Authentication > Users 建立管理者帳號（Email + Password）。
-8. 確認 `public.admins` 有同一個 Email（本 SQL 已預設加入：`49125466easongo@gmail.com`）。
+6. 打開 `assets/config.js`，填入 URL 與 anon key。
+7. 到 Authentication > Providers > Email，啟用 Email + Password。
+8. 到 Authentication > Users 建立管理者帳號（Email + Password）。
+9. 確認 `public.admins` 有同一個 Email（可在 `seed.sql` 自訂）。
 
 ## GitHub Pages 部署
 1. 推送程式到 GitHub。

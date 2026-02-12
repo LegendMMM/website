@@ -4,6 +4,7 @@ const DEFAULT_STATUS_OPTIONS = ["已匯款", "已採購", "已到貨", "已完�
 const TRANSACTION_METHOD_OPTIONS = ["面交", "賣貨便"];
 const SETTINGS_KEY_FIELDS = "order_form_defaults";
 const SETTINGS_KEY_STATUSES = "order_status_options";
+const SETTINGS_KEY_ORDER_FILTER_PRESETS = "order_filter_presets";
 
 const PROTECTED_REQUIRED_KEYS = new Set([
   "customer_name",
@@ -132,6 +133,23 @@ const logsCampaignFilter = document.querySelector("#logs-campaign-filter");
 const reloadOrdersBtn = document.querySelector("#reload-orders-btn");
 const exportCsvBtn = document.querySelector("#export-csv-btn");
 const reloadLogsBtn = document.querySelector("#reload-logs-btn");
+const applyOrdersFilterBtn = document.querySelector("#apply-orders-filter-btn");
+const resetOrdersFilterBtn = document.querySelector("#reset-orders-filter-btn");
+const ordersKeywordFilter = document.querySelector("#orders-keyword-filter");
+const ordersStatusFilter = document.querySelector("#orders-status-filter");
+const ordersMethodFilter = document.querySelector("#orders-method-filter");
+const ordersTransferFrom = document.querySelector("#orders-transfer-from");
+const ordersTransferTo = document.querySelector("#orders-transfer-to");
+const ordersCreatedFrom = document.querySelector("#orders-created-from");
+const ordersCreatedTo = document.querySelector("#orders-created-to");
+const ordersQtyMin = document.querySelector("#orders-qty-min");
+const ordersQtyMax = document.querySelector("#orders-qty-max");
+const ordersUnfinishedOnly = document.querySelector("#orders-unfinished-only");
+const ordersPresetSelect = document.querySelector("#orders-preset-select");
+const applyOrdersPresetBtn = document.querySelector("#apply-orders-preset-btn");
+const saveOrdersPresetBtn = document.querySelector("#save-orders-preset-btn");
+const deleteOrdersPresetBtn = document.querySelector("#delete-orders-preset-btn");
+const quickFilterButtons = document.querySelectorAll("[data-quick-filter]");
 const ordersMessage = document.querySelector("#orders-message");
 const logsMessage = document.querySelector("#logs-message");
 const ordersHead = document.querySelector("#orders-head");
@@ -153,6 +171,7 @@ let globalFieldConfig = buildBaseFixedFieldConfig();
 let campaignFieldConfig = [];
 let globalStatusOptions = [...DEFAULT_STATUS_OPTIONS];
 let campaignStatusOptions = [];
+let orderFilterPresets = [];
 
 function setMessage(el, text, type = "") {
   if (!el) return;
@@ -168,10 +187,6 @@ function escapeHtml(input) {
     .replaceAll(">", "&gt;")
     .replaceAll('"', "&quot;")
     .replaceAll("'", "&#039;");
-}
-
-function digitsOnly(input) {
-  return String(input || "").replace(/\D/g, "");
 }
 
 function formatDate(dateText) {
@@ -198,6 +213,159 @@ function toISOFromDatetimeLocal(localValue) {
   const date = new Date(localValue);
   if (Number.isNaN(date.getTime())) return null;
   return date.toISOString();
+}
+
+function toISOFromDateStart(dateValue) {
+  if (!dateValue) return null;
+  const date = new Date(`${dateValue}T00:00:00`);
+  if (Number.isNaN(date.getTime())) return null;
+  return date.toISOString();
+}
+
+function toISOFromDateEnd(dateValue) {
+  if (!dateValue) return null;
+  const date = new Date(`${dateValue}T23:59:59.999`);
+  if (Number.isNaN(date.getTime())) return null;
+  return date.toISOString();
+}
+
+function getLocalDateText(date = new Date()) {
+  const local = new Date(date.getTime() - date.getTimezoneOffset() * 60000);
+  return local.toISOString().slice(0, 10);
+}
+
+function createEmptyOrderFilter() {
+  return {
+    keyword: "",
+    status: "",
+    transaction_method: "",
+    transfer_from: "",
+    transfer_to: "",
+    created_from: "",
+    created_to: "",
+    quantity_min: "",
+    quantity_max: "",
+    unfinished_only: false,
+  };
+}
+
+function normalizeOrderFilter(rawFilter) {
+  const next = { ...createEmptyOrderFilter(), ...(rawFilter || {}) };
+  const normalizeNumber = (value) => {
+    if (value === "" || value === null || value === undefined) return "";
+    const num = Number(value);
+    if (!Number.isFinite(num) || num < 1) return "";
+    return Math.floor(num);
+  };
+
+  return {
+    keyword: String(next.keyword || "").trim(),
+    status: String(next.status || "").trim(),
+    transaction_method: String(next.transaction_method || "").trim(),
+    transfer_from: String(next.transfer_from || "").trim(),
+    transfer_to: String(next.transfer_to || "").trim(),
+    created_from: String(next.created_from || "").trim(),
+    created_to: String(next.created_to || "").trim(),
+    quantity_min: normalizeNumber(next.quantity_min),
+    quantity_max: normalizeNumber(next.quantity_max),
+    unfinished_only: Boolean(next.unfinished_only),
+  };
+}
+
+function readOrderFilterFromForm() {
+  return normalizeOrderFilter({
+    keyword: ordersKeywordFilter?.value,
+    status: ordersStatusFilter?.value,
+    transaction_method: ordersMethodFilter?.value,
+    transfer_from: ordersTransferFrom?.value,
+    transfer_to: ordersTransferTo?.value,
+    created_from: ordersCreatedFrom?.value,
+    created_to: ordersCreatedTo?.value,
+    quantity_min: ordersQtyMin?.value,
+    quantity_max: ordersQtyMax?.value,
+    unfinished_only: ordersUnfinishedOnly?.checked,
+  });
+}
+
+function applyOrderFilterToForm(filterInput) {
+  const filter = normalizeOrderFilter(filterInput);
+  if (ordersKeywordFilter) ordersKeywordFilter.value = filter.keyword;
+  if (ordersStatusFilter) ordersStatusFilter.value = filter.status;
+  if (ordersMethodFilter) ordersMethodFilter.value = filter.transaction_method;
+  if (ordersTransferFrom) ordersTransferFrom.value = filter.transfer_from;
+  if (ordersTransferTo) ordersTransferTo.value = filter.transfer_to;
+  if (ordersCreatedFrom) ordersCreatedFrom.value = filter.created_from;
+  if (ordersCreatedTo) ordersCreatedTo.value = filter.created_to;
+  if (ordersQtyMin) ordersQtyMin.value = filter.quantity_min === "" ? "" : String(filter.quantity_min);
+  if (ordersQtyMax) ordersQtyMax.value = filter.quantity_max === "" ? "" : String(filter.quantity_max);
+  if (ordersUnfinishedOnly) ordersUnfinishedOnly.checked = filter.unfinished_only;
+}
+
+function getCompletedStatusFromOptions(options) {
+  const statusList = Array.isArray(options) ? options : [];
+  if (statusList.includes("已完成")) return "已完成";
+  return statusList.find((status) => /完成|結案|結單|已結束/.test(status)) || "";
+}
+
+function normalizeOrderFilterPresets(rawPresets) {
+  if (!Array.isArray(rawPresets)) return [];
+  const result = [];
+  for (const item of rawPresets) {
+    if (!item || typeof item !== "object") continue;
+    const id = String(item.id || "").trim();
+    const name = String(item.name || "").trim();
+    const campaignId = String(item.campaign_id || "").trim();
+    if (!id || !name) continue;
+    result.push({
+      id,
+      name,
+      campaign_id: campaignId,
+      filter: normalizeOrderFilter(item.filter),
+      created_at: String(item.created_at || ""),
+    });
+  }
+  return result;
+}
+
+function renderOrderStatusFilterOptions() {
+  if (!ordersStatusFilter) return;
+  const previous = ordersStatusFilter.value;
+  const campaign = getSelectedCampaignForOrdersPage();
+  const options = getStatusOptionsForCampaign(campaign);
+  ordersStatusFilter.innerHTML = [
+    '<option value="">全部狀態</option>',
+    ...options.map((status) => `<option value="${escapeHtml(status)}">${escapeHtml(status)}</option>`),
+  ].join("");
+  if (options.includes(previous)) {
+    ordersStatusFilter.value = previous;
+  } else {
+    ordersStatusFilter.value = "";
+  }
+}
+
+function getVisibleOrderFilterPresets() {
+  const campaignId = String(ordersCampaignFilter?.value || "");
+  return orderFilterPresets.filter((preset) => !preset.campaign_id || preset.campaign_id === campaignId);
+}
+
+function renderOrderFilterPresetOptions() {
+  if (!ordersPresetSelect) return;
+  const previous = ordersPresetSelect.value;
+  const visiblePresets = getVisibleOrderFilterPresets();
+  ordersPresetSelect.innerHTML = [
+    '<option value="">選擇預設</option>',
+    ...visiblePresets.map((preset) => `<option value="${escapeHtml(preset.id)}">${escapeHtml(preset.name)}</option>`),
+  ].join("");
+
+  if (visiblePresets.some((preset) => preset.id === previous)) {
+    ordersPresetSelect.value = previous;
+  }
+}
+
+function setQuickFilterActive(key) {
+  quickFilterButtons.forEach((button) => {
+    button.classList.toggle("active", button.dataset.quickFilter === key);
+  });
 }
 
 function buildBaseFixedFieldConfig() {
@@ -753,6 +921,44 @@ async function saveGlobalStatusOptions() {
   renderGlobalStatusEditor();
 }
 
+async function loadOrderFilterPresets() {
+  if (!ordersPresetSelect) return;
+
+  const { data, error } = await supabase
+    .from("app_settings")
+    .select("value")
+    .eq("key", SETTINGS_KEY_ORDER_FILTER_PRESETS)
+    .maybeSingle();
+
+  if (error) {
+    orderFilterPresets = [];
+    renderOrderFilterPresetOptions();
+    return;
+  }
+
+  orderFilterPresets = normalizeOrderFilterPresets(data?.value?.presets);
+  renderOrderFilterPresetOptions();
+}
+
+async function saveOrderFilterPresets() {
+  if (!ordersPresetSelect) return;
+  const normalized = normalizeOrderFilterPresets(orderFilterPresets).slice(0, 40);
+  orderFilterPresets = normalized;
+
+  const { error } = await supabase.from("app_settings").upsert(
+    {
+      key: SETTINGS_KEY_ORDER_FILTER_PRESETS,
+      value: {
+        presets: normalized,
+      },
+    },
+    { onConflict: "key" },
+  );
+
+  if (error) throw error;
+  renderOrderFilterPresetOptions();
+}
+
 async function loadCampaignsForAdmin() {
   const allSelects = [campaignsFilter, ordersCampaignFilter, logsCampaignFilter].filter(Boolean);
   const previousSelected = allSelects[0]?.value || "";
@@ -800,6 +1006,8 @@ async function loadCampaignsForAdmin() {
   }));
 
   setCampaignOptions(allSelects, previousSelected);
+  renderOrderStatusFilterOptions();
+  renderOrderFilterPresetOptions();
 }
 
 function slugifyTitle(title) {
@@ -961,6 +1169,39 @@ function renderOrders(rows) {
     .join("");
 }
 
+function sanitizeKeywordForPostgrest(keyword) {
+  return String(keyword || "")
+    .replaceAll("%", "")
+    .replaceAll(",", " ")
+    .replaceAll("(", " ")
+    .replaceAll(")", " ")
+    .replaceAll('"', " ")
+    .replaceAll("'", " ")
+    .trim();
+}
+
+function applyQuickFilterToForm(key) {
+  const today = getLocalDateText(new Date());
+  const base = createEmptyOrderFilter();
+
+  if (key === "unfinished") {
+    base.unfinished_only = true;
+  }
+
+  if (key === "transfer_today") {
+    base.transfer_from = `${today}T00:00`;
+    base.transfer_to = `${today}T23:59`;
+  }
+
+  if (key === "created_today") {
+    base.created_from = today;
+    base.created_to = today;
+  }
+
+  applyOrderFilterToForm(base);
+  setQuickFilterActive(key);
+}
+
 async function loadOrders() {
   const campaignId = ordersCampaignFilter?.value;
   if (!campaignId || !ordersBody) {
@@ -970,13 +1211,52 @@ async function loadOrders() {
   }
 
   const selectedCampaign = getSelectedCampaignForOrdersPage();
-  const { data, error } = await supabase
+  const filter = readOrderFilterFromForm();
+  if (filter.quantity_min !== "" && filter.quantity_max !== "" && filter.quantity_min > filter.quantity_max) {
+    throw new Error("數量最小不可大於數量最大");
+  }
+
+  let query = supabase
     .from("orders")
     .select(
       "id, customer_name, phone, email, quantity, transfer_account, transfer_time, transaction_method, note, status, extra_data, created_at, updated_at",
     )
-    .eq("campaign_id", campaignId)
-    .order("created_at", { ascending: false });
+    .eq("campaign_id", campaignId);
+
+  if (filter.status) query = query.eq("status", filter.status);
+  if (filter.transaction_method) query = query.eq("transaction_method", filter.transaction_method);
+  if (filter.quantity_min !== "") query = query.gte("quantity", filter.quantity_min);
+  if (filter.quantity_max !== "") query = query.lte("quantity", filter.quantity_max);
+
+  const transferFromIso = toISOFromDatetimeLocal(filter.transfer_from);
+  const transferToIso = toISOFromDatetimeLocal(filter.transfer_to);
+  const createdFromIso = toISOFromDateStart(filter.created_from);
+  const createdToIso = toISOFromDateEnd(filter.created_to);
+  if (transferFromIso) query = query.gte("transfer_time", transferFromIso);
+  if (transferToIso) query = query.lte("transfer_time", transferToIso);
+  if (createdFromIso) query = query.gte("created_at", createdFromIso);
+  if (createdToIso) query = query.lte("created_at", createdToIso);
+
+  if (filter.unfinished_only && !filter.status) {
+    const completedStatus = getCompletedStatusFromOptions(getStatusOptionsForCampaign(selectedCampaign));
+    if (completedStatus) query = query.neq("status", completedStatus);
+  }
+
+  const keyword = sanitizeKeywordForPostgrest(filter.keyword);
+  if (keyword) {
+    const pattern = `%${keyword}%`;
+    query = query.or(
+      [
+        `customer_name.ilike.${pattern}`,
+        `phone.ilike.${pattern}`,
+        `email.ilike.${pattern}`,
+        `transfer_account.ilike.${pattern}`,
+        `note.ilike.${pattern}`,
+      ].join(","),
+    );
+  }
+
+  const { data, error } = await query.order("created_at", { ascending: false }).limit(1000);
 
   if (error) throw error;
 
@@ -1168,6 +1448,71 @@ function downloadCsv(filename, text) {
   URL.revokeObjectURL(url);
 }
 
+function getSelectedOrderPreset() {
+  const selectedId = String(ordersPresetSelect?.value || "");
+  if (!selectedId) return null;
+  return getVisibleOrderFilterPresets().find((preset) => preset.id === selectedId) || null;
+}
+
+async function applySelectedOrderPreset() {
+  const preset = getSelectedOrderPreset();
+  if (!preset) throw new Error("請先選擇預設");
+  applyOrderFilterToForm(preset.filter);
+  setQuickFilterActive("");
+  await loadOrders();
+}
+
+async function saveCurrentOrderPreset() {
+  if (!ordersCampaignFilter) throw new Error("請先選擇活動");
+  const name = window.prompt("請輸入此篩選預設名稱");
+  if (!name) return false;
+
+  const campaignId = String(ordersCampaignFilter.value || "");
+  const trimmedName = String(name).trim();
+  if (!trimmedName) throw new Error("預設名稱不可空白");
+
+  const filter = readOrderFilterFromForm();
+  const duplicate = orderFilterPresets.find(
+    (preset) => preset.campaign_id === campaignId && preset.name.toLowerCase() === trimmedName.toLowerCase(),
+  );
+
+  if (duplicate) {
+    const shouldOverwrite = window.confirm("已有同名預設，是否覆蓋？");
+    if (!shouldOverwrite) return false;
+    duplicate.filter = filter;
+    duplicate.created_at = new Date().toISOString();
+    await saveOrderFilterPresets();
+    renderOrderFilterPresetOptions();
+    if (ordersPresetSelect) ordersPresetSelect.value = duplicate.id;
+    return true;
+  }
+
+  const id = `${Date.now()}-${Math.random().toString(36).slice(2, 8)}`;
+  orderFilterPresets.push({
+    id,
+    name: trimmedName,
+    campaign_id: campaignId,
+    filter,
+    created_at: new Date().toISOString(),
+  });
+
+  await saveOrderFilterPresets();
+  renderOrderFilterPresetOptions();
+  if (ordersPresetSelect) ordersPresetSelect.value = id;
+  return true;
+}
+
+async function deleteSelectedOrderPreset() {
+  const preset = getSelectedOrderPreset();
+  if (!preset) throw new Error("請先選擇要刪除的預設");
+  const shouldDelete = window.confirm(`確定刪除預設「${preset.name}」？`);
+  if (!shouldDelete) return false;
+  orderFilterPresets = orderFilterPresets.filter((item) => item.id !== preset.id);
+  await saveOrderFilterPresets();
+  renderOrderFilterPresetOptions();
+  return true;
+}
+
 async function initCampaignsPageData() {
   await loadGlobalStatusOptions();
   await loadGlobalFieldConfig();
@@ -1177,7 +1522,11 @@ async function initCampaignsPageData() {
 
 async function initOrdersPageData() {
   await loadGlobalStatusOptions();
+  await loadOrderFilterPresets();
   await loadCampaignsForAdmin();
+  renderOrderStatusFilterOptions();
+  renderOrderFilterPresetOptions();
+  applyQuickFilterToForm("all");
   await loadOrders();
   await loadStatusLogs();
 }
@@ -1444,6 +1793,9 @@ reloadOrdersBtn?.addEventListener("click", async () => {
 
 ordersCampaignFilter?.addEventListener("change", async () => {
   if (logsCampaignFilter) logsCampaignFilter.value = ordersCampaignFilter.value;
+  renderOrderStatusFilterOptions();
+  renderOrderFilterPresetOptions();
+  if (ordersPresetSelect) ordersPresetSelect.value = "";
   setMessage(ordersMessage, "載入中...");
   try {
     await loadOrders();
@@ -1451,6 +1803,90 @@ ordersCampaignFilter?.addEventListener("change", async () => {
   } catch (error) {
     setMessage(ordersMessage, `載入失敗：${error.message}`, "error");
   }
+});
+
+applyOrdersFilterBtn?.addEventListener("click", async () => {
+  setQuickFilterActive("");
+  setMessage(ordersMessage, "篩選中...");
+  try {
+    await loadOrders();
+    setMessage(ordersMessage, `已載入 ${currentOrders.length} 筆。`, "success");
+  } catch (error) {
+    setMessage(ordersMessage, `篩選失敗：${error.message}`, "error");
+  }
+});
+
+resetOrdersFilterBtn?.addEventListener("click", async () => {
+  applyQuickFilterToForm("all");
+  setMessage(ordersMessage, "重設中...");
+  try {
+    await loadOrders();
+    setMessage(ordersMessage, `已載入 ${currentOrders.length} 筆。`, "success");
+  } catch (error) {
+    setMessage(ordersMessage, `重設失敗：${error.message}`, "error");
+  }
+});
+
+applyOrdersPresetBtn?.addEventListener("click", async () => {
+  setQuickFilterActive("");
+  setMessage(ordersMessage, "套用預設中...");
+  try {
+    await applySelectedOrderPreset();
+    setMessage(ordersMessage, `已載入 ${currentOrders.length} 筆。`, "success");
+  } catch (error) {
+    setMessage(ordersMessage, `套用失敗：${error.message}`, "error");
+  }
+});
+
+saveOrdersPresetBtn?.addEventListener("click", async () => {
+  setMessage(ordersMessage, "儲存預設中...");
+  try {
+    const saved = await saveCurrentOrderPreset();
+    setMessage(ordersMessage, saved ? "篩選預設已儲存。" : "已取消儲存。", saved ? "success" : "");
+  } catch (error) {
+    setMessage(ordersMessage, `儲存失敗：${error.message}`, "error");
+  }
+});
+
+deleteOrdersPresetBtn?.addEventListener("click", async () => {
+  setMessage(ordersMessage, "刪除預設中...");
+  try {
+    const deleted = await deleteSelectedOrderPreset();
+    setMessage(ordersMessage, deleted ? "篩選預設已刪除。" : "已取消刪除。", deleted ? "success" : "");
+  } catch (error) {
+    setMessage(ordersMessage, `刪除失敗：${error.message}`, "error");
+  }
+});
+
+ordersPresetSelect?.addEventListener("change", () => {
+  setQuickFilterActive("");
+});
+
+ordersKeywordFilter?.addEventListener("keydown", async (event) => {
+  if (event.key !== "Enter") return;
+  event.preventDefault();
+  setQuickFilterActive("");
+  setMessage(ordersMessage, "篩選中...");
+  try {
+    await loadOrders();
+    setMessage(ordersMessage, `已載入 ${currentOrders.length} 筆。`, "success");
+  } catch (error) {
+    setMessage(ordersMessage, `篩選失敗：${error.message}`, "error");
+  }
+});
+
+quickFilterButtons.forEach((button) => {
+  button.addEventListener("click", async () => {
+    const key = button.dataset.quickFilter || "all";
+    applyQuickFilterToForm(key);
+    setMessage(ordersMessage, "篩選中...");
+    try {
+      await loadOrders();
+      setMessage(ordersMessage, `已載入 ${currentOrders.length} 筆。`, "success");
+    } catch (error) {
+      setMessage(ordersMessage, `篩選失敗：${error.message}`, "error");
+    }
+  });
 });
 
 logsCampaignFilter?.addEventListener("change", async () => {
