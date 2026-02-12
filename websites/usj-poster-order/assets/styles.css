@@ -59,6 +59,10 @@ body:not(.public-page) {
   margin: 0 auto;
 }
 
+.admin-page .container {
+  width: min(1280px, 94vw);
+}
+
 .site-header {
   position: relative;
   overflow: hidden;
@@ -437,17 +441,25 @@ button:active {
 }
 
 .orders-main-toolbar {
-  align-items: center;
-  justify-content: space-between;
-  gap: 0.8rem;
+  display: grid;
+  grid-template-columns: minmax(320px, 430px) 1fr;
+  align-items: end;
+  gap: 0.9rem;
 }
 
-.orders-main-toolbar label {
-  min-width: 260px;
+.orders-main-toolbar__field {
+  margin: 0;
 }
 
-.orders-main-toolbar button {
-  min-width: 120px;
+.orders-main-toolbar__actions {
+  display: flex;
+  justify-content: flex-end;
+  gap: 0.6rem;
+  flex-wrap: wrap;
+}
+
+.orders-main-toolbar__actions button {
+  min-width: 122px;
 }
 
 .orders-quick-card {
@@ -502,6 +514,27 @@ button:active {
   margin-top: 0.65rem;
 }
 
+.orders-filter-grid {
+  grid-template-columns: repeat(4, minmax(170px, 1fr));
+  gap: 0.72rem;
+}
+
+.orders-filter-field--wide {
+  grid-column: span 2;
+}
+
+.orders-filter-actions {
+  padding-top: 0.2rem;
+}
+
+.orders-preset-toolbar {
+  align-items: flex-end;
+}
+
+.orders-preset-toolbar label {
+  min-width: 220px;
+}
+
 .filter-grid {
   display: grid;
   grid-template-columns: repeat(auto-fit, minmax(180px, 1fr));
@@ -512,6 +545,11 @@ button:active {
   display: flex;
   flex-wrap: wrap;
   gap: 0.45rem;
+}
+
+.quick-filter-row .tab-btn {
+  font-weight: 700;
+  padding: 0.42rem 0.82rem;
 }
 
 .panel-head {
@@ -981,8 +1019,25 @@ tbody tr:hover {
     align-items: stretch;
   }
 
-  .orders-main-toolbar label,
-  .orders-main-toolbar button {
+  .orders-main-toolbar {
+    grid-template-columns: 1fr;
+    gap: 0.65rem;
+  }
+
+  .orders-main-toolbar__field {
+    min-width: 0;
+  }
+
+  .orders-main-toolbar__actions {
+    width: 100%;
+    display: grid;
+    grid-template-columns: 1fr 1fr;
+    gap: 0.55rem;
+    justify-content: stretch;
+  }
+
+  .orders-main-toolbar__actions button {
+    width: 100%;
     min-width: 0;
   }
 
@@ -1004,6 +1059,10 @@ tbody tr:hover {
     grid-template-columns: 1fr;
   }
 
+  .orders-filter-field--wide {
+    grid-column: auto;
+  }
+
   .quick-filter-row .tab-btn {
     flex: 1 1 calc(50% - 0.45rem);
   }
@@ -1012,6 +1071,10 @@ tbody tr:hover {
   .toolbar button {
     width: 100%;
     margin: 0;
+  }
+
+  .orders-preset-toolbar label {
+    min-width: 0;
   }
 
   .field-editor-head {
