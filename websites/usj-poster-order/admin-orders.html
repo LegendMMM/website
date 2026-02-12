@@ -4,7 +4,7 @@
     <meta charset="UTF-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1.0" />
     <title>訂單管理 | 環球影城海報冊代購</title>
-    <link rel="stylesheet" href="./assets/styles.css?v=editorial-20260212-2" />
+    <link rel="stylesheet" href="./assets/styles.css?v=editorial-20260212-3" />
   </head>
   <body class="admin-page" data-admin-page="orders">
     <header class="site-header">
@@ -72,8 +72,33 @@
             <div class="quick-filter-row">
               <button type="button" class="tab-btn" data-quick-filter="all">全部</button>
               <button type="button" class="tab-btn" data-quick-filter="unfinished">未完成</button>
-              <button type="button" class="tab-btn" data-quick-filter="transfer_today">今日匯款</button>
+              <button type="button" class="tab-btn" data-quick-filter="unconfirmed">未確認</button>
               <button type="button" class="tab-btn" data-quick-filter="created_today">今日新單</button>
+            </div>
+          </section>
+
+          <section class="compact-card orders-stats-card">
+            <div class="orders-stats-head">
+              <h3>訂單統計</h3>
+              <p class="hint">依目前活動與篩選結果即時統計。</p>
+            </div>
+            <div class="orders-stats-grid">
+              <article class="orders-stat-item">
+                <p class="orders-stat-label">總筆數</p>
+                <p id="orders-stat-total" class="orders-stat-value">0</p>
+              </article>
+              <article class="orders-stat-item">
+                <p class="orders-stat-label">總數量</p>
+                <p id="orders-stat-qty" class="orders-stat-value">0</p>
+              </article>
+              <article class="orders-stat-item">
+                <p class="orders-stat-label">未完成</p>
+                <p id="orders-stat-unfinished" class="orders-stat-value">0</p>
+              </article>
+              <article class="orders-stat-item">
+                <p class="orders-stat-label">未確認</p>
+                <p id="orders-stat-unconfirmed" class="orders-stat-value">0</p>
+              </article>
             </div>
           </section>
 
@@ -149,6 +174,61 @@
             </div>
           </details>
 
+          <section class="compact-card orders-bulk-card">
+            <div class="orders-bulk-head">
+              <h3>批量修改</h3>
+              <p class="hint">勾選訂單後，可一次更新多筆訂單內容。</p>
+            </div>
+
+            <div class="toolbar orders-bulk-selection">
+              <span id="orders-selected-count" class="status-chip">已選 0 筆</span>
+              <button id="orders-select-all-btn" type="button" class="ghost-btn">全選目前結果</button>
+              <button id="orders-clear-selection-btn" type="button" class="secondary-btn">清空選取</button>
+            </div>
+
+            <div class="filter-grid orders-bulk-grid">
+              <label>
+                批量狀態
+                <select id="bulk-status-select"></select>
+              </label>
+              <label>
+                批量交易方式
+                <select id="bulk-method-select">
+                  <option value="">不變更</option>
+                  <option value="面交">面交</option>
+                  <option value="賣貨便">賣貨便</option>
+                </select>
+              </label>
+              <label>
+                批量數量
+                <input id="bulk-quantity-input" type="number" min="1" step="1" placeholder="留空不變更" />
+              </label>
+              <label>
+                批量匯款帳號
+                <input id="bulk-transfer-account-input" type="text" placeholder="留空不變更" />
+              </label>
+              <label>
+                批量匯款時間
+                <input id="bulk-transfer-time-input" type="datetime-local" />
+              </label>
+              <label>
+                備註模式
+                <select id="bulk-note-mode-select">
+                  <option value="append">追加到現有備註</option>
+                  <option value="replace">覆蓋現有備註</option>
+                </select>
+              </label>
+              <label class="orders-filter-field--wide orders-bulk-note-field">
+                批量備註
+                <textarea id="bulk-note-input" rows="2" placeholder="留空不變更"></textarea>
+              </label>
+            </div>
+
+            <div class="toolbar orders-bulk-actions">
+              <button id="apply-bulk-update-btn" type="button">套用到已選訂單</button>
+            </div>
+          </section>
+
           <p id="orders-message" class="message" aria-live="polite"></p>
           <div class="table-wrap">
             <table class="admin-orders-table">
@@ -189,6 +269,6 @@
       <a href="./index.html">回前台頁面</a>
     </footer>
 
-    <script type="module" src="./assets/admin-shell.js?v=20260212-1"></script>
+    <script type="module" src="./assets/admin-shell.js?v=20260212-3"></script>
   </body>
 </html>

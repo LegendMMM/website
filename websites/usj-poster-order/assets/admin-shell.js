@@ -154,6 +154,21 @@ const deleteOrdersPresetBtn = document.querySelector("#delete-orders-preset-btn"
 const ordersFilterDisclosure = document.querySelector("#orders-filter-disclosure");
 const ordersFilterSummary = document.querySelector("#orders-filter-summary");
 const quickFilterButtons = document.querySelectorAll("[data-quick-filter]");
+const ordersSelectedCount = document.querySelector("#orders-selected-count");
+const ordersSelectAllBtn = document.querySelector("#orders-select-all-btn");
+const ordersClearSelectionBtn = document.querySelector("#orders-clear-selection-btn");
+const bulkStatusSelect = document.querySelector("#bulk-status-select");
+const bulkMethodSelect = document.querySelector("#bulk-method-select");
+const bulkQuantityInput = document.querySelector("#bulk-quantity-input");
+const bulkTransferAccountInput = document.querySelector("#bulk-transfer-account-input");
+const bulkTransferTimeInput = document.querySelector("#bulk-transfer-time-input");
+const bulkNoteModeSelect = document.querySelector("#bulk-note-mode-select");
+const bulkNoteInput = document.querySelector("#bulk-note-input");
+const applyBulkUpdateBtn = document.querySelector("#apply-bulk-update-btn");
+const ordersStatTotal = document.querySelector("#orders-stat-total");
+const ordersStatQty = document.querySelector("#orders-stat-qty");
+const ordersStatUnfinished = document.querySelector("#orders-stat-unfinished");
+const ordersStatUnconfirmed = document.querySelector("#orders-stat-unconfirmed");
 const ordersMessage = document.querySelector("#orders-message");
 const logsMessage = document.querySelector("#logs-message");
 const ordersHead = document.querySelector("#orders-head");
@@ -176,6 +191,7 @@ let campaignFieldConfig = [];
 let globalStatusOptions = [...DEFAULT_STATUS_OPTIONS];
 let campaignStatusOptions = [];
 let orderFilterPresets = [];
+const selectedOrderIds = new Set();
 
 function setMessage(el, text, type = "") {
   if (!el) return;
@@ -376,6 +392,22 @@ function renderOrderStatusFilterOptions() {
     ordersStatusFilter.value = previous;
   } else {
     ordersStatusFilter.value = "";
+  }
+}
+
+function renderBulkStatusOptions() {
+  if (!bulkStatusSelect) return;
+  const previous = bulkStatusSelect.value;
+  const campaign = getSelectedCampaignForOrdersPage();
+  const options = getStatusOptionsForCampaign(campaign);
+  bulkStatusSelect.innerHTML = [
+    '<option value="">不變更</option>',
+    ...options.map((status) => `<option value="${escapeHtml(status)}">${escapeHtml(status)}</option>`),
+  ].join("");
+  if (options.includes(previous)) {
+    bulkStatusSelect.value = previous;
+  } else {
+    bulkStatusSelect.value = "";
   }
 }
 
@@ -1131,6 +1163,9 @@ function renderOrdersHeader(campaign) {
 
   ordersHead.innerHTML = `
     <tr>
+      <th class="orders-select-col">
+        <input id="orders-select-all-visible" type="checkbox" aria-label="全選目前列表訂單" />
+      </th>
       <th>${escapeHtml(labelMap.get("customer_name") || "姓名")}</th>
       <th>${escapeHtml(labelMap.get("phone") || "手機")}</th>
       <th>${escapeHtml(labelMap.get("email") || "Email")}</th>
@@ -1189,15 +1224,22 @@ function renderOrders(rows) {
   renderOrdersHeader(campaign);
 
   if (!rows.length) {
+    selectedOrderIds.clear();
     ordersBody.innerHTML = "";
+    updateSelectAllCheckboxState();
+    renderSelectedOrderCount();
     return;
   }
 
   ordersBody.innerHTML = rows
     .map((order) => {
       const customCells = customFields.map((field) => renderCustomFieldCell(order, field)).join("");
+      const isChecked = selectedOrderIds.has(order.id) ? "checked" : "";
       return `
         <tr data-order-row-id="${order.id}">
+          <td class="orders-select-col">
+            <input class="order-select-checkbox" data-order-id="${order.id}" type="checkbox" ${isChecked} aria-label="選取訂單 ${escapeHtml(order.customer_name || order.id)}" />
+          </td>
           <td><input data-order-id="${order.id}" data-field="customer_name" type="text" value="${escapeHtml(order.customer_name)}" /></td>
           <td><input data-order-id="${order.id}" data-field="phone" type="text" value="${escapeHtml(order.phone)}" /></td>
           <td><input data-order-id="${order.id}" data-field="email" type="email" value="${escapeHtml(order.email)}" /></td>
@@ -1221,6 +1263,77 @@ function renderOrders(rows) {
       `;
     })
     .join("");
+
+  updateSelectAllCheckboxState();
+  renderSelectedOrderCount();
+}
+
+function getVisibleOrderIds() {
+  return currentOrders.map((order) => order.id);
+}
+
+function syncSelectedOrderIdsWithCurrentOrders() {
+  const visibleIds = new Set(getVisibleOrderIds());
+  for (const orderId of selectedOrderIds) {
+    if (!visibleIds.has(orderId)) selectedOrderIds.delete(orderId);
+  }
+}
+
+function updateSelectAllCheckboxState() {
+  const checkbox = document.querySelector("#orders-select-all-visible");
+  if (!(checkbox instanceof HTMLInputElement)) return;
+  const visibleIds = getVisibleOrderIds();
+  if (!visibleIds.length) {
+    checkbox.checked = false;
+    checkbox.indeterminate = false;
+    checkbox.disabled = true;
+    return;
+  }
+  checkbox.disabled = false;
+  const checkedCount = visibleIds.filter((orderId) => selectedOrderIds.has(orderId)).length;
+  checkbox.checked = checkedCount > 0 && checkedCount === visibleIds.length;
+  checkbox.indeterminate = checkedCount > 0 && checkedCount < visibleIds.length;
+}
+
+function renderSelectedOrderCount() {
+  const selectedCount = selectedOrderIds.size;
+  if (ordersSelectedCount) {
+    ordersSelectedCount.textContent = `已選 ${selectedCount} 筆`;
+  }
+  if (ordersClearSelectionBtn) {
+    ordersClearSelectionBtn.disabled = selectedCount === 0;
+  }
+  if (applyBulkUpdateBtn) {
+    applyBulkUpdateBtn.disabled = selectedCount === 0;
+  }
+}
+
+function renderOrderStats(rowsInput = currentOrders) {
+  const rows = Array.isArray(rowsInput) ? rowsInput : [];
+  const campaign = getSelectedCampaignForOrdersPage();
+  const statusOptions = getStatusOptionsForCampaign(campaign);
+  const completedStatus = getCompletedStatusFromOptions(statusOptions);
+
+  const totalCount = rows.length;
+  const totalQuantity = rows.reduce((sum, row) => {
+    const quantity = Number(row?.quantity);
+    if (!Number.isFinite(quantity)) return sum;
+    return sum + quantity;
+  }, 0);
+
+  const unfinishedCount = rows.filter((row) => {
+    const status = String(row?.status || "").trim();
+    if (!status) return true;
+    if (completedStatus) return status !== completedStatus;
+    return !/完成|結案|結單|已結束/.test(status);
+  }).length;
+
+  const unconfirmedCount = rows.filter((row) => String(row?.status || "").trim() === "未確認").length;
+
+  if (ordersStatTotal) ordersStatTotal.textContent = String(totalCount);
+  if (ordersStatQty) ordersStatQty.textContent = String(totalQuantity);
+  if (ordersStatUnfinished) ordersStatUnfinished.textContent = String(unfinishedCount);
+  if (ordersStatUnconfirmed) ordersStatUnconfirmed.textContent = String(unconfirmedCount);
 }
 
 function sanitizeKeywordForPostgrest(keyword) {
@@ -1242,9 +1355,8 @@ function applyQuickFilterToForm(key) {
     base.unfinished_only = true;
   }
 
-  if (key === "transfer_today") {
-    base.transfer_from = `${today}T00:00`;
-    base.transfer_to = `${today}T23:59`;
+  if (key === "unconfirmed") {
+    base.status = "未確認";
   }
 
   if (key === "created_today") {
@@ -1261,7 +1373,9 @@ async function loadOrders() {
   const campaignId = ordersCampaignFilter?.value;
   if (!campaignId || !ordersBody) {
     currentOrders = [];
+    selectedOrderIds.clear();
     renderOrders(currentOrders);
+    renderOrderStats(currentOrders);
     return;
   }
 
@@ -1322,7 +1436,9 @@ async function loadOrders() {
     extra_data: item.extra_data && typeof item.extra_data === "object" ? item.extra_data : {},
   }));
 
+  syncSelectedOrderIdsWithCurrentOrders();
   renderOrders(currentOrders);
+  renderOrderStats(currentOrders);
 }
 
 function findOrderById(orderId) {
@@ -1392,6 +1508,84 @@ async function updateOrder(orderId, payload) {
 async function deleteOrder(orderId) {
   const { error } = await supabase.from("orders").delete().eq("id", orderId);
   if (error) throw error;
+}
+
+function getSelectedOrdersInView() {
+  return currentOrders.filter((order) => selectedOrderIds.has(order.id));
+}
+
+function buildBulkUpdateContext() {
+  const campaign = getSelectedCampaignForOrdersPage();
+  const statusOptions = getStatusOptionsForCampaign(campaign);
+
+  const status = String(bulkStatusSelect?.value || "").trim();
+  const transactionMethod = String(bulkMethodSelect?.value || "").trim();
+  const quantityText = String(bulkQuantityInput?.value || "").trim();
+  const transferAccount = String(bulkTransferAccountInput?.value || "").trim();
+  const transferTimeRaw = String(bulkTransferTimeInput?.value || "").trim();
+  const noteText = String(bulkNoteInput?.value || "").trim();
+  const noteMode = bulkNoteModeSelect?.value === "replace" ? "replace" : "append";
+
+  const payload = {};
+
+  if (status) {
+    if (!statusOptions.includes(status)) throw new Error("批量狀態不在可用選項中");
+    payload.status = status;
+  }
+
+  if (transactionMethod) {
+    if (!TRANSACTION_METHOD_OPTIONS.includes(transactionMethod)) throw new Error("批量交易方式錯誤");
+    payload.transaction_method = transactionMethod;
+  }
+
+  if (quantityText) {
+    const quantity = Number(quantityText);
+    if (!Number.isInteger(quantity) || quantity <= 0) throw new Error("批量數量需為正整數");
+    payload.quantity = quantity;
+  }
+
+  if (transferAccount) {
+    payload.transfer_account = transferAccount;
+  }
+
+  if (transferTimeRaw) {
+    const transferTime = toISOFromDatetimeLocal(transferTimeRaw);
+    if (!transferTime) throw new Error("批量匯款時間格式錯誤");
+    payload.transfer_time = transferTime;
+  }
+
+  return { payload, noteText, noteMode };
+}
+
+async function applyBulkUpdateToSelectedOrders() {
+  const selectedOrders = getSelectedOrdersInView();
+  if (!selectedOrders.length) throw new Error("請先勾選要修改的訂單");
+
+  const { payload, noteText, noteMode } = buildBulkUpdateContext();
+  if (!Object.keys(payload).length && !noteText) throw new Error("請至少填一個批量修改欄位");
+
+  let successCount = 0;
+  const failures = [];
+
+  for (const order of selectedOrders) {
+    try {
+      const rowPayload = { ...payload };
+      if (noteText) {
+        rowPayload.note = noteMode === "replace" ? noteText : [order.note, noteText].filter(Boolean).join("\n");
+      }
+      await updateOrder(order.id, rowPayload);
+      successCount += 1;
+    } catch (error) {
+      failures.push(`${order.customer_name || order.id}：${error.message}`);
+    }
+  }
+
+  if (successCount > 0) {
+    await loadOrders();
+    await loadStatusLogs();
+  }
+
+  return { successCount, failures };
 }
 
 function renderStatusLogs(rows) {
@@ -1580,9 +1774,12 @@ async function initOrdersPageData() {
   await loadOrderFilterPresets();
   await loadCampaignsForAdmin();
   renderOrderStatusFilterOptions();
+  renderBulkStatusOptions();
   renderOrderFilterPresetOptions();
   applyQuickFilterToForm("all");
   renderOrderFilterSummary();
+  renderSelectedOrderCount();
+  renderOrderStats([]);
   await loadOrders();
   await loadStatusLogs();
 }
@@ -1910,6 +2107,7 @@ reloadOrdersBtn?.addEventListener("click", async () => {
 ordersCampaignFilter?.addEventListener("change", async () => {
   if (logsCampaignFilter) logsCampaignFilter.value = ordersCampaignFilter.value;
   renderOrderStatusFilterOptions();
+  renderBulkStatusOptions();
   renderOrderFilterPresetOptions();
   if (ordersPresetSelect) ordersPresetSelect.value = "";
   renderOrderFilterSummary();
@@ -2034,6 +2232,66 @@ logsCampaignFilter?.addEventListener("change", async () => {
     setMessage(logsMessage, "狀態紀錄已更新。", "success");
   } catch (error) {
     setMessage(logsMessage, `載入失敗：${error.message}`, "error");
+  }
+});
+
+ordersHead?.addEventListener("change", (event) => {
+  const target = event.target;
+  if (!(target instanceof HTMLInputElement)) return;
+  if (target.id !== "orders-select-all-visible") return;
+  const visibleIds = getVisibleOrderIds();
+  if (target.checked) {
+    visibleIds.forEach((orderId) => selectedOrderIds.add(orderId));
+  } else {
+    visibleIds.forEach((orderId) => selectedOrderIds.delete(orderId));
+  }
+  renderOrders(currentOrders);
+});
+
+ordersBody?.addEventListener("change", (event) => {
+  const target = event.target;
+  if (!(target instanceof HTMLInputElement)) return;
+  if (!target.classList.contains("order-select-checkbox")) return;
+  const orderId = String(target.dataset.orderId || "");
+  if (!orderId) return;
+  if (target.checked) {
+    selectedOrderIds.add(orderId);
+  } else {
+    selectedOrderIds.delete(orderId);
+  }
+  updateSelectAllCheckboxState();
+  renderSelectedOrderCount();
+});
+
+ordersSelectAllBtn?.addEventListener("click", () => {
+  getVisibleOrderIds().forEach((orderId) => selectedOrderIds.add(orderId));
+  renderOrders(currentOrders);
+});
+
+ordersClearSelectionBtn?.addEventListener("click", () => {
+  selectedOrderIds.clear();
+  renderOrders(currentOrders);
+});
+
+applyBulkUpdateBtn?.addEventListener("click", async () => {
+  setMessage(ordersMessage, "批量更新中...");
+  try {
+    const { successCount, failures } = await applyBulkUpdateToSelectedOrders();
+    if (successCount && !failures.length) {
+      setMessage(ordersMessage, `已批量更新 ${successCount} 筆訂單。`, "success");
+      return;
+    }
+    if (successCount && failures.length) {
+      setMessage(
+        ordersMessage,
+        `已更新 ${successCount} 筆，失敗 ${failures.length} 筆。${failures.slice(0, 2).join("；")}`,
+        "error",
+      );
+      return;
+    }
+    setMessage(ordersMessage, failures[0] || "批量更新失敗。", "error");
+  } catch (error) {
+    setMessage(ordersMessage, `批量更新失敗：${error.message}`, "error");
   }
 });
 
