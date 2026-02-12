@@ -143,11 +143,11 @@
                 </label>
                 <label>
                   數量最小
-                  <input id="orders-qty-min" type="number" min="1" />
+                  <input id="orders-qty-min" type="text" inputmode="numeric" placeholder="例如 1" />
                 </label>
                 <label>
                   數量最大
-                  <input id="orders-qty-max" type="number" min="1" />
+                  <input id="orders-qty-max" type="text" inputmode="numeric" placeholder="例如 10" />
                 </label>
               </div>
 
@@ -173,6 +173,14 @@
               <p class="hint">篩選後的結果可直接匯出 CSV。</p>
             </div>
           </details>
+
+          <p id="orders-message" class="message" aria-live="polite"></p>
+          <div class="table-wrap">
+            <table class="admin-orders-table">
+              <thead id="orders-head"></thead>
+              <tbody id="orders-body"></tbody>
+            </table>
+          </div>
 
           <section class="compact-card orders-bulk-card">
             <div class="orders-bulk-head">
@@ -228,14 +236,6 @@
               <button id="apply-bulk-update-btn" type="button">套用到已選訂單</button>
             </div>
           </section>
-
-          <p id="orders-message" class="message" aria-live="polite"></p>
-          <div class="table-wrap">
-            <table class="admin-orders-table">
-              <thead id="orders-head"></thead>
-              <tbody id="orders-body"></tbody>
-            </table>
-          </div>
         </section>
 
         <section id="orders-logs-view" class="stack hidden section-divider">
@@ -269,6 +269,6 @@
       <a href="./index.html">回前台頁面</a>
     </footer>
 
-    <script type="module" src="./assets/admin-shell.js?v=20260212-3"></script>
+    <script type="module" src="./assets/admin-shell.js?v=20260212-4"></script>
   </body>
 </html>
