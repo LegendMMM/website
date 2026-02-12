@@ -4,13 +4,13 @@
     <meta charset="UTF-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1.0" />
     <title>系統設定 | 環球影城海報冊代購</title>
-    <link rel="stylesheet" href="./assets/styles.css?v=editorial-20260211-5" />
+    <link rel="stylesheet" href="./assets/styles.css?v=editorial-20260212-1" />
   </head>
   <body class="admin-page" data-admin-page="settings">
     <header class="site-header">
       <div class="container">
         <h1>系統設定</h1>
-        <p>管理全域狀態選項，供活動與訂單頁使用。</p>
+        <p>管理全域欄位模板與全域狀態選項，供活動與訂單頁使用。</p>
       </div>
     </header>
 
@@ -34,8 +34,8 @@
       <section class="card hidden" id="admin-panel">
         <div class="admin-shell-head">
           <div>
-            <h2>狀態選項設定</h2>
-            <p class="hint">這裡新增或調整全域狀態，活動可選擇沿用或覆寫。</p>
+            <h2>系統共用設定</h2>
+            <p class="hint">在這裡維護全域欄位模板與狀態選項，活動可沿用或覆寫。</p>
           </div>
           <button data-action="logout" type="button">登出</button>
         </div>
@@ -48,6 +48,14 @@
         </nav>
 
         <section class="section-divider stack">
+          <form id="global-defaults-form" class="stack compact-card">
+            <h3>全域預設欄位模板</h3>
+            <p class="hint">新活動會套用此模板。關鍵欄位不可刪除或隱藏。</p>
+            <div id="global-field-list" class="stack"></div>
+            <button type="submit">儲存全域預設</button>
+            <p id="global-message" class="message" aria-live="polite"></p>
+          </form>
+
           <form id="global-status-form" class="stack compact-card">
             <h3>全域狀態清單</h3>
             <p class="hint">訂單頁可自由切換為這份清單中的任一狀態。</p>
@@ -58,11 +66,6 @@
             </div>
             <p id="global-status-message" class="message" aria-live="polite"></p>
           </form>
-
-          <div class="compact-card stack">
-            <h4>預覽</h4>
-            <div id="global-status-preview" class="status-chip-row"></div>
-          </div>
         </section>
       </section>
     </main>
@@ -71,6 +74,6 @@
       <a href="./index.html">回前台頁面</a>
     </footer>
 
-    <script type="module" src="./assets/admin-shell.js?v=20260211-3"></script>
+    <script type="module" src="./assets/admin-shell.js?v=20260212-1"></script>
   </body>
 </html>

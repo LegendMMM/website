@@ -4,13 +4,13 @@
     <meta charset="UTF-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1.0" />
     <title>活動管理 | 環球影城海報冊代購</title>
-    <link rel="stylesheet" href="./assets/styles.css?v=editorial-20260211-5" />
+    <link rel="stylesheet" href="./assets/styles.css?v=editorial-20260212-1" />
   </head>
   <body class="admin-page" data-admin-page="campaigns">
     <header class="site-header">
       <div class="container">
         <h1>活動管理</h1>
-        <p>管理活動資料、欄位模板與活動專屬狀態選項。</p>
+        <p>管理活動資料與活動專屬狀態選項。</p>
       </div>
     </header>
 
@@ -35,7 +35,7 @@
         <div class="admin-shell-head">
           <div>
             <h2>活動配置</h2>
-            <p class="hint">可在建立活動前後調整欄位與狀態。</p>
+            <p class="hint">管理活動內容、活動欄位覆寫與活動專屬狀態。</p>
           </div>
           <button data-action="logout" type="button">登出</button>
         </div>
@@ -46,16 +46,6 @@
           <a href="./admin-orders.html">訂單管理</a>
           <a href="./admin-settings.html">系統設定</a>
         </nav>
-
-        <section class="section-divider stack">
-          <h3>全域預設欄位模板（建立活動前可改）</h3>
-          <form id="global-defaults-form" class="stack compact-card">
-            <p class="hint">新活動會套用此模板。關鍵欄位不可刪除或隱藏。</p>
-            <div id="global-field-list" class="stack"></div>
-            <button type="submit">儲存全域預設</button>
-            <p id="global-message" class="message" aria-live="polite"></p>
-          </form>
-        </section>
 
         <section class="section-divider stack">
           <h3>活動設定（建立後可改）</h3>
@@ -105,7 +95,12 @@
               <input id="settings-is-active" type="checkbox" />
               活動啟用（取消勾選後前台不顯示）
             </label>
-            <button type="submit">儲存活動設定</button>
+            <div class="toolbar campaign-actions-row">
+              <button type="submit">儲存活動設定</button>
+              <button id="archive-campaign-btn" type="button" class="secondary-btn">封存活動</button>
+              <button id="delete-campaign-btn" type="button" class="danger-btn">刪除活動</button>
+            </div>
+            <p class="hint">若活動已有訂單，刪除會改為封存，避免誤刪紀錄。</p>
             <p id="campaign-settings-message" class="message" aria-live="polite"></p>
           </form>
         </section>
@@ -138,6 +133,6 @@
       <a href="./index.html">回前台頁面</a>
     </footer>
 
-    <script type="module" src="./assets/admin-shell.js?v=20260211-3"></script>
+    <script type="module" src="./assets/admin-shell.js?v=20260212-1"></script>
   </body>
 </html>

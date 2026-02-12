@@ -118,6 +118,8 @@ const campaignsFilter = document.querySelector("#campaigns-filter");
 const reloadCampaignsBtn = document.querySelector("#reload-campaigns-btn");
 const campaignSettingsForm = document.querySelector("#campaign-settings-form");
 const campaignSettingsMessage = document.querySelector("#campaign-settings-message");
+const archiveCampaignBtn = document.querySelector("#archive-campaign-btn");
+const deleteCampaignBtn = document.querySelector("#delete-campaign-btn");
 const settingsTitle = document.querySelector("#settings-title");
 const settingsDescription = document.querySelector("#settings-description");
 const settingsIsActive = document.querySelector("#settings-is-active");
@@ -149,6 +151,8 @@ const ordersPresetSelect = document.querySelector("#orders-preset-select");
 const applyOrdersPresetBtn = document.querySelector("#apply-orders-preset-btn");
 const saveOrdersPresetBtn = document.querySelector("#save-orders-preset-btn");
 const deleteOrdersPresetBtn = document.querySelector("#delete-orders-preset-btn");
+const ordersFilterDisclosure = document.querySelector("#orders-filter-disclosure");
+const ordersFilterSummary = document.querySelector("#orders-filter-summary");
 const quickFilterButtons = document.querySelectorAll("[data-quick-filter]");
 const ordersMessage = document.querySelector("#orders-message");
 const logsMessage = document.querySelector("#logs-message");
@@ -299,6 +303,38 @@ function applyOrderFilterToForm(filterInput) {
   if (ordersQtyMin) ordersQtyMin.value = filter.quantity_min === "" ? "" : String(filter.quantity_min);
   if (ordersQtyMax) ordersQtyMax.value = filter.quantity_max === "" ? "" : String(filter.quantity_max);
   if (ordersUnfinishedOnly) ordersUnfinishedOnly.checked = filter.unfinished_only;
+  renderOrderFilterSummary(filter);
+}
+
+function setOrdersFilterDisclosureOpen(isOpen) {
+  if (!ordersFilterDisclosure) return;
+  ordersFilterDisclosure.open = Boolean(isOpen);
+}
+
+function getOrderFilterSummaryParts(filterInput) {
+  const filter = normalizeOrderFilter(filterInput);
+  const parts = [];
+  if (filter.keyword) parts.push(`關鍵字：${filter.keyword}`);
+  if (filter.status) parts.push(`狀態：${filter.status}`);
+  if (filter.transaction_method) parts.push(`交易：${filter.transaction_method}`);
+  if (filter.transfer_from || filter.transfer_to) parts.push("匯款時間區間");
+  if (filter.created_from || filter.created_to) parts.push("建立日期區間");
+  if (filter.quantity_min !== "" || filter.quantity_max !== "") parts.push("數量範圍");
+  if (filter.unfinished_only) parts.push("只看未完成");
+  return parts;
+}
+
+function renderOrderFilterSummary(filterInput = null) {
+  if (!ordersFilterSummary) return;
+  const filter = filterInput || readOrderFilterFromForm();
+  const parts = getOrderFilterSummaryParts(filter);
+  if (!parts.length) {
+    ordersFilterSummary.textContent = "目前未套用進階條件";
+    return;
+  }
+  const preview = parts.slice(0, 3).join("・");
+  const suffix = parts.length > 3 ? ` 等 ${parts.length} 項` : "";
+  ordersFilterSummary.textContent = `已套用：${preview}${suffix}`;
 }
 
 function getCompletedStatusFromOptions(options) {
@@ -849,7 +885,6 @@ function setFieldEditorFromEvent(event) {
 }
 
 async function loadGlobalFieldConfig() {
-  if (!globalFieldList) return;
   const { data, error } = await supabase
     .from("app_settings")
     .select("value")
@@ -1069,6 +1104,25 @@ function populateCampaignSettings() {
   renderCampaignStatusEditor();
 }
 
+async function getCampaignOrderCount(campaignId) {
+  const { count, error } = await supabase
+    .from("orders")
+    .select("id", { count: "exact", head: true })
+    .eq("campaign_id", campaignId);
+  if (error) throw error;
+  return count || 0;
+}
+
+async function archiveCampaign(campaignId) {
+  const { error } = await supabase.from("campaigns").update({ is_active: false }).eq("id", campaignId);
+  if (error) throw error;
+}
+
+async function deleteCampaign(campaignId) {
+  const { error } = await supabase.from("campaigns").delete().eq("id", campaignId);
+  if (error) throw error;
+}
+
 function renderOrdersHeader(campaign) {
   if (!ordersHead) return;
   const customFields = campaign?.custom_fields || [];
@@ -1200,6 +1254,7 @@ function applyQuickFilterToForm(key) {
 
   applyOrderFilterToForm(base);
   setQuickFilterActive(key);
+  setOrdersFilterDisclosureOpen(false);
 }
 
 async function loadOrders() {
@@ -1527,12 +1582,14 @@ async function initOrdersPageData() {
   renderOrderStatusFilterOptions();
   renderOrderFilterPresetOptions();
   applyQuickFilterToForm("all");
+  renderOrderFilterSummary();
   await loadOrders();
   await loadStatusLogs();
 }
 
 async function initSettingsPageData() {
   await loadGlobalStatusOptions();
+  await loadGlobalFieldConfig();
 }
 
 async function initPageData() {
@@ -1781,6 +1838,65 @@ campaignSettingsForm?.addEventListener("submit", async (event) => {
   }
 });
 
+archiveCampaignBtn?.addEventListener("click", async () => {
+  setMessage(campaignSettingsMessage, "處理中...");
+  try {
+    const campaign = getSelectedCampaignForCampaignPage();
+    if (!campaign) throw new Error("請先選擇活動");
+    const ok = window.confirm(`確定封存「${campaign.title}」？封存後前台不會顯示此活動。`);
+    if (!ok) {
+      setMessage(campaignSettingsMessage, "已取消封存。");
+      return;
+    }
+
+    await archiveCampaign(campaign.id);
+    await loadCampaignsForAdmin();
+    campaignsFilter.value = campaign.id;
+    populateCampaignSettings();
+    setMessage(campaignSettingsMessage, "活動已封存。", "success");
+  } catch (error) {
+    setMessage(campaignSettingsMessage, `封存失敗：${error.message}`, "error");
+  }
+});
+
+deleteCampaignBtn?.addEventListener("click", async () => {
+  setMessage(campaignSettingsMessage, "處理中...");
+  try {
+    const campaign = getSelectedCampaignForCampaignPage();
+    if (!campaign) throw new Error("請先選擇活動");
+
+    const orderCount = await getCampaignOrderCount(campaign.id);
+    if (orderCount > 0) {
+      const switchToArchive = window.confirm(
+        `活動「${campaign.title}」已有 ${orderCount} 筆訂單，為避免資料遺失將改為封存。是否繼續？`,
+      );
+      if (!switchToArchive) {
+        setMessage(campaignSettingsMessage, "已取消操作。");
+        return;
+      }
+      await archiveCampaign(campaign.id);
+      await loadCampaignsForAdmin();
+      campaignsFilter.value = campaign.id;
+      populateCampaignSettings();
+      setMessage(campaignSettingsMessage, "活動已封存（保留既有訂單）。", "success");
+      return;
+    }
+
+    const shouldDelete = window.confirm(`確定永久刪除「${campaign.title}」？此動作無法復原。`);
+    if (!shouldDelete) {
+      setMessage(campaignSettingsMessage, "已取消刪除。");
+      return;
+    }
+
+    await deleteCampaign(campaign.id);
+    await loadCampaignsForAdmin();
+    populateCampaignSettings();
+    setMessage(campaignSettingsMessage, "活動已刪除。", "success");
+  } catch (error) {
+    setMessage(campaignSettingsMessage, `刪除失敗：${error.message}`, "error");
+  }
+});
+
 reloadOrdersBtn?.addEventListener("click", async () => {
   setMessage(ordersMessage, "載入中...");
   try {
@@ -1796,6 +1912,7 @@ ordersCampaignFilter?.addEventListener("change", async () => {
   renderOrderStatusFilterOptions();
   renderOrderFilterPresetOptions();
   if (ordersPresetSelect) ordersPresetSelect.value = "";
+  renderOrderFilterSummary();
   setMessage(ordersMessage, "載入中...");
   try {
     await loadOrders();
@@ -1810,6 +1927,7 @@ applyOrdersFilterBtn?.addEventListener("click", async () => {
   setMessage(ordersMessage, "篩選中...");
   try {
     await loadOrders();
+    setOrdersFilterDisclosureOpen(false);
     setMessage(ordersMessage, `已載入 ${currentOrders.length} 筆。`, "success");
   } catch (error) {
     setMessage(ordersMessage, `篩選失敗：${error.message}`, "error");
@@ -1832,6 +1950,7 @@ applyOrdersPresetBtn?.addEventListener("click", async () => {
   setMessage(ordersMessage, "套用預設中...");
   try {
     await applySelectedOrderPreset();
+    setOrdersFilterDisclosureOpen(false);
     setMessage(ordersMessage, `已載入 ${currentOrders.length} 筆。`, "success");
   } catch (error) {
     setMessage(ordersMessage, `套用失敗：${error.message}`, "error");
@@ -1860,6 +1979,7 @@ deleteOrdersPresetBtn?.addEventListener("click", async () => {
 
 ordersPresetSelect?.addEventListener("change", () => {
   setQuickFilterActive("");
+  renderOrderFilterSummary();
 });
 
 ordersKeywordFilter?.addEventListener("keydown", async (event) => {
@@ -1869,6 +1989,7 @@ ordersKeywordFilter?.addEventListener("keydown", async (event) => {
   setMessage(ordersMessage, "篩選中...");
   try {
     await loadOrders();
+    setOrdersFilterDisclosureOpen(false);
     setMessage(ordersMessage, `已載入 ${currentOrders.length} 筆。`, "success");
   } catch (error) {
     setMessage(ordersMessage, `篩選失敗：${error.message}`, "error");
@@ -1887,6 +2008,23 @@ quickFilterButtons.forEach((button) => {
       setMessage(ordersMessage, `篩選失敗：${error.message}`, "error");
     }
   });
+});
+
+[
+  ordersKeywordFilter,
+  ordersStatusFilter,
+  ordersMethodFilter,
+  ordersTransferFrom,
+  ordersTransferTo,
+  ordersCreatedFrom,
+  ordersCreatedTo,
+  ordersQtyMin,
+  ordersQtyMax,
+  ordersUnfinishedOnly,
+].forEach((el) => {
+  if (!el) return;
+  el.addEventListener("input", () => renderOrderFilterSummary());
+  el.addEventListener("change", () => renderOrderFilterSummary());
 });
 
 logsCampaignFilter?.addEventListener("change", async () => {

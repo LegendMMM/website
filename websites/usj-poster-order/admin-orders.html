@@ -4,13 +4,13 @@
     <meta charset="UTF-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1.0" />
     <title>訂單管理 | 環球影城海報冊代購</title>
-    <link rel="stylesheet" href="./assets/styles.css?v=editorial-20260211-5" />
+    <link rel="stylesheet" href="./assets/styles.css?v=editorial-20260212-1" />
   </head>
   <body class="admin-page" data-admin-page="orders">
     <header class="site-header">
       <div class="container">
         <h1>訂單管理</h1>
-        <p>編輯整筆訂單內容，並可自由切換狀態選項。</p>
+        <p>編輯整筆訂單內容，自由切換狀態，進階篩選可收合。</p>
       </div>
     </header>
 
@@ -53,7 +53,7 @@
         </div>
 
         <section id="orders-list-view" class="stack">
-          <div class="toolbar">
+          <div class="toolbar orders-main-toolbar">
             <label>
               選擇活動
               <select id="orders-campaign-filter"></select>
@@ -62,79 +62,90 @@
             <button id="export-csv-btn" type="button">匯出 CSV</button>
           </div>
 
-          <section class="compact-card orders-filter-card">
-            <h3>篩選條件</h3>
-            <div class="filter-grid">
-              <label>
-                關鍵字
-                <input id="orders-keyword-filter" type="text" placeholder="姓名 / 手機 / Email / 匯款帳號 / 備註" />
-              </label>
-              <label>
-                狀態
-                <select id="orders-status-filter"></select>
-              </label>
-              <label>
-                交易方式
-                <select id="orders-method-filter">
-                  <option value="">全部</option>
-                  <option value="面交">面交</option>
-                  <option value="賣貨便">賣貨便</option>
-                </select>
-              </label>
-              <label>
-                匯款時間起
-                <input id="orders-transfer-from" type="datetime-local" />
-              </label>
-              <label>
-                匯款時間迄
-                <input id="orders-transfer-to" type="datetime-local" />
-              </label>
-              <label>
-                建立日期起
-                <input id="orders-created-from" type="date" />
-              </label>
-              <label>
-                建立日期迄
-                <input id="orders-created-to" type="date" />
-              </label>
-              <label>
-                數量最小
-                <input id="orders-qty-min" type="number" min="1" />
-              </label>
-              <label>
-                數量最大
-                <input id="orders-qty-max" type="number" min="1" />
-              </label>
-              <label class="inline-check">
-                <input id="orders-unfinished-only" type="checkbox" />
-                只看未完成
-              </label>
+          <section class="compact-card orders-quick-card">
+            <div class="orders-quick-head">
+              <h3>快速篩選</h3>
+              <p class="hint">先用快捷鍵，進階條件再展開設定。</p>
             </div>
-
-            <div class="toolbar">
-              <button id="apply-orders-filter-btn" type="button">套用篩選</button>
-              <button id="reset-orders-filter-btn" type="button" class="secondary-btn">清除條件</button>
-            </div>
-
-            <div class="toolbar">
-              <label>
-                常用篩選
-                <select id="orders-preset-select"></select>
-              </label>
-              <button id="apply-orders-preset-btn" type="button">套用預設</button>
-              <button id="save-orders-preset-btn" type="button" class="secondary-btn">儲存目前條件</button>
-              <button id="delete-orders-preset-btn" type="button" class="ghost-btn">刪除預設</button>
-            </div>
-
             <div class="quick-filter-row">
               <button type="button" class="tab-btn" data-quick-filter="all">全部</button>
               <button type="button" class="tab-btn" data-quick-filter="unfinished">未完成</button>
               <button type="button" class="tab-btn" data-quick-filter="transfer_today">今日匯款</button>
               <button type="button" class="tab-btn" data-quick-filter="created_today">今日新單</button>
             </div>
-
-            <p class="hint">篩選後的結果可直接匯出 CSV。</p>
           </section>
+
+          <details id="orders-filter-disclosure" class="compact-card orders-filter-card">
+            <summary>
+              <span>進階篩選</span>
+              <span id="orders-filter-summary" class="hint">目前未套用進階條件</span>
+            </summary>
+            <div class="orders-filter-body stack">
+              <div class="filter-grid">
+                <label>
+                  關鍵字
+                  <input id="orders-keyword-filter" type="text" placeholder="姓名 / 手機 / Email / 匯款帳號 / 備註" />
+                </label>
+                <label>
+                  狀態
+                  <select id="orders-status-filter"></select>
+                </label>
+                <label>
+                  交易方式
+                  <select id="orders-method-filter">
+                    <option value="">全部</option>
+                    <option value="面交">面交</option>
+                    <option value="賣貨便">賣貨便</option>
+                  </select>
+                </label>
+                <label>
+                  匯款時間起
+                  <input id="orders-transfer-from" type="datetime-local" />
+                </label>
+                <label>
+                  匯款時間迄
+                  <input id="orders-transfer-to" type="datetime-local" />
+                </label>
+                <label>
+                  建立日期起
+                  <input id="orders-created-from" type="date" />
+                </label>
+                <label>
+                  建立日期迄
+                  <input id="orders-created-to" type="date" />
+                </label>
+                <label>
+                  數量最小
+                  <input id="orders-qty-min" type="number" min="1" />
+                </label>
+                <label>
+                  數量最大
+                  <input id="orders-qty-max" type="number" min="1" />
+                </label>
+                <label class="inline-check">
+                  <input id="orders-unfinished-only" type="checkbox" />
+                  只看未完成
+                </label>
+              </div>
+
+              <div class="toolbar">
+                <button id="apply-orders-filter-btn" type="button">套用篩選</button>
+                <button id="reset-orders-filter-btn" type="button" class="secondary-btn">清除條件</button>
+              </div>
+
+              <div class="toolbar">
+                <label>
+                  常用篩選
+                  <select id="orders-preset-select"></select>
+                </label>
+                <button id="apply-orders-preset-btn" type="button">套用預設</button>
+                <button id="save-orders-preset-btn" type="button" class="secondary-btn">儲存目前條件</button>
+                <button id="delete-orders-preset-btn" type="button" class="ghost-btn">刪除預設</button>
+              </div>
+
+              <p class="hint">篩選後的結果可直接匯出 CSV。</p>
+            </div>
+          </details>
 
           <p id="orders-message" class="message" aria-live="polite"></p>
           <div class="table-wrap">
@@ -176,6 +187,6 @@
       <a href="./index.html">回前台頁面</a>
     </footer>
 
-    <script type="module" src="./assets/admin-shell.js?v=20260211-3"></script>
+    <script type="module" src="./assets/admin-shell.js?v=20260212-1"></script>
   </body>
 </html>

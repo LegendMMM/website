@@ -18,6 +18,8 @@
   --line: #d9d2c8;
   --ok: #1e7a56;
   --error: #b23d3d;
+  --danger: #b15555;
+  --danger-strong: #944646;
   --shadow: 0 10px 24px rgba(33, 39, 49, 0.06);
   --radius: 10px;
 }
@@ -144,6 +146,12 @@ body:not(.public-page) {
   padding: 1.05rem;
   box-shadow: var(--shadow);
   animation: card-rise 250ms ease both;
+}
+
+.admin-page .card {
+  border-color: #d3dce5;
+  background: linear-gradient(180deg, #ffffff 0%, #fbfcfe 100%);
+  box-shadow: 0 12px 26px rgba(33, 39, 49, 0.08);
 }
 
 .card::before {
@@ -331,6 +339,11 @@ button {
   background: #f7f4ee;
 }
 
+.danger-btn {
+  background: linear-gradient(145deg, var(--danger) 0%, var(--danger-strong) 100%);
+  box-shadow: 0 8px 16px rgba(148, 70, 70, 0.24);
+}
+
 input,
 select,
 textarea {
@@ -421,6 +434,72 @@ button:active {
 .orders-filter-card h3 {
   margin: 0;
   font-size: 1rem;
+}
+
+.orders-main-toolbar {
+  align-items: center;
+  justify-content: space-between;
+  gap: 0.8rem;
+}
+
+.orders-main-toolbar label {
+  min-width: 260px;
+}
+
+.orders-main-toolbar button {
+  min-width: 120px;
+}
+
+.orders-quick-card {
+  display: grid;
+  gap: 0.65rem;
+  border-color: #d8e0e8;
+  background: linear-gradient(180deg, #fbfdff 0%, #f7f9fc 100%);
+}
+
+.orders-quick-head {
+  display: flex;
+  align-items: baseline;
+  justify-content: space-between;
+  gap: 0.6rem;
+}
+
+.orders-quick-head h3 {
+  margin: 0;
+}
+
+.orders-filter-card {
+  border-color: #d7e0e8;
+  background: linear-gradient(180deg, #ffffff 0%, #f9fbfd 100%);
+}
+
+.orders-filter-card summary {
+  list-style: none;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 0.8rem;
+  cursor: pointer;
+  font-weight: 700;
+  color: #2f3f54;
+}
+
+.orders-filter-card summary::-webkit-details-marker {
+  display: none;
+}
+
+.orders-filter-card summary::after {
+  content: "▾";
+  color: #5f7586;
+  transition: transform 150ms ease;
+}
+
+.orders-filter-card[open] summary::after {
+  transform: rotate(180deg);
+}
+
+.orders-filter-body {
+  margin-top: 0.65rem;
 }
 
 .filter-grid {
@@ -602,6 +681,8 @@ tbody tr:hover {
   justify-content: space-between;
   align-items: flex-start;
   gap: 1rem;
+  padding-bottom: 0.75rem;
+  border-bottom: 1px solid #dde4eb;
 }
 
 .admin-shell-head h2 {
@@ -617,19 +698,19 @@ tbody tr:hover {
 
 .admin-nav a {
   text-decoration: none;
-  border: 1px solid #d8d1c8;
-  background: #fffdfa;
-  color: #485266;
+  border: 1px solid #d3dce5;
+  background: #ffffff;
+  color: #3f4e64;
   border-radius: 6px;
-  padding: 0.42rem 0.68rem;
+  padding: 0.45rem 0.72rem;
   font-size: 0.86rem;
   font-weight: 600;
 }
 
 .admin-nav a.current {
-  border-color: #adbfcb;
-  background: #edf3f7;
-  color: #556c7b;
+  border-color: #8ca0b0;
+  background: #edf4f9;
+  color: #435c70;
 }
 
 .admin-grid-links {
@@ -670,16 +751,16 @@ tbody tr:hover {
   border-radius: 6px;
   min-height: 38px;
   padding: 0.35rem 0.7rem;
-  border: 1px solid #d8d1c8;
-  background: #fffdfa;
-  color: #4a5569;
+  border: 1px solid #d2dbe4;
+  background: #ffffff;
+  color: #4a5a70;
   box-shadow: none;
 }
 
 .tab-btn.active {
-  border-color: #adbfcb;
-  background: #edf3f7;
-  color: #556c7b;
+  border-color: #96adbe;
+  background: #e9f2f8;
+  color: #476074;
 }
 
 .status-option-row {
@@ -726,7 +807,11 @@ tbody tr:hover {
 .section-divider {
   padding-top: 1rem;
   margin-top: 1rem;
-  border-top: 1px solid #ddd6cb;
+  border-top: 1px solid #dde4eb;
+}
+
+.campaign-actions-row {
+  align-items: center;
 }
 
 .footer {
@@ -894,6 +979,25 @@ tbody tr:hover {
   .toolbar {
     width: 100%;
     align-items: stretch;
+  }
+
+  .orders-main-toolbar label,
+  .orders-main-toolbar button {
+    min-width: 0;
+  }
+
+  .orders-quick-head {
+    flex-direction: column;
+    align-items: flex-start;
+  }
+
+  .orders-filter-card summary {
+    flex-direction: column;
+    align-items: flex-start;
+  }
+
+  .orders-filter-card summary::after {
+    align-self: flex-end;
   }
 
   .filter-grid {
