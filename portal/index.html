@@ -1,0 +1,123 @@
+<!doctype html>
+<html lang="zh-Hant">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>LegendMMM 網站入口</title>
+    <style>
+      :root {
+        --bg: #f4f7fb;
+        --ink: #0f172a;
+        --muted: #475569;
+        --card: #ffffff;
+        --line: #dbe3ef;
+        --accent: #0f766e;
+      }
+      * { box-sizing: border-box; }
+      body {
+        margin: 0;
+        min-height: 100vh;
+        font-family: "Noto Sans TC", "PingFang TC", sans-serif;
+        color: var(--ink);
+        background:
+          radial-gradient(circle at 10% 0%, rgba(15, 118, 110, 0.18), transparent 30%),
+          radial-gradient(circle at 90% 15%, rgba(14, 116, 144, 0.14), transparent 25%),
+          var(--bg);
+      }
+      .wrap {
+        width: min(1080px, 92vw);
+        margin: 0 auto;
+        padding: 56px 0 72px;
+      }
+      h1 {
+        margin: 0;
+        font-size: clamp(2rem, 4.5vw, 3.2rem);
+        line-height: 1.1;
+      }
+      .sub {
+        margin-top: 12px;
+        color: var(--muted);
+        font-size: 1rem;
+      }
+      .grid {
+        margin-top: 32px;
+        display: grid;
+        grid-template-columns: repeat(auto-fit, minmax(260px, 1fr));
+        gap: 16px;
+      }
+      .card {
+        display: block;
+        text-decoration: none;
+        color: inherit;
+        border: 1px solid var(--line);
+        border-radius: 18px;
+        background: var(--card);
+        padding: 20px;
+        box-shadow: 0 18px 36px -28px rgba(15, 23, 42, 0.35);
+        transition: transform .18s ease, box-shadow .18s ease, border-color .18s ease;
+      }
+      .card:hover {
+        transform: translateY(-2px);
+        border-color: #8ac8c3;
+        box-shadow: 0 24px 45px -28px rgba(15, 23, 42, 0.45);
+      }
+      .badge {
+        display: inline-block;
+        padding: 4px 9px;
+        border-radius: 999px;
+        font-size: 12px;
+        font-weight: 700;
+        color: #115e59;
+        background: #ccfbf1;
+      }
+      .title {
+        margin-top: 10px;
+        font-size: 1.2rem;
+        font-weight: 800;
+      }
+      .desc {
+        margin-top: 8px;
+        color: var(--muted);
+        font-size: 0.95rem;
+        line-height: 1.5;
+      }
+      .coming {
+        border-style: dashed;
+        opacity: 0.82;
+      }
+      .foot {
+        margin-top: 28px;
+        color: #64748b;
+        font-size: .88rem;
+      }
+    </style>
+  </head>
+  <body>
+    <main class="wrap">
+      <h1>LegendMMM 網站入口</h1>
+      <p class="sub">從這裡進入你旗下的各個網站，之後新增專案只要加一張卡片即可。</p>
+
+      <section class="grid">
+        <a class="card" href="./handan/">
+          <span class="badge">已上線</span>
+          <div class="title">喊單網站</div>
+          <p class="desc">團主喊單帳本、排單確認、綁物邏輯、對帳與賣貨便匯出。</p>
+        </a>
+
+        <a class="card" href="./websites/usj-poster-order/">
+          <span class="badge">已上線</span>
+          <div class="title">USJ Poster Order</div>
+          <p class="desc">舊版海報訂購網站入口（多頁 HTML 版本）。</p>
+        </a>
+
+        <a class="card coming" href="javascript:void(0)">
+          <span class="badge">即將上線</span>
+          <div class="title">下一個網站</div>
+          <p class="desc">你下一個專案可以直接掛在這裡，變成統一入口。</p>
+        </a>
+      </section>
+
+      <p class="foot">入口網址：<strong>https://legendmmm.github.io/website/</strong></p>
+    </main>
+  </body>
+</html>

@@ -18,9 +18,6 @@ concurrency:
 jobs:
   build:
     runs-on: ubuntu-latest
-    defaults:
-      run:
-        working-directory: '喊單網站'
     steps:
       - uses: actions/checkout@v4
 
@@ -34,21 +31,31 @@ jobs:
         uses: actions/configure-pages@v5
 
       - name: Install dependencies
+        working-directory: '喊單網站'
         run: npm ci
 
       - name: Build
         env:
           VITE_SUPABASE_URL: ${{ secrets.VITE_SUPABASE_URL }}
           VITE_SUPABASE_ANON_KEY: ${{ secrets.VITE_SUPABASE_ANON_KEY }}
-          VITE_BASE_PATH: /${{ github.event.repository.name }}/
+          VITE_BASE_PATH: /${{ github.event.repository.name }}/handan/
+        working-directory: '喊單網站'
         run: |
           npm run build
           cp dist/index.html dist/404.html
 
+      - name: Assemble site entry portal
+        run: |
+          mkdir -p _site/handan
+          cp -R 喊單網站/dist/* _site/handan/
+          cp -R websites _site/websites
+          cp portal/index.html _site/index.html
+          cp portal/404.html _site/404.html
+
       - name: Upload artifact
         uses: actions/upload-pages-artifact@v3
         with:
-          path: '喊單網站/dist'
+          path: '_site'
 
   deploy:
     environment:
