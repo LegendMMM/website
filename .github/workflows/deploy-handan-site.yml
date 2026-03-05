@@ -4,9 +4,6 @@ on:
   push:
     branches:
       - main
-    paths:
-      - '喊單網站/**'
-      - '.github/workflows/deploy-handan-site.yml'
   workflow_dispatch:
 
 permissions:
@@ -32,6 +29,9 @@ jobs:
           node-version: 20
           cache: npm
           cache-dependency-path: '喊單網站/package-lock.json'
+
+      - name: Configure GitHub Pages
+        uses: actions/configure-pages@v5
 
       - name: Install dependencies
         run: npm ci
