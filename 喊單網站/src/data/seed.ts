@@ -54,6 +54,8 @@ export const seedState: OrderSystemState = {
       deadlineAt: daysFromNow(4),
       status: "OPEN",
       pricingMode: "DYNAMIC",
+      releaseStage: "FIXED_1_2",
+      maxClaimsPerUser: 4,
       createdBy: "u-admin-001",
     },
     {
@@ -63,6 +65,8 @@ export const seedState: OrderSystemState = {
       deadlineAt: daysFromNow(8),
       status: "OPEN",
       pricingMode: "AVERAGE_WITH_BINDING",
+      releaseStage: "FIXED_1_ONLY",
+      maxClaimsPerUser: 3,
       createdBy: "u-admin-001",
     },
   ],
@@ -144,4 +148,7 @@ export const seedState: OrderSystemState = {
   payments: [],
   bindings: [],
   shipments: [],
+  cartItems: [],
+  orders: [],
+  orderItems: [],
 };

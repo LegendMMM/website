@@ -1,5 +1,5 @@
-import { ROLE_LABEL } from "./constants";
-import type { PaymentMethod, RoleTier } from "../types/domain";
+import { RELEASE_STAGE_LABEL, ROLE_LABEL } from "./constants";
+import type { OrderStatus, PaymentMethod, ReleaseStage, RoleTier } from "../types/domain";
 
 export const paymentLabel: Record<PaymentMethod, string> = {
   BANK_TRANSFER: "匯款",
@@ -11,6 +11,16 @@ export const paymentLabel: Record<PaymentMethod, string> = {
 export function roleLabel(role: RoleTier): string {
   return ROLE_LABEL[role];
 }
+
+export function releaseStageLabel(stage: ReleaseStage): string {
+  return RELEASE_STAGE_LABEL[stage];
+}
+
+export const orderStatusLabel: Record<OrderStatus, string> = {
+  PLACED: "已下單",
+  PAID: "已付款",
+  CANCELLED: "已取消",
+};
 
 export function formatDate(value: string): string {
   return new Intl.DateTimeFormat("zh-TW", {

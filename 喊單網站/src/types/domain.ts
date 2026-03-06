@@ -11,6 +11,7 @@ export type PaymentMethod =
 export type ClaimStatus = "LOCKED" | "CANCELLED_BY_ADMIN" | "CONFIRMED";
 
 export type CampaignStatus = "OPEN" | "CLOSED";
+export type ReleaseStage = "FIXED_1_ONLY" | "FIXED_1_2" | "FIXED_1_2_3" | "ALL_OPEN";
 
 export interface UserProfile {
   id: string;
@@ -30,6 +31,8 @@ export interface Campaign {
   deadlineAt: string;
   status: CampaignStatus;
   pricingMode: PricingMode;
+  releaseStage: ReleaseStage;
+  maxClaimsPerUser: number | null;
   createdBy: string;
 }
 
@@ -88,6 +91,35 @@ export interface ShipmentDraft {
   receiverStoreCode: string;
 }
 
+export interface CartItem {
+  id: string;
+  campaignId: string;
+  productId: string;
+  userId: string;
+  createdAt: string;
+}
+
+export type OrderStatus = "PLACED" | "PAID" | "CANCELLED";
+
+export interface Order {
+  id: string;
+  campaignId: string;
+  userId: string;
+  status: OrderStatus;
+  totalAmount: number;
+  createdAt: string;
+}
+
+export interface OrderItem {
+  id: string;
+  orderId: string;
+  campaignId: string;
+  productId: string;
+  userId: string;
+  unitPrice: number;
+  createdAt: string;
+}
+
 export interface OrderSystemState {
   users: UserProfile[];
   campaigns: Campaign[];
@@ -96,4 +128,7 @@ export interface OrderSystemState {
   payments: Payment[];
   bindings: BindingAssignment[];
   shipments: ShipmentDraft[];
+  cartItems: CartItem[];
+  orders: Order[];
+  orderItems: OrderItem[];
 }

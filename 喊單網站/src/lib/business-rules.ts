@@ -5,6 +5,7 @@ import type {
   Claim,
   PaymentMethod,
   Product,
+  ReleaseStage,
   RoleTier,
   ShipmentDraft,
   UserProfile,
@@ -141,4 +142,11 @@ export function isClaimImmutableForMember(claim: Claim, currentUser: UserProfile
 
 export function roleCanBeat(roleA: RoleTier, roleB: RoleTier): boolean {
   return ROLE_PRIORITY[roleA] < ROLE_PRIORITY[roleB];
+}
+
+export function roleCanAccessReleaseStage(roleTier: RoleTier, releaseStage: ReleaseStage): boolean {
+  if (releaseStage === "ALL_OPEN") return true;
+  if (releaseStage === "FIXED_1_ONLY") return roleTier === "FIXED_1";
+  if (releaseStage === "FIXED_1_2") return roleTier === "FIXED_1" || roleTier === "FIXED_2";
+  return roleTier === "FIXED_1" || roleTier === "FIXED_2" || roleTier === "FIXED_3";
 }

@@ -1,38 +1,447 @@
 import { useEffect, useMemo, useState } from "react";
 import { motion } from "framer-motion";
-import { AdminPanel } from "./components/AdminPanel";
 import { AuthCard } from "./components/AuthCard";
-import { CampaignTabs } from "./components/CampaignTabs";
-import { MemberPanel } from "./components/MemberPanel";
-import { roleLabel } from "./lib/format";
-import { isSupabaseEnabled } from "./lib/supabase";
+import type { UseOrderSystemReturn } from "./hooks/useOrderSystem";
 import { useOrderSystem } from "./hooks/useOrderSystem";
+import { formatDate, orderStatusLabel, releaseStageLabel, roleLabel, twd } from "./lib/format";
+import { isSupabaseEnabled } from "./lib/supabase";
+import type { Campaign, ReleaseStage } from "./types/domain";
+
+type PageView = "home" | "campaign" | "cart" | "me" | "admin";
+
+const stageOptions: ReleaseStage[] = ["FIXED_1_ONLY", "FIXED_1_2", "FIXED_1_2_3", "ALL_OPEN"];
+
+function HeaderNav(props: {
+  currentView: PageView;
+  setView: (view: PageView) => void;
+  system: UseOrderSystemReturn;
+}): JSX.Element {
+  const { currentView, setView, system } = props;
+  const cartCount = system.currentUser ? system.getMyCartItems().length : 0;
+
+  const buttonClass = (view: PageView): string =>
+    `rounded-xl border px-4 py-2 text-sm font-semibold ${
+      currentView === view ? "border-slate-900 bg-slate-900 text-white" : "border-slate-200 bg-white text-slate-700"
+    }`;
+
+  return (
+    <div className="flex flex-wrap items-center gap-2">
+      <button className={buttonClass("home")} type="button" onClick={() => setView("home")}>大主頁</button>
+      <button className={buttonClass("cart")} type="button" onClick={() => setView("cart")}>購物車 ({cartCount})</button>
+      <button className={buttonClass("me")} type="button" onClick={() => setView("me")}>個人主頁</button>
+      {system.currentUser?.isAdmin && (
+        <button className={buttonClass("admin")} type="button" onClick={() => setView("admin")}>活動設定</button>
+      )}
+      <button
+        onClick={system.logout}
+        className="rounded-xl border border-rose-300 bg-rose-50 px-4 py-2 text-sm font-semibold text-rose-700"
+        type="button"
+      >
+        登出
+      </button>
+    </div>
+  );
+}
+
+function HomeView(props: {
+  system: UseOrderSystemReturn;
+  onOpenCampaign: (campaign: Campaign) => void;
+}): JSX.Element {
+  const { system, onOpenCampaign } = props;
+  const { currentUser } = system;
+
+  return (
+    <section className="space-y-5">
+      <div className="glass-card p-5">
+        <h2 className="text-2xl font-extrabold text-slate-900">活動導覽</h2>
+        <p className="mt-2 text-sm text-slate-600">先選活動，再進活動頁加商品到購物車，最後統一下單。</p>
+      </div>
+
+      <div className="grid gap-4 md:grid-cols-2 xl:grid-cols-3">
+        {system.visibleCampaigns.map((campaign) => {
+          const canAccess = system.canCurrentUserAccessCampaign(campaign.id);
+          const limit = system.getClaimLimitInfo(campaign.id, currentUser?.id ?? "");
+          return (
+            <article key={campaign.id} className="glass-card p-5">
+              <div className="flex items-start justify-between gap-2">
+                <h3 className="text-lg font-bold text-slate-900">{campaign.title}</h3>
+                <span className="state-pill bg-slate-100 text-slate-700">{releaseStageLabel(campaign.releaseStage)}</span>
+              </div>
+              <p className="mt-2 text-sm text-slate-600">{campaign.description}</p>
+              <div className="mt-3 space-y-1 text-xs text-slate-500">
+                <p>截止：{formatDate(campaign.deadlineAt)}</p>
+                <p>喊單上限：{limit.limit === null ? "不限" : `${limit.limit} 個`}</p>
+                <p className={canAccess ? "text-emerald-700" : "text-amber-700"}>
+                  {canAccess ? "目前可進場加購" : `目前僅開放 ${releaseStageLabel(campaign.releaseStage)}`}
+                </p>
+              </div>
+              <button
+                onClick={() => onOpenCampaign(campaign)}
+                className="mt-4 w-full rounded-xl bg-slate-900 px-4 py-2 text-sm font-semibold text-white hover:bg-slate-700"
+                type="button"
+              >
+                進入活動
+              </button>
+            </article>
+          );
+        })}
+      </div>
+    </section>
+  );
+}
+
+function CampaignView(props: {
+  system: UseOrderSystemReturn;
+  campaign: Campaign;
+  onGoCart: () => void;
+  onBack: () => void;
+}): JSX.Element {
+  const { system, campaign, onGoCart, onBack } = props;
+  const [feedback, setFeedback] = useState("");
+  const products = system.getProductsByCampaign(campaign.id);
+  const cartItems = system.getMyCartItems(campaign.id);
+  const cartSet = new Set(cartItems.map((item) => item.productId));
+  const canAccess = system.canCurrentUserAccessCampaign(campaign.id);
+  const limit = system.currentUser ? system.getClaimLimitInfo(campaign.id, system.currentUser.id) : null;
+
+  return (
+    <section className="space-y-5">
+      <div className="glass-card p-5">
+        <div className="flex flex-wrap items-center justify-between gap-2">
+          <button className="rounded-lg border px-3 py-1.5 text-sm" type="button" onClick={onBack}>返回活動導覽</button>
+          <button className="rounded-lg border px-3 py-1.5 text-sm" type="button" onClick={onGoCart}>前往購物車</button>
+        </div>
+
+        <h2 className="mt-3 text-2xl font-extrabold text-slate-900">{campaign.title}</h2>
+        <p className="mt-2 text-sm text-slate-600">{campaign.description}</p>
+
+        <div className="mt-3 flex flex-wrap gap-2 text-xs">
+          <span className="state-pill bg-slate-100 text-slate-700">釋出：{releaseStageLabel(campaign.releaseStage)}</span>
+          <span className="state-pill bg-slate-100 text-slate-700">截止：{formatDate(campaign.deadlineAt)}</span>
+          <span className="state-pill bg-slate-100 text-slate-700">上限：{campaign.maxClaimsPerUser ?? "不限"}</span>
+        </div>
+
+        <p className={`mt-3 text-sm font-semibold ${canAccess ? "text-emerald-700" : "text-amber-700"}`}>
+          {canAccess ? "你目前可以加入購物車。" : "目前尚未輪到你的固位開放。"}
+        </p>
+
+        {limit && (
+          <p className="mt-1 text-xs text-slate-500">
+            已使用：{limit.used} / {limit.limit ?? "不限"}
+            {limit.remaining !== null && `（剩餘 ${limit.remaining}）`}
+          </p>
+        )}
+
+        {feedback && <p className="mt-2 text-sm font-semibold text-slate-800">{feedback}</p>}
+      </div>
+
+      <div className="grid gap-4 md:grid-cols-2 xl:grid-cols-3">
+        {products.map((product) => {
+          const inCart = cartSet.has(product.id);
+          return (
+            <article key={product.id} className="glass-card p-5">
+              <div className="flex items-start justify-between gap-2">
+                <div>
+                  <p className="text-xs text-slate-500">{product.sku}</p>
+                  <h3 className="text-base font-bold text-slate-900">{product.name}</h3>
+                  <p className="text-sm text-slate-500">角色：{product.character}</p>
+                </div>
+                <span className={`state-pill ${product.isPopular ? "bg-rose-100 text-rose-700" : "bg-emerald-100 text-emerald-700"}`}>
+                  {product.isPopular ? "熱門" : "一般"}
+                </span>
+              </div>
+              <p className="mt-3 text-sm text-slate-600">單價：{twd(campaign.pricingMode === "DYNAMIC" ? (product.isPopular ? product.hotPrice : product.coldPrice) : product.averagePrice)}</p>
+              <button
+                type="button"
+                disabled={inCart}
+                onClick={() => {
+                  const result = system.addToCart(campaign.id, product.id);
+                  setFeedback(result.message);
+                }}
+                className={`mt-4 w-full rounded-xl px-4 py-2 text-sm font-semibold ${
+                  inCart
+                    ? "cursor-not-allowed bg-slate-100 text-slate-500"
+                    : "bg-slate-900 text-white hover:bg-slate-700"
+                }`}
+              >
+                {inCart ? "已在購物車" : "加入購物車"}
+              </button>
+            </article>
+          );
+        })}
+      </div>
+    </section>
+  );
+}
+
+function CartView(props: { system: UseOrderSystemReturn; onOpenCampaign: (campaign: Campaign) => void }): JSX.Element {
+  const { system, onOpenCampaign } = props;
+  const [feedback, setFeedback] = useState("");
+  const cartItems = system.getMyCartItems();
+
+  const campaignById = useMemo(
+    () => new Map(system.state.campaigns.map((campaign) => [campaign.id, campaign])),
+    [system.state.campaigns],
+  );
+  const productById = useMemo(
+    () => new Map(system.state.products.map((product) => [product.id, product])),
+    [system.state.products],
+  );
+
+  const grouped = useMemo(() => {
+    const group = new Map<string, typeof cartItems>();
+    for (const item of cartItems) {
+      const list = group.get(item.campaignId) ?? [];
+      list.push(item);
+      group.set(item.campaignId, list);
+    }
+    return Array.from(group.entries());
+  }, [cartItems]);
+
+  return (
+    <section className="space-y-5">
+      <div className="glass-card p-5">
+        <h2 className="text-2xl font-extrabold text-slate-900">購物車</h2>
+        <p className="mt-2 text-sm text-slate-600">可同時放多個商品，最後依活動分開下單。</p>
+        {feedback && <p className="mt-2 text-sm font-semibold text-slate-800">{feedback}</p>}
+      </div>
+
+      {grouped.length === 0 && (
+        <div className="glass-card p-5 text-sm text-slate-600">購物車目前是空的，先去活動頁加入商品。</div>
+      )}
+
+      {grouped.map(([campaignId, items]) => {
+        const campaign = campaignById.get(campaignId);
+        const estimatedTotal = items.reduce((sum, item) => {
+          const product = productById.get(item.productId);
+          if (!campaign || !product) return sum;
+          const price = campaign.pricingMode === "DYNAMIC"
+            ? (product.isPopular ? product.hotPrice : product.coldPrice)
+            : product.averagePrice;
+          return sum + price;
+        }, 0);
+
+        return (
+          <article key={campaignId} className="glass-card p-5">
+            <div className="flex flex-wrap items-center justify-between gap-2">
+              <h3 className="text-lg font-bold text-slate-900">{campaign?.title ?? "未知活動"}</h3>
+              <div className="flex gap-2">
+                <button
+                  type="button"
+                  className="rounded-lg border px-3 py-1.5 text-xs font-semibold"
+                  onClick={() => campaign && onOpenCampaign(campaign)}
+                >
+                  回活動頁
+                </button>
+                <button
+                  type="button"
+                  className="rounded-lg bg-slate-900 px-3 py-1.5 text-xs font-semibold text-white"
+                  onClick={() => {
+                    const result = system.placeOrder(campaignId);
+                    setFeedback(result.message);
+                  }}
+                >
+                  下單此活動
+                </button>
+              </div>
+            </div>
+
+            <div className="mt-3 space-y-2">
+              {items.map((item) => {
+                const product = productById.get(item.productId);
+                return (
+                  <div key={item.id} className="flex items-center justify-between rounded-xl border border-slate-200 px-3 py-2">
+                    <div>
+                      <p className="font-semibold text-slate-900">{product?.name ?? "未知商品"}</p>
+                      <p className="text-xs text-slate-500">角色：{product?.character ?? "-"}</p>
+                    </div>
+                    <button
+                      className="rounded-lg border border-rose-200 bg-rose-50 px-3 py-1 text-xs font-semibold text-rose-700"
+                      type="button"
+                      onClick={() => {
+                        const result = system.removeFromCart(item.id);
+                        setFeedback(result.message);
+                      }}
+                    >
+                      移除
+                    </button>
+                  </div>
+                );
+              })}
+            </div>
+
+            <p className="mt-3 text-sm font-semibold text-slate-700">預估總額：{twd(estimatedTotal)}</p>
+          </article>
+        );
+      })}
+    </section>
+  );
+}
+
+function MeView(props: { system: UseOrderSystemReturn }): JSX.Element {
+  const { system } = props;
+  const orders = system.getMyOrders();
+
+  const campaignById = useMemo(
+    () => new Map(system.state.campaigns.map((campaign) => [campaign.id, campaign])),
+    [system.state.campaigns],
+  );
+  const productById = useMemo(
+    () => new Map(system.state.products.map((product) => [product.id, product])),
+    [system.state.products],
+  );
+
+  const myClaims = system.currentUser
+    ? system.state.claims
+      .filter((claim) => claim.userId === system.currentUser?.id)
+      .sort((a, b) => new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime())
+    : [];
+
+  return (
+    <section className="space-y-5">
+      <div className="glass-card p-5">
+        <h2 className="text-2xl font-extrabold text-slate-900">個人主頁</h2>
+        <p className="mt-2 text-sm text-slate-600">這裡會看到你下過的單與目前喊單狀態。</p>
+      </div>
+
+      <div className="grid gap-5 lg:grid-cols-2">
+        <div className="glass-card p-5">
+          <h3 className="text-lg font-bold text-slate-900">我的訂單</h3>
+          <div className="mt-3 space-y-3">
+            {orders.length === 0 && <p className="text-sm text-slate-500">尚無訂單。</p>}
+            {orders.map((order) => {
+              const campaign = campaignById.get(order.campaignId);
+              const items = system.getOrderItems(order.id);
+              return (
+                <article key={order.id} className="rounded-xl border border-slate-200 p-3">
+                  <div className="flex flex-wrap items-center justify-between gap-2">
+                    <p className="font-semibold text-slate-900">{campaign?.title ?? "未知活動"}</p>
+                    <span className="state-pill bg-slate-100 text-slate-700">{orderStatusLabel[order.status]}</span>
+                  </div>
+                  <p className="mt-1 text-xs text-slate-500">{formatDate(order.createdAt)}</p>
+                  <p className="mt-1 text-sm font-semibold text-slate-700">總額：{twd(order.totalAmount)}</p>
+                  <div className="mt-2 space-y-1 text-sm text-slate-600">
+                    {items.map((item) => (
+                      <p key={item.id}>- {productById.get(item.productId)?.name ?? "未知商品"}</p>
+                    ))}
+                  </div>
+                </article>
+              );
+            })}
+          </div>
+        </div>
+
+        <div className="glass-card p-5">
+          <h3 className="text-lg font-bold text-slate-900">我的喊單紀錄</h3>
+          <div className="mt-3 space-y-2">
+            {myClaims.length === 0 && <p className="text-sm text-slate-500">尚無喊單紀錄。</p>}
+            {myClaims.map((claim) => {
+              const product = productById.get(claim.productId);
+              const campaign = campaignById.get(claim.campaignId);
+              return (
+                <article key={claim.id} className="rounded-xl border border-slate-200 px-3 py-2 text-sm">
+                  <p className="font-semibold text-slate-900">{product?.name ?? "未知商品"}</p>
+                  <p className="text-xs text-slate-500">{campaign?.title ?? "未知活動"} / {formatDate(claim.createdAt)}</p>
+                  <p className="text-xs text-slate-600">資格：{roleLabel(claim.roleTier)}</p>
+                  <p className="text-xs font-semibold text-slate-700">狀態：{claim.status}</p>
+                </article>
+              );
+            })}
+          </div>
+        </div>
+      </div>
+    </section>
+  );
+}
+
+function AdminView(props: { system: UseOrderSystemReturn }): JSX.Element {
+  const { system } = props;
+  const [feedback, setFeedback] = useState("");
+
+  return (
+    <section className="space-y-5">
+      <div className="glass-card p-5">
+        <h2 className="text-2xl font-extrabold text-slate-900">活動設定（管理員）</h2>
+        <p className="mt-2 text-sm text-slate-600">可設定每個活動的釋出階段與每人上限。</p>
+        {feedback && <p className="mt-2 text-sm font-semibold text-slate-800">{feedback}</p>}
+      </div>
+
+      <div className="grid gap-4 md:grid-cols-2 xl:grid-cols-3">
+        {system.state.campaigns.map((campaign) => (
+          <article key={campaign.id} className="glass-card p-5">
+            <h3 className="text-lg font-bold text-slate-900">{campaign.title}</h3>
+            <p className="mt-2 text-xs text-slate-500">目前：{releaseStageLabel(campaign.releaseStage)} / 上限 {campaign.maxClaimsPerUser ?? "不限"}</p>
+
+            <div className="mt-3 grid grid-cols-2 gap-2">
+              {stageOptions.map((stage) => (
+                <button
+                  key={stage}
+                  type="button"
+                  className={`rounded-lg border px-2 py-1 text-xs font-semibold ${
+                    campaign.releaseStage === stage
+                      ? "border-slate-900 bg-slate-900 text-white"
+                      : "border-slate-200 bg-white text-slate-700"
+                  }`}
+                  onClick={() => {
+                    const result = system.adminUpdateCampaignReleaseStage(campaign.id, stage);
+                    setFeedback(result.message);
+                  }}
+                >
+                  {releaseStageLabel(stage)}
+                </button>
+              ))}
+            </div>
+
+            <div className="mt-4 flex gap-2">
+              <button
+                type="button"
+                className="rounded-lg border px-3 py-1 text-xs"
+                onClick={() => {
+                  const result = system.adminUpdateCampaignMaxClaims(campaign.id, null);
+                  setFeedback(result.message);
+                }}
+              >
+                設為不限
+              </button>
+              <button
+                type="button"
+                className="rounded-lg border px-3 py-1 text-xs"
+                onClick={() => {
+                  const value = window.prompt("請輸入每人上限數量（正整數）", String(campaign.maxClaimsPerUser ?? 5));
+                  if (!value) return;
+                  const parsed = Number(value);
+                  const result = Number.isInteger(parsed)
+                    ? system.adminUpdateCampaignMaxClaims(campaign.id, parsed)
+                    : { ok: false, message: "請輸入整數。" };
+                  setFeedback(result.message);
+                }}
+              >
+                設定上限
+              </button>
+            </div>
+          </article>
+        ))}
+      </div>
+    </section>
+  );
+}
 
 export default function App(): JSX.Element {
   const system = useOrderSystem();
-
-  const [activeCampaignId, setActiveCampaignId] = useState("");
-  const [viewMode, setViewMode] = useState<"member" | "admin">("member");
-
-  useEffect(() => {
-    if (system.visibleCampaigns.length === 0) return;
-    if (!activeCampaignId || !system.visibleCampaigns.some((campaign) => campaign.id === activeCampaignId)) {
-      setActiveCampaignId(system.visibleCampaigns[0].id);
-    }
-  }, [activeCampaignId, system.visibleCampaigns]);
+  const [view, setView] = useState<PageView>("home");
+  const [selectedCampaignId, setSelectedCampaignId] = useState<string>("");
 
   useEffect(() => {
-    if (!system.currentUser?.isAdmin) {
-      setViewMode("member");
+    if (!system.currentUser) {
+      setView("home");
+      setSelectedCampaignId("");
     }
-  }, [system.currentUser?.isAdmin]);
+  }, [system.currentUser]);
 
-  const systemStats = useMemo(() => {
-    const openCampaignCount = system.state.campaigns.filter((campaign) => campaign.status === "OPEN").length;
-    const lockedClaims = system.state.claims.filter((claim) => claim.status === "LOCKED").length;
-    const pendingPayments = system.state.payments.filter((payment) => !payment.reconciled).length;
-    return { openCampaignCount, lockedClaims, pendingPayments };
-  }, [system.state.campaigns, system.state.claims, system.state.payments]);
+  const selectedCampaign = useMemo(
+    () => system.state.campaigns.find((campaign) => campaign.id === selectedCampaignId) ?? null,
+    [selectedCampaignId, system.state.campaigns],
+  );
 
   if (!system.currentUser) {
     return (
@@ -52,13 +461,11 @@ export default function App(): JSX.Element {
         >
           <div className="flex flex-wrap items-start justify-between gap-4">
             <div>
-              <p className="text-xs font-semibold uppercase tracking-[0.2em] text-slate-500">Group Order Ledger</p>
-              <h1 className="mt-1 text-3xl font-extrabold text-slate-900">喊單帳本與排單系統</h1>
-              <p className="mt-2 text-sm text-slate-600">
-                你好，{system.currentUser.fbNickname}（{system.currentUser.email}）
-              </p>
+              <p className="text-xs font-semibold uppercase tracking-[0.2em] text-slate-500">LegendMMM Shopping Hub</p>
+              <h1 className="mt-1 text-3xl font-extrabold text-slate-900">活動導覽與喊單購物車</h1>
+              <p className="mt-2 text-sm text-slate-600">你好，{system.currentUser.fbNickname}（{system.currentUser.email}）</p>
               <p className="text-xs text-slate-500">
-                身分：{system.currentUser.isAdmin ? "團主" : "會員"} / 資格：{roleLabel(system.currentUser.roleTier)} / 取貨率：
+                身分：{system.currentUser.isAdmin ? "管理員" : "會員"} / 固位：{roleLabel(system.currentUser.roleTier)} / 取貨率：
                 {system.currentUser.pickupRate}%
               </p>
               <p className="text-xs text-slate-500">
@@ -66,79 +473,50 @@ export default function App(): JSX.Element {
               </p>
             </div>
 
-            <div className="flex flex-wrap gap-2">
-              {system.currentUser.isAdmin && (
-                <>
-                  <button
-                    onClick={() => setViewMode("member")}
-                    type="button"
-                    className={`rounded-xl border px-4 py-2 text-sm font-semibold ${
-                      viewMode === "member" ? "border-slate-900 bg-slate-900 text-white" : "border-slate-200 bg-white"
-                    }`}
-                  >
-                    會員視角
-                  </button>
-                  <button
-                    onClick={() => setViewMode("admin")}
-                    type="button"
-                    className={`rounded-xl border px-4 py-2 text-sm font-semibold ${
-                      viewMode === "admin" ? "border-slate-900 bg-slate-900 text-white" : "border-slate-200 bg-white"
-                    }`}
-                  >
-                    團主後台
-                  </button>
-                </>
-              )}
-              <button
-                onClick={system.logout}
-                className="rounded-xl border border-rose-300 bg-rose-50 px-4 py-2 text-sm font-semibold text-rose-700"
-                type="button"
-              >
-                登出
-              </button>
-            </div>
-          </div>
-
-          <div className="mt-4 grid gap-3 text-sm md:grid-cols-3">
-            <div className="rounded-xl bg-slate-900 px-4 py-3 text-white">
-              <p className="text-xs text-slate-300">開團數</p>
-              <p className="text-lg font-bold">{systemStats.openCampaignCount}</p>
-            </div>
-            <div className="rounded-xl bg-amber-50 px-4 py-3 text-amber-900">
-              <p className="text-xs">待確認喊單</p>
-              <p className="text-lg font-bold">{systemStats.lockedClaims}</p>
-            </div>
-            <div className="rounded-xl bg-emerald-50 px-4 py-3 text-emerald-900">
-              <p className="text-xs">待對帳款項</p>
-              <p className="text-lg font-bold">{systemStats.pendingPayments}</p>
-            </div>
+            <HeaderNav currentView={view} setView={setView} system={system} />
           </div>
         </motion.header>
 
-        {system.visibleCampaigns.length > 0 && (
-          <section className="glass-card p-5">
-            <div className="flex flex-wrap items-center justify-between gap-3">
-              <CampaignTabs
-                campaigns={system.visibleCampaigns}
-                activeCampaignId={activeCampaignId}
-                onChange={setActiveCampaignId}
-              />
-              <button
-                className="rounded-lg border border-slate-200 px-3 py-1.5 text-xs font-semibold text-slate-600"
-                type="button"
-                onClick={system.resetAllData}
-              >
-                重置示範資料
-              </button>
-            </div>
-          </section>
+        {view === "home" && (
+          <HomeView
+            system={system}
+            onOpenCampaign={(campaign) => {
+              setSelectedCampaignId(campaign.id);
+              setView("campaign");
+            }}
+          />
         )}
 
-        {activeCampaignId && (viewMode === "admin" && system.currentUser.isAdmin ? (
-          <AdminPanel system={system} activeCampaignId={activeCampaignId} />
-        ) : (
-          <MemberPanel system={system} activeCampaignId={activeCampaignId} />
-        ))}
+        {view === "campaign" && selectedCampaign && (
+          <CampaignView
+            system={system}
+            campaign={selectedCampaign}
+            onGoCart={() => setView("cart")}
+            onBack={() => setView("home")}
+          />
+        )}
+
+        {view === "campaign" && !selectedCampaign && (
+          <div className="glass-card p-5 text-sm text-slate-600">請先從大主頁選擇活動。</div>
+        )}
+
+        {view === "cart" && (
+          <CartView
+            system={system}
+            onOpenCampaign={(campaign) => {
+              setSelectedCampaignId(campaign.id);
+              setView("campaign");
+            }}
+          />
+        )}
+
+        {view === "me" && <MeView system={system} />}
+
+        {view === "admin" && system.currentUser.isAdmin && <AdminView system={system} />}
+
+        {view === "admin" && !system.currentUser.isAdmin && (
+          <div className="glass-card p-5 text-sm text-slate-600">你沒有管理員權限。</div>
+        )}
       </div>
     </main>
   );

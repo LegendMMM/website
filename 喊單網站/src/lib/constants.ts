@@ -1,4 +1,4 @@
-import type { RoleTier } from "../types/domain";
+import type { ReleaseStage, RoleTier } from "../types/domain";
 
 export const ROLE_PRIORITY: Record<RoleTier, number> = {
   FIXED_1: 1,
@@ -12,6 +12,13 @@ export const ROLE_LABEL: Record<RoleTier, string> = {
   FIXED_2: "固二",
   FIXED_3: "固三",
   LEAK_PICK: "撿漏",
+};
+
+export const RELEASE_STAGE_LABEL: Record<ReleaseStage, string> = {
+  FIXED_1_ONLY: "僅固一",
+  FIXED_1_2: "固一 + 固二",
+  FIXED_1_2_3: "固一 + 固二 + 固三",
+  ALL_OPEN: "全面開放",
 };
 
 export const BINDING_WEIGHT: Record<string, number> = {
