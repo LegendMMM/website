@@ -1,7 +1,24 @@
-import type { OrderSystemState } from "../types/domain";
+import type { CharacterName, OrderSystemState } from "../types/domain";
 
 const now = new Date();
 const daysFromNow = (days: number) => new Date(now.getTime() + days * 24 * 60 * 60 * 1000).toISOString();
+
+const CHARACTERS: CharacterName[] = ["八千代", "彩葉", "輝耀姬", "帝", "乃依", "雷", "真實", "蘆花"];
+
+function seededSlotsForUser(userId: string, offset = 0) {
+  return CHARACTERS.map((character, index) => {
+    const mod = (index + offset) % 3;
+    const tier = mod === 0 ? "FIXED_1" : mod === 1 ? "FIXED_2" : "FIXED_3";
+    return {
+      id: `${userId}-${character}`,
+      userId,
+      character,
+      tier,
+      createdAt: now.toISOString(),
+      updatedAt: now.toISOString(),
+    } as const;
+  });
+}
 
 export const seedState: OrderSystemState = {
   users: [
@@ -29,7 +46,7 @@ export const seedState: OrderSystemState = {
       id: "u-member-002",
       email: "noi@example.com",
       password: "User1234",
-      fbNickname: "乃伊一生推",
+      fbNickname: "乃依一生推",
       roleTier: "FIXED_2",
       pickupRate: 92,
       isAdmin: false,
@@ -50,12 +67,12 @@ export const seedState: OrderSystemState = {
     {
       id: "c-2026-summer",
       title: "夏日祭典團",
-      description: "夏日祭典主題盲抽，熱門角採高價策略。",
+      description: "先按照商品固位開放，最後全開放。",
       deadlineAt: daysFromNow(4),
       status: "OPEN",
       pricingMode: "DYNAMIC",
       releaseStage: "FIXED_1_2",
-      maxClaimsPerUser: 4,
+      maxClaimsPerUser: null,
       createdBy: "u-admin-001",
     },
     {
@@ -66,7 +83,7 @@ export const seedState: OrderSystemState = {
       status: "OPEN",
       pricingMode: "AVERAGE_WITH_BINDING",
       releaseStage: "FIXED_1_ONLY",
-      maxClaimsPerUser: 3,
+      maxClaimsPerUser: null,
       createdBy: "u-admin-001",
     },
   ],
@@ -77,11 +94,13 @@ export const seedState: OrderSystemState = {
       sku: "SUM-001",
       name: "夏祭徽章 A",
       character: "八千代",
+      requiredTier: "FIXED_1",
       isPopular: true,
       hotPrice: 120,
       coldPrice: 80,
       averagePrice: 95,
-      stock: 2,
+      stock: 5,
+      maxPerUser: 2,
     },
     {
       id: "p-summer-02",
@@ -89,11 +108,13 @@ export const seedState: OrderSystemState = {
       sku: "SUM-002",
       name: "夏祭徽章 B",
       character: "帝",
+      requiredTier: "FIXED_2",
       isPopular: false,
       hotPrice: 120,
       coldPrice: 70,
       averagePrice: 95,
-      stock: 3,
+      stock: 6,
+      maxPerUser: 3,
     },
     {
       id: "p-summer-03",
@@ -101,23 +122,27 @@ export const seedState: OrderSystemState = {
       sku: "SUM-003",
       name: "壓克力吊飾",
       character: "彩葉",
+      requiredTier: "FIXED_3",
       isPopular: true,
       hotPrice: 150,
       coldPrice: 90,
       averagePrice: 110,
-      stock: 2,
+      stock: 4,
+      maxPerUser: 1,
     },
     {
       id: "p-sanrio-01",
       campaignId: "c-2026-sanrio",
       sku: "SAN-001",
       name: "聯名小卡",
-      character: "乃伊",
+      character: "乃依",
+      requiredTier: "FIXED_1",
       isPopular: true,
       hotPrice: 130,
       coldPrice: 85,
       averagePrice: 99,
-      stock: 2,
+      stock: 5,
+      maxPerUser: 2,
     },
     {
       id: "p-sanrio-02",
@@ -125,24 +150,33 @@ export const seedState: OrderSystemState = {
       sku: "SAN-002",
       name: "聯名徽章",
       character: "輝耀姬",
+      requiredTier: "FIXED_2",
       isPopular: false,
       hotPrice: 120,
       coldPrice: 78,
       averagePrice: 99,
-      stock: 4,
+      stock: 6,
+      maxPerUser: 2,
     },
     {
       id: "p-sanrio-03",
       campaignId: "c-2026-sanrio",
       sku: "SAN-003",
       name: "聯名壓克力牌",
-      character: "八千代",
+      character: "蘆花",
+      requiredTier: "FIXED_3",
       isPopular: true,
       hotPrice: 160,
       coldPrice: 95,
       averagePrice: 99,
-      stock: 1,
+      stock: 3,
+      maxPerUser: 1,
     },
+  ],
+  characterSlots: [
+    ...seededSlotsForUser("u-member-001", 0),
+    ...seededSlotsForUser("u-member-002", 1),
+    ...seededSlotsForUser("u-member-003", 2),
   ],
   claims: [],
   payments: [],

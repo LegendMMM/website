@@ -3,13 +3,24 @@ import { motion } from "framer-motion";
 import { AuthCard } from "./components/AuthCard";
 import type { UseOrderSystemReturn } from "./hooks/useOrderSystem";
 import { useOrderSystem } from "./hooks/useOrderSystem";
-import { formatDate, orderStatusLabel, releaseStageLabel, roleLabel, twd } from "./lib/format";
+import { CHARACTER_OPTIONS } from "./lib/constants";
+import {
+  fixedTierLabel,
+  formatDate,
+  orderStatusLabel,
+  productRequiredTierLabel,
+  releaseStageLabel,
+  roleLabel,
+  twd,
+} from "./lib/format";
 import { isSupabaseEnabled } from "./lib/supabase";
-import type { Campaign, ReleaseStage } from "./types/domain";
+import type { Campaign, CharacterName, FixedTier, ProductRequiredTier, ReleaseStage } from "./types/domain";
 
 type PageView = "home" | "campaign" | "cart" | "me" | "admin";
 
 const stageOptions: ReleaseStage[] = ["FIXED_1_ONLY", "FIXED_1_2", "FIXED_1_2_3", "ALL_OPEN"];
+const requiredTierOptions: ProductRequiredTier[] = ["FIXED_1", "FIXED_2", "FIXED_3", "ALL_OPEN"];
+const fixedTierOptions: FixedTier[] = ["FIXED_1", "FIXED_2", "FIXED_3"];
 
 function HeaderNav(props: {
   currentView: PageView;
@@ -17,7 +28,9 @@ function HeaderNav(props: {
   system: UseOrderSystemReturn;
 }): JSX.Element {
   const { currentView, setView, system } = props;
-  const cartCount = system.currentUser ? system.getMyCartItems().length : 0;
+  const cartCount = system.currentUser
+    ? system.getMyCartItems().reduce((sum, item) => sum + item.qty, 0)
+    : 0;
 
   const buttonClass = (view: PageView): string =>
     `rounded-xl border px-4 py-2 text-sm font-semibold ${
@@ -48,43 +61,35 @@ function HomeView(props: {
   onOpenCampaign: (campaign: Campaign) => void;
 }): JSX.Element {
   const { system, onOpenCampaign } = props;
-  const { currentUser } = system;
 
   return (
     <section className="space-y-5">
       <div className="glass-card p-5">
         <h2 className="text-2xl font-extrabold text-slate-900">活動導覽</h2>
-        <p className="mt-2 text-sm text-slate-600">先選活動，再進活動頁加商品到購物車，最後統一下單。</p>
+        <p className="mt-2 text-sm text-slate-600">選活動後可加商品進購物車。每個商品都有獨立上限與固位需求。</p>
       </div>
 
       <div className="grid gap-4 md:grid-cols-2 xl:grid-cols-3">
-        {system.visibleCampaigns.map((campaign) => {
-          const canAccess = system.canCurrentUserAccessCampaign(campaign.id);
-          const limit = system.getClaimLimitInfo(campaign.id, currentUser?.id ?? "");
-          return (
-            <article key={campaign.id} className="glass-card p-5">
-              <div className="flex items-start justify-between gap-2">
-                <h3 className="text-lg font-bold text-slate-900">{campaign.title}</h3>
-                <span className="state-pill bg-slate-100 text-slate-700">{releaseStageLabel(campaign.releaseStage)}</span>
-              </div>
-              <p className="mt-2 text-sm text-slate-600">{campaign.description}</p>
-              <div className="mt-3 space-y-1 text-xs text-slate-500">
-                <p>截止：{formatDate(campaign.deadlineAt)}</p>
-                <p>喊單上限：{limit.limit === null ? "不限" : `${limit.limit} 個`}</p>
-                <p className={canAccess ? "text-emerald-700" : "text-amber-700"}>
-                  {canAccess ? "目前可進場加購" : `目前僅開放 ${releaseStageLabel(campaign.releaseStage)}`}
-                </p>
-              </div>
-              <button
-                onClick={() => onOpenCampaign(campaign)}
-                className="mt-4 w-full rounded-xl bg-slate-900 px-4 py-2 text-sm font-semibold text-white hover:bg-slate-700"
-                type="button"
-              >
-                進入活動
-              </button>
-            </article>
-          );
-        })}
+        {system.visibleCampaigns.map((campaign) => (
+          <article key={campaign.id} className="glass-card p-5">
+            <div className="flex items-start justify-between gap-2">
+              <h3 className="text-lg font-bold text-slate-900">{campaign.title}</h3>
+              <span className="state-pill bg-slate-100 text-slate-700">{releaseStageLabel(campaign.releaseStage)}</span>
+            </div>
+            <p className="mt-2 text-sm text-slate-600">{campaign.description}</p>
+            <div className="mt-3 space-y-1 text-xs text-slate-500">
+              <p>截止：{formatDate(campaign.deadlineAt)}</p>
+              <p>釋出階段：{releaseStageLabel(campaign.releaseStage)}</p>
+            </div>
+            <button
+              onClick={() => onOpenCampaign(campaign)}
+              className="mt-4 w-full rounded-xl bg-slate-900 px-4 py-2 text-sm font-semibold text-white hover:bg-slate-700"
+              type="button"
+            >
+              進入活動
+            </button>
+          </article>
+        ))}
       </div>
     </section>
   );
@@ -100,9 +105,7 @@ function CampaignView(props: {
   const [feedback, setFeedback] = useState("");
   const products = system.getProductsByCampaign(campaign.id);
   const cartItems = system.getMyCartItems(campaign.id);
-  const cartSet = new Set(cartItems.map((item) => item.productId));
-  const canAccess = system.canCurrentUserAccessCampaign(campaign.id);
-  const limit = system.currentUser ? system.getClaimLimitInfo(campaign.id, system.currentUser.id) : null;
+  const cartMap = new Map(cartItems.map((item) => [item.productId, item]));
 
   return (
     <section className="space-y-5">
@@ -118,26 +121,22 @@ function CampaignView(props: {
         <div className="mt-3 flex flex-wrap gap-2 text-xs">
           <span className="state-pill bg-slate-100 text-slate-700">釋出：{releaseStageLabel(campaign.releaseStage)}</span>
           <span className="state-pill bg-slate-100 text-slate-700">截止：{formatDate(campaign.deadlineAt)}</span>
-          <span className="state-pill bg-slate-100 text-slate-700">上限：{campaign.maxClaimsPerUser ?? "不限"}</span>
         </div>
 
-        <p className={`mt-3 text-sm font-semibold ${canAccess ? "text-emerald-700" : "text-amber-700"}`}>
-          {canAccess ? "你目前可以加入購物車。" : "目前尚未輪到你的固位開放。"}
-        </p>
-
-        {limit && (
-          <p className="mt-1 text-xs text-slate-500">
-            已使用：{limit.used} / {limit.limit ?? "不限"}
-            {limit.remaining !== null && `（剩餘 ${limit.remaining}）`}
-          </p>
-        )}
-
-        {feedback && <p className="mt-2 text-sm font-semibold text-slate-800">{feedback}</p>}
+        {feedback && <p className="mt-3 text-sm font-semibold text-slate-800">{feedback}</p>}
       </div>
 
       <div className="grid gap-4 md:grid-cols-2 xl:grid-cols-3">
         {products.map((product) => {
-          const inCart = cartSet.has(product.id);
+          const access = system.getProductAccessForCurrentUser(campaign.id, product.id);
+          const inCartQty = cartMap.get(product.id)?.qty ?? 0;
+          const myTier = system.currentUser
+            ? system.getUserCharacterTier(system.currentUser.id, product.character)
+            : null;
+          const price = campaign.pricingMode === "DYNAMIC"
+            ? (product.isPopular ? product.hotPrice : product.coldPrice)
+            : product.averagePrice;
+
           return (
             <article key={product.id} className="glass-card p-5">
               <div className="flex items-start justify-between gap-2">
@@ -150,21 +149,33 @@ function CampaignView(props: {
                   {product.isPopular ? "熱門" : "一般"}
                 </span>
               </div>
-              <p className="mt-3 text-sm text-slate-600">單價：{twd(campaign.pricingMode === "DYNAMIC" ? (product.isPopular ? product.hotPrice : product.coldPrice) : product.averagePrice)}</p>
+
+              <div className="mt-3 space-y-1 text-sm text-slate-600">
+                <p>單價：{twd(price)}</p>
+                <p>商品固位：{productRequiredTierLabel(product.requiredTier)}</p>
+                <p>你的 {product.character} 固位：{myTier ? fixedTierLabel(myTier) : "未分配"}</p>
+                <p>商品上限：{product.maxPerUser ?? "不限"}</p>
+                <p>你已加入：{inCartQty}</p>
+              </div>
+
+              <p className={`mt-2 text-xs font-semibold ${access.ok ? "text-emerald-700" : "text-amber-700"}`}>
+                {access.ok ? "可加入購物車" : access.reason}
+              </p>
+
               <button
                 type="button"
-                disabled={inCart}
+                disabled={!access.ok}
                 onClick={() => {
                   const result = system.addToCart(campaign.id, product.id);
                   setFeedback(result.message);
                 }}
                 className={`mt-4 w-full rounded-xl px-4 py-2 text-sm font-semibold ${
-                  inCart
-                    ? "cursor-not-allowed bg-slate-100 text-slate-500"
-                    : "bg-slate-900 text-white hover:bg-slate-700"
+                  access.ok
+                    ? "bg-slate-900 text-white hover:bg-slate-700"
+                    : "cursor-not-allowed bg-slate-100 text-slate-500"
                 }`}
               >
-                {inCart ? "已在購物車" : "加入購物車"}
+                加入購物車
               </button>
             </article>
           );
@@ -202,7 +213,7 @@ function CartView(props: { system: UseOrderSystemReturn; onOpenCampaign: (campai
     <section className="space-y-5">
       <div className="glass-card p-5">
         <h2 className="text-2xl font-extrabold text-slate-900">購物車</h2>
-        <p className="mt-2 text-sm text-slate-600">可同時放多個商品，最後依活動分開下單。</p>
+        <p className="mt-2 text-sm text-slate-600">同一商品可加多件，受商品上限限制。</p>
         {feedback && <p className="mt-2 text-sm font-semibold text-slate-800">{feedback}</p>}
       </div>
 
@@ -218,7 +229,7 @@ function CartView(props: { system: UseOrderSystemReturn; onOpenCampaign: (campai
           const price = campaign.pricingMode === "DYNAMIC"
             ? (product.isPopular ? product.hotPrice : product.coldPrice)
             : product.averagePrice;
-          return sum + price;
+          return sum + price * item.qty;
         }, 0);
 
         return (
@@ -250,21 +261,47 @@ function CartView(props: { system: UseOrderSystemReturn; onOpenCampaign: (campai
               {items.map((item) => {
                 const product = productById.get(item.productId);
                 return (
-                  <div key={item.id} className="flex items-center justify-between rounded-xl border border-slate-200 px-3 py-2">
-                    <div>
-                      <p className="font-semibold text-slate-900">{product?.name ?? "未知商品"}</p>
-                      <p className="text-xs text-slate-500">角色：{product?.character ?? "-"}</p>
+                  <div key={item.id} className="rounded-xl border border-slate-200 px-3 py-2">
+                    <div className="flex items-center justify-between gap-3">
+                      <div>
+                        <p className="font-semibold text-slate-900">{product?.name ?? "未知商品"}</p>
+                        <p className="text-xs text-slate-500">角色：{product?.character ?? "-"}</p>
+                      </div>
+
+                      <div className="flex items-center gap-2">
+                        <button
+                          type="button"
+                          className="rounded-lg border px-2 py-1 text-xs"
+                          onClick={() => {
+                            const result = system.changeCartItemQty(item.id, item.qty - 1);
+                            setFeedback(result.message);
+                          }}
+                        >
+                          -1
+                        </button>
+                        <span className="min-w-8 text-center text-sm font-semibold">{item.qty}</span>
+                        <button
+                          type="button"
+                          className="rounded-lg border px-2 py-1 text-xs"
+                          onClick={() => {
+                            const result = system.changeCartItemQty(item.id, item.qty + 1);
+                            setFeedback(result.message);
+                          }}
+                        >
+                          +1
+                        </button>
+                        <button
+                          className="rounded-lg border border-rose-200 bg-rose-50 px-3 py-1 text-xs font-semibold text-rose-700"
+                          type="button"
+                          onClick={() => {
+                            const result = system.removeFromCart(item.id);
+                            setFeedback(result.message);
+                          }}
+                        >
+                          移除
+                        </button>
+                      </div>
                     </div>
-                    <button
-                      className="rounded-lg border border-rose-200 bg-rose-50 px-3 py-1 text-xs font-semibold text-rose-700"
-                      type="button"
-                      onClick={() => {
-                        const result = system.removeFromCart(item.id);
-                        setFeedback(result.message);
-                      }}
-                    >
-                      移除
-                    </button>
                   </div>
                 );
               })}
@@ -322,7 +359,7 @@ function MeView(props: { system: UseOrderSystemReturn }): JSX.Element {
                   <p className="mt-1 text-sm font-semibold text-slate-700">總額：{twd(order.totalAmount)}</p>
                   <div className="mt-2 space-y-1 text-sm text-slate-600">
                     {items.map((item) => (
-                      <p key={item.id}>- {productById.get(item.productId)?.name ?? "未知商品"}</p>
+                      <p key={item.id}>- {productById.get(item.productId)?.name ?? "未知商品"} x {item.qty}</p>
                     ))}
                   </div>
                 </article>
@@ -357,12 +394,17 @@ function MeView(props: { system: UseOrderSystemReturn }): JSX.Element {
 function AdminView(props: { system: UseOrderSystemReturn }): JSX.Element {
   const { system } = props;
   const [feedback, setFeedback] = useState("");
+  const [selectedCharacter, setSelectedCharacter] = useState<CharacterName>("八千代");
+
+  const members = system.state.users
+    .filter((user) => !user.isAdmin)
+    .sort((a, b) => new Date(a.createdAt).getTime() - new Date(b.createdAt).getTime());
 
   return (
     <section className="space-y-5">
       <div className="glass-card p-5">
         <h2 className="text-2xl font-extrabold text-slate-900">活動設定（管理員）</h2>
-        <p className="mt-2 text-sm text-slate-600">可設定每個活動的釋出階段與每人上限。</p>
+        <p className="mt-2 text-sm text-slate-600">管理釋出階段、商品固位與上限，以及會員角色固位分配。</p>
         {feedback && <p className="mt-2 text-sm font-semibold text-slate-800">{feedback}</p>}
       </div>
 
@@ -370,7 +412,7 @@ function AdminView(props: { system: UseOrderSystemReturn }): JSX.Element {
         {system.state.campaigns.map((campaign) => (
           <article key={campaign.id} className="glass-card p-5">
             <h3 className="text-lg font-bold text-slate-900">{campaign.title}</h3>
-            <p className="mt-2 text-xs text-slate-500">目前：{releaseStageLabel(campaign.releaseStage)} / 上限 {campaign.maxClaimsPerUser ?? "不限"}</p>
+            <p className="mt-2 text-xs text-slate-500">目前：{releaseStageLabel(campaign.releaseStage)}</p>
 
             <div className="mt-3 grid grid-cols-2 gap-2">
               {stageOptions.map((stage) => (
@@ -392,35 +434,113 @@ function AdminView(props: { system: UseOrderSystemReturn }): JSX.Element {
               ))}
             </div>
 
-            <div className="mt-4 flex gap-2">
-              <button
-                type="button"
-                className="rounded-lg border px-3 py-1 text-xs"
-                onClick={() => {
-                  const result = system.adminUpdateCampaignMaxClaims(campaign.id, null);
-                  setFeedback(result.message);
-                }}
-              >
-                設為不限
-              </button>
-              <button
-                type="button"
-                className="rounded-lg border px-3 py-1 text-xs"
-                onClick={() => {
-                  const value = window.prompt("請輸入每人上限數量（正整數）", String(campaign.maxClaimsPerUser ?? 5));
-                  if (!value) return;
-                  const parsed = Number(value);
-                  const result = Number.isInteger(parsed)
-                    ? system.adminUpdateCampaignMaxClaims(campaign.id, parsed)
-                    : { ok: false, message: "請輸入整數。" };
-                  setFeedback(result.message);
-                }}
-              >
-                設定上限
-              </button>
+            <div className="mt-4 space-y-2">
+              {system.getProductsByCampaign(campaign.id).map((product) => (
+                <div key={product.id} className="rounded-lg border border-slate-200 p-2">
+                  <p className="text-xs font-semibold text-slate-900">{product.name}</p>
+                  <p className="text-[11px] text-slate-500">需求：{productRequiredTierLabel(product.requiredTier)} / 上限：{product.maxPerUser ?? "不限"}</p>
+                  <div className="mt-1 flex flex-wrap gap-1">
+                    {requiredTierOptions.map((tier) => (
+                      <button
+                        key={tier}
+                        type="button"
+                        className={`rounded border px-2 py-0.5 text-[11px] ${
+                          product.requiredTier === tier ? "border-slate-900 bg-slate-900 text-white" : "border-slate-200"
+                        }`}
+                        onClick={() => {
+                          const result = system.adminUpdateProductRule({ productId: product.id, requiredTier: tier });
+                          setFeedback(result.message);
+                        }}
+                      >
+                        {productRequiredTierLabel(tier)}
+                      </button>
+                    ))}
+                    <button
+                      type="button"
+                      className="rounded border px-2 py-0.5 text-[11px]"
+                      onClick={() => {
+                        const value = window.prompt("此商品每人上限（留空為不限）", product.maxPerUser ? String(product.maxPerUser) : "");
+                        if (value === null) return;
+                        const result = value.trim() === ""
+                          ? system.adminUpdateProductRule({ productId: product.id, maxPerUser: null })
+                          : system.adminUpdateProductRule({ productId: product.id, maxPerUser: Number(value) });
+                        setFeedback(result.message);
+                      }}
+                    >
+                      設上限
+                    </button>
+                  </div>
+                </div>
+              ))}
             </div>
           </article>
         ))}
+      </div>
+
+      <div className="glass-card p-5">
+        <div className="flex flex-wrap items-center justify-between gap-2">
+          <h3 className="text-lg font-bold text-slate-900">角色固位分配</h3>
+          <button
+            type="button"
+            className="rounded-lg border px-3 py-1.5 text-xs font-semibold"
+            onClick={() => {
+              const result = system.adminAutoAssignCharacterSlots(selectedCharacter);
+              setFeedback(result.message);
+            }}
+          >
+            自動分配 {selectedCharacter}
+          </button>
+        </div>
+
+        <div className="mt-3 flex flex-wrap gap-2">
+          {CHARACTER_OPTIONS.map((character) => (
+            <button
+              key={character}
+              type="button"
+              className={`rounded-lg border px-3 py-1 text-xs font-semibold ${
+                selectedCharacter === character ? "border-slate-900 bg-slate-900 text-white" : "border-slate-200"
+              }`}
+              onClick={() => setSelectedCharacter(character)}
+            >
+              {character}
+            </button>
+          ))}
+        </div>
+
+        <div className="mt-4 space-y-2">
+          {members.map((member) => {
+            const tier = system.getUserCharacterTier(member.id, selectedCharacter);
+            return (
+              <div key={member.id} className="flex flex-wrap items-center justify-between gap-2 rounded-xl border border-slate-200 px-3 py-2">
+                <div>
+                  <p className="text-sm font-semibold text-slate-900">{member.fbNickname}</p>
+                  <p className="text-xs text-slate-500">{selectedCharacter} 目前：{tier ? fixedTierLabel(tier) : "未分配"}</p>
+                </div>
+                <div className="flex gap-1">
+                  {fixedTierOptions.map((optionTier) => (
+                    <button
+                      key={optionTier}
+                      type="button"
+                      className={`rounded border px-2 py-1 text-xs ${
+                        tier === optionTier ? "border-slate-900 bg-slate-900 text-white" : "border-slate-200"
+                      }`}
+                      onClick={() => {
+                        const result = system.adminAssignCharacterSlot({
+                          userId: member.id,
+                          character: selectedCharacter,
+                          tier: optionTier,
+                        });
+                        setFeedback(result.message);
+                      }}
+                    >
+                      {fixedTierLabel(optionTier)}
+                    </button>
+                  ))}
+                </div>
+              </div>
+            );
+          })}
+        </div>
       </div>
     </section>
   );
@@ -465,7 +585,7 @@ export default function App(): JSX.Element {
               <h1 className="mt-1 text-3xl font-extrabold text-slate-900">活動導覽與喊單購物車</h1>
               <p className="mt-2 text-sm text-slate-600">你好，{system.currentUser.fbNickname}（{system.currentUser.email}）</p>
               <p className="text-xs text-slate-500">
-                身分：{system.currentUser.isAdmin ? "管理員" : "會員"} / 固位：{roleLabel(system.currentUser.roleTier)} / 取貨率：
+                身分：{system.currentUser.isAdmin ? "管理員" : "會員"} / 帳號固位：{roleLabel(system.currentUser.roleTier)} / 取貨率：
                 {system.currentUser.pickupRate}%
               </p>
               <p className="text-xs text-slate-500">

@@ -4,19 +4,23 @@ import {
   buildBindingAssignments,
   buildShipmentDraft,
   calculateUnitPrice,
-  roleCanAccessReleaseStage,
+  canBuyByCharacterSlot,
   sortClaimsByPriority,
 } from "../lib/business-rules";
+import { CHARACTER_OPTIONS } from "../lib/constants";
 import { loadSessionUserId, loadState, resetState, saveSessionUserId, saveState } from "../lib/storage";
 import type {
   Campaign,
   CartItem,
+  CharacterName,
   Claim,
+  FixedTier,
   Order,
   OrderItem,
   OrderSystemState,
   PaymentMethod,
   Product,
+  ProductRequiredTier,
   ReleaseStage,
   UserProfile,
 } from "../types/domain";
@@ -43,6 +47,13 @@ interface ShipmentInput {
 interface ClaimLimitInfo {
   limit: number | null;
   used: number;
+  remaining: number | null;
+}
+
+interface ProductAccessInfo {
+  ok: boolean;
+  reason: string;
+  currentQty: number;
   remaining: number | null;
 }
 
@@ -73,16 +84,38 @@ export interface UseOrderSystemReturn {
   canCurrentUserAccessCampaign: (campaignId: string) => boolean;
   addToCart: (campaignId: string, productId: string) => ActionResult;
   removeFromCart: (cartItemId: string) => ActionResult;
+  changeCartItemQty: (cartItemId: string, nextQty: number) => ActionResult;
   placeOrder: (campaignId: string) => ActionResult;
   getMyCartItems: (campaignId?: string) => CartItem[];
   getMyOrders: () => Order[];
   getOrderItems: (orderId: string) => OrderItem[];
+  getProductAccessForCurrentUser: (campaignId: string, productId: string) => ProductAccessInfo;
+  getUserCharacterTier: (userId: string, character: CharacterName) => FixedTier | null;
   adminUpdateCampaignReleaseStage: (campaignId: string, stage: ReleaseStage) => ActionResult;
   adminUpdateCampaignMaxClaims: (campaignId: string, maxClaims: number | null) => ActionResult;
+  adminUpdateProductRule: (args: {
+    productId: string;
+    requiredTier?: ProductRequiredTier;
+    maxPerUser?: number | null;
+    stock?: number;
+  }) => ActionResult;
+  adminAssignCharacterSlot: (args: {
+    userId: string;
+    character: CharacterName;
+    tier: FixedTier;
+  }) => ActionResult;
+  adminAutoAssignCharacterSlots: (character: CharacterName) => ActionResult;
 }
 
 const passwordPattern = /^(?=.*[A-Za-z])(?=.*\d).{8,}$/;
 const lastFivePattern = /^\d{5}$/;
+
+const STAGE_TO_ALLOWED_ROLE: Record<ReleaseStage, Set<string>> = {
+  FIXED_1_ONLY: new Set(["FIXED_1"]),
+  FIXED_1_2: new Set(["FIXED_1", "FIXED_2"]),
+  FIXED_1_2_3: new Set(["FIXED_1", "FIXED_2", "FIXED_3"]),
+  ALL_OPEN: new Set(["FIXED_1", "FIXED_2", "FIXED_3", "LEAK_PICK"]),
+};
 
 function campaignOpen(campaign: Campaign): boolean {
   return campaign.status === "OPEN" && new Date(campaign.deadlineAt).getTime() > Date.now();
@@ -94,29 +127,8 @@ function getClaimUnitPrice(claim: Claim, campaign: Campaign, productsById: Map<s
   return calculateUnitPrice(product, campaign);
 }
 
-function activeClaimCount(state: OrderSystemState, campaignId: string, userId: string): number {
-  const claimsCount = state.claims.filter(
-    (claim) => claim.campaignId === campaignId && claim.userId === userId && claim.status !== "CANCELLED_BY_ADMIN",
-  ).length;
-  const cartCount = state.cartItems.filter(
-    (item) => item.campaignId === campaignId && item.userId === userId,
-  ).length;
-  return claimsCount + cartCount;
-}
-
-function hasProductAlreadyClaimed(state: OrderSystemState, campaignId: string, productId: string, userId: string): boolean {
-  const inCart = state.cartItems.some(
-    (item) => item.campaignId === campaignId && item.productId === productId && item.userId === userId,
-  );
-  if (inCart) return true;
-
-  return state.claims.some(
-    (claim) =>
-      claim.campaignId === campaignId &&
-      claim.productId === productId &&
-      claim.userId === userId &&
-      claim.status !== "CANCELLED_BY_ADMIN",
-  );
+function fixedTiers(): FixedTier[] {
+  return ["FIXED_1", "FIXED_2", "FIXED_3"];
 }
 
 export function useOrderSystem(): UseOrderSystemReturn {
@@ -145,6 +157,111 @@ export function useOrderSystem(): UseOrderSystemReturn {
     return state.products.filter((product) => product.campaignId === campaignId);
   };
 
+  const getUserCharacterTier = (userId: string, character: CharacterName): FixedTier | null => {
+    const slot = state.characterSlots.find((item) => item.userId === userId && item.character === character);
+    return slot?.tier ?? null;
+  };
+
+  const getProductById = (productId: string): Product | undefined => {
+    return state.products.find((item) => item.id === productId);
+  };
+
+  const getCampaignById = (campaignId: string): Campaign | undefined => {
+    return state.campaigns.find((item) => item.id === campaignId);
+  };
+
+  const getCurrentCommittedQty = (campaignId: string, productId: string, userId: string): number => {
+    const cartQty = state.cartItems
+      .filter((item) => item.campaignId === campaignId && item.productId === productId && item.userId === userId)
+      .reduce((sum, item) => sum + item.qty, 0);
+
+    const claimQty = state.claims.filter(
+      (claim) =>
+        claim.campaignId === campaignId &&
+        claim.productId === productId &&
+        claim.userId === userId &&
+        claim.status !== "CANCELLED_BY_ADMIN",
+    ).length;
+
+    return cartQty + claimQty;
+  };
+
+  const getReservedQtyForProduct = (campaignId: string, productId: string): number => {
+    const cartQty = state.cartItems
+      .filter((item) => item.campaignId === campaignId && item.productId === productId)
+      .reduce((sum, item) => sum + item.qty, 0);
+
+    const claimQty = state.claims.filter(
+      (claim) =>
+        claim.campaignId === campaignId &&
+        claim.productId === productId &&
+        claim.status !== "CANCELLED_BY_ADMIN",
+    ).length;
+
+    return cartQty + claimQty;
+  };
+
+  const getProductAccess = (args: {
+    campaign: Campaign;
+    product: Product;
+    user: UserProfile;
+  }): ProductAccessInfo => {
+    const { campaign, product, user } = args;
+
+    if (!campaignOpen(campaign)) {
+      return { ok: false, reason: "活動已截止。", currentQty: 0, remaining: 0 };
+    }
+
+    const currentQty = getCurrentCommittedQty(campaign.id, product.id, user.id);
+
+    const roleAllowed = STAGE_TO_ALLOWED_ROLE[campaign.releaseStage].has(user.roleTier);
+    if (!roleAllowed) {
+      return { ok: false, reason: "目前活動釋出階段尚未開放你的身分。", currentQty, remaining: 0 };
+    }
+
+    const userCharacterTier = getUserCharacterTier(user.id, product.character);
+    const gate = canBuyByCharacterSlot({
+      releaseStage: campaign.releaseStage,
+      requiredTier: product.requiredTier,
+      character: product.character,
+      userCharacterTier,
+    });
+
+    if (!gate.ok) {
+      return { ok: false, reason: gate.reason, currentQty, remaining: 0 };
+    }
+
+    if (product.maxPerUser !== null && currentQty >= product.maxPerUser) {
+      return { ok: false, reason: "已達此商品個人上限。", currentQty, remaining: 0 };
+    }
+
+    const reserved = getReservedQtyForProduct(campaign.id, product.id);
+    if (reserved >= product.stock) {
+      return { ok: false, reason: "此商品已無可用庫存。", currentQty, remaining: 0 };
+    }
+
+    return {
+      ok: true,
+      reason: "",
+      currentQty,
+      remaining: product.maxPerUser === null ? null : Math.max(0, product.maxPerUser - currentQty),
+    };
+  };
+
+  const getProductAccessForCurrentUser = (campaignId: string, productId: string): ProductAccessInfo => {
+    if (!currentUser) {
+      return { ok: false, reason: "請先登入。", currentQty: 0, remaining: 0 };
+    }
+
+    const campaign = getCampaignById(campaignId);
+    const product = getProductById(productId);
+    if (!campaign || !product) {
+      return { ok: false, reason: "找不到活動或商品。", currentQty: 0, remaining: 0 };
+    }
+
+    return getProductAccess({ campaign, product, user: currentUser });
+  };
+
   const getClaimQueue = (campaignId: string, productId: string): Claim[] => {
     const activeClaims = state.claims.filter(
       (claim) =>
@@ -165,9 +282,11 @@ export function useOrderSystem(): UseOrderSystemReturn {
   };
 
   const getClaimLimitInfo = (campaignId: string, userId: string): ClaimLimitInfo => {
-    const campaign = state.campaigns.find((item) => item.id === campaignId);
+    const campaign = getCampaignById(campaignId);
     const limit = campaign?.maxClaimsPerUser ?? null;
-    const used = activeClaimCount(state, campaignId, userId);
+    const used = state.claims.filter(
+      (claim) => claim.campaignId === campaignId && claim.userId === userId && claim.status !== "CANCELLED_BY_ADMIN",
+    ).length;
 
     if (limit === null) {
       return { limit: null, used, remaining: null };
@@ -182,13 +301,13 @@ export function useOrderSystem(): UseOrderSystemReturn {
 
   const canCurrentUserAccessCampaign = (campaignId: string): boolean => {
     if (!currentUser) return false;
-    const campaign = state.campaigns.find((item) => item.id === campaignId);
+    const campaign = getCampaignById(campaignId);
     if (!campaign) return false;
-    return roleCanAccessReleaseStage(currentUser.roleTier, campaign.releaseStage);
+    return STAGE_TO_ALLOWED_ROLE[campaign.releaseStage].has(currentUser.roleTier);
   };
 
   const getUserCampaignTotal = (campaignId: string, userId: string): number => {
-    const campaign = state.campaigns.find((item) => item.id === campaignId);
+    const campaign = getCampaignById(campaignId);
     if (!campaign) return 0;
 
     const productsById = new Map(state.products.map((product) => [product.id, product]));
@@ -196,6 +315,7 @@ export function useOrderSystem(): UseOrderSystemReturn {
     const confirmedClaims = state.claims.filter(
       (claim) => claim.campaignId === campaignId && claim.userId === userId && claim.status === "CONFIRMED",
     );
+
     const confirmedTotal = confirmedClaims.reduce((sum, claim) => {
       return sum + getClaimUnitPrice(claim, campaign, productsById);
     }, 0);
@@ -251,8 +371,10 @@ export function useOrderSystem(): UseOrderSystemReturn {
       return { ok: false, message: "此 Email 已註冊。" };
     }
 
+    const userId = crypto.randomUUID();
+
     const nextUser: UserProfile = {
-      id: crypto.randomUUID(),
+      id: userId,
       email,
       password,
       fbNickname,
@@ -262,7 +384,22 @@ export function useOrderSystem(): UseOrderSystemReturn {
       createdAt: new Date().toISOString(),
     };
 
-    setState((prev) => ({ ...prev, users: [...prev.users, nextUser] }));
+    const now = new Date().toISOString();
+    const starterSlots = CHARACTER_OPTIONS.map((character, index) => ({
+      id: crypto.randomUUID(),
+      userId,
+      character,
+      tier: fixedTiers()[index % 3],
+      createdAt: now,
+      updatedAt: now,
+    }));
+
+    setState((prev) => ({
+      ...prev,
+      users: [...prev.users, nextUser],
+      characterSlots: [...prev.characterSlots, ...starterSlots],
+    }));
+
     setSessionUserId(nextUser.id);
 
     return { ok: true, message: "註冊成功，已自動登入。" };
@@ -297,63 +434,98 @@ export function useOrderSystem(): UseOrderSystemReturn {
       return { ok: false, message: "請先登入。" };
     }
 
-    const campaign = state.campaigns.find((item) => item.id === campaignId);
-    if (!campaign || !campaignOpen(campaign)) {
-      return { ok: false, message: "此活動已截止或不存在。" };
+    const campaign = getCampaignById(campaignId);
+    const product = getProductById(productId);
+    if (!campaign || !product) {
+      return { ok: false, message: "活動或商品不存在。" };
     }
 
-    if (!roleCanAccessReleaseStage(currentUser.roleTier, campaign.releaseStage)) {
-      return { ok: false, message: "目前尚未輪到你的固位開放。" };
+    const access = getProductAccess({ campaign, product, user: currentUser });
+    if (!access.ok) {
+      return { ok: false, message: access.reason };
     }
 
-    const product = state.products.find((item) => item.id === productId && item.campaignId === campaignId);
-    if (!product) {
-      return { ok: false, message: "商品不存在。" };
+    const existing = state.cartItems.find(
+      (item) => item.campaignId === campaignId && item.productId === productId && item.userId === currentUser.id,
+    );
+
+    const nextQty = (existing?.qty ?? 0) + 1;
+
+    if (product.maxPerUser !== null && access.currentQty + 1 > product.maxPerUser) {
+      return { ok: false, message: `此商品每人上限 ${product.maxPerUser}，目前已達上限。` };
     }
 
-    if (hasProductAlreadyClaimed(state, campaignId, productId, currentUser.id)) {
-      return { ok: false, message: "此商品你已加入過（購物車或喊單紀錄）。" };
+    if (existing) {
+      setState((prev) => ({
+        ...prev,
+        cartItems: prev.cartItems.map((item) =>
+          item.id === existing.id ? { ...item, qty: nextQty } : item,
+        ),
+      }));
+    } else {
+      const cartItem: CartItem = {
+        id: crypto.randomUUID(),
+        campaignId,
+        productId,
+        userId: currentUser.id,
+        qty: 1,
+        createdAt: new Date().toISOString(),
+      };
+
+      setState((prev) => ({ ...prev, cartItems: [...prev.cartItems, cartItem] }));
     }
-
-    const limitInfo = getClaimLimitInfo(campaignId, currentUser.id);
-    if (limitInfo.limit !== null && limitInfo.used >= limitInfo.limit) {
-      return { ok: false, message: `本活動上限為 ${limitInfo.limit} 個，你已達上限。` };
-    }
-
-    const cartItem: CartItem = {
-      id: crypto.randomUUID(),
-      campaignId,
-      productId,
-      userId: currentUser.id,
-      createdAt: new Date().toISOString(),
-    };
-
-    setState((prev) => ({
-      ...prev,
-      cartItems: [...prev.cartItems, cartItem],
-    }));
 
     return { ok: true, message: "已加入購物車。" };
   };
 
-  const removeFromCart = (cartItemId: string): ActionResult => {
+  const changeCartItemQty = (cartItemId: string, nextQty: number): ActionResult => {
     if (!currentUser) return { ok: false, message: "請先登入。" };
 
     const target = state.cartItems.find((item) => item.id === cartItemId && item.userId === currentUser.id);
     if (!target) return { ok: false, message: "找不到購物車項目。" };
 
+    if (nextQty <= 0) {
+      setState((prev) => ({
+        ...prev,
+        cartItems: prev.cartItems.filter((item) => item.id !== cartItemId),
+      }));
+      return { ok: true, message: "已從購物車移除。" };
+    }
+
+    const campaign = getCampaignById(target.campaignId);
+    const product = getProductById(target.productId);
+    if (!campaign || !product) {
+      return { ok: false, message: "活動或商品不存在。" };
+    }
+
+    const committedWithoutThis = getCurrentCommittedQty(target.campaignId, target.productId, currentUser.id) - target.qty;
+    if (product.maxPerUser !== null && committedWithoutThis + nextQty > product.maxPerUser) {
+      return { ok: false, message: `此商品每人上限 ${product.maxPerUser}。` };
+    }
+
+    const reservedWithoutThis = getReservedQtyForProduct(target.campaignId, target.productId) - target.qty;
+    if (reservedWithoutThis + nextQty > product.stock) {
+      return { ok: false, message: "可用庫存不足。" };
+    }
+
     setState((prev) => ({
       ...prev,
-      cartItems: prev.cartItems.filter((item) => item.id !== cartItemId),
+      cartItems: prev.cartItems.map((item) =>
+        item.id === cartItemId ? { ...item, qty: nextQty } : item,
+      ),
     }));
 
-    return { ok: true, message: "已從購物車移除。" };
+    return { ok: true, message: "已更新購物車數量。" };
+  };
+
+  const removeFromCart = (cartItemId: string): ActionResult => {
+    return changeCartItemQty(cartItemId, 0);
   };
 
   const placeOrder = (campaignId: string): ActionResult => {
     if (!currentUser) return { ok: false, message: "請先登入。" };
 
-    const campaign = state.campaigns.find((item) => item.id === campaignId);
+    const campaign = getCampaignById(campaignId);
     if (!campaign || !campaignOpen(campaign)) {
       return { ok: false, message: "此活動已截止或不存在。" };
     }
@@ -361,6 +533,7 @@ export function useOrderSystem(): UseOrderSystemReturn {
     const cartItems = state.cartItems.filter(
       (item) => item.campaignId === campaignId && item.userId === currentUser.id,
     );
+
     if (cartItems.length === 0) {
       return { ok: false, message: "購物車是空的。" };
     }
@@ -368,16 +541,14 @@ export function useOrderSystem(): UseOrderSystemReturn {
     const productsById = new Map(state.products.map((product) => [product.id, product]));
 
     for (const cartItem of cartItems) {
-      const hasActive = state.claims.some(
-        (claim) =>
-          claim.campaignId === campaignId &&
-          claim.productId === cartItem.productId &&
-          claim.userId === currentUser.id &&
-          claim.status !== "CANCELLED_BY_ADMIN",
-      );
-      if (hasActive) {
-        const productName = productsById.get(cartItem.productId)?.name ?? "未知商品";
-        return { ok: false, message: `${productName} 已有喊單紀錄，請先清理後再下單。` };
+      const product = productsById.get(cartItem.productId);
+      if (!product) {
+        return { ok: false, message: "購物車有無效商品。" };
+      }
+
+      const access = getProductAccess({ campaign, product, user: currentUser });
+      if (!access.ok) {
+        return { ok: false, message: `${product.name}：${access.reason}` };
       }
     }
 
@@ -394,11 +565,12 @@ export function useOrderSystem(): UseOrderSystemReturn {
         productId: cartItem.productId,
         userId: currentUser.id,
         unitPrice,
+        qty: cartItem.qty,
         createdAt: now,
       };
     });
 
-    const totalAmount = orderItems.reduce((sum, item) => sum + item.unitPrice, 0);
+    const totalAmount = orderItems.reduce((sum, item) => sum + item.unitPrice * item.qty, 0);
 
     const order: Order = {
       id: orderId,
@@ -409,15 +581,17 @@ export function useOrderSystem(): UseOrderSystemReturn {
       createdAt: now,
     };
 
-    const claims: Claim[] = cartItems.map((item) => ({
-      id: crypto.randomUUID(),
-      campaignId,
-      productId: item.productId,
-      userId: currentUser.id,
-      roleTier: currentUser.roleTier,
-      createdAt: now,
-      status: "LOCKED",
-    }));
+    const claims: Claim[] = cartItems.flatMap((item) =>
+      Array.from({ length: item.qty }).map(() => ({
+        id: crypto.randomUUID(),
+        campaignId,
+        productId: item.productId,
+        userId: currentUser.id,
+        roleTier: currentUser.roleTier,
+        createdAt: now,
+        status: "LOCKED" as const,
+      })),
+    );
 
     setState((prev) => ({
       ...prev,
@@ -429,7 +603,7 @@ export function useOrderSystem(): UseOrderSystemReturn {
       ),
     }));
 
-    return { ok: true, message: `下單成功，共 ${orderItems.length} 項。` };
+    return { ok: true, message: `下單成功，共 ${claims.length} 件。` };
   };
 
   const getMyCartItems = (campaignId?: string): CartItem[] => {
@@ -461,35 +635,15 @@ export function useOrderSystem(): UseOrderSystemReturn {
       return { ok: false, message: "請先登入。" };
     }
 
-    const campaign = state.campaigns.find((item) => item.id === campaignId);
-    if (!campaign || !campaignOpen(campaign)) {
-      return { ok: false, message: "此檔期已截止或不存在。" };
+    const campaign = getCampaignById(campaignId);
+    const product = getProductById(productId);
+    if (!campaign || !product) {
+      return { ok: false, message: "活動或商品不存在。" };
     }
 
-    if (!roleCanAccessReleaseStage(currentUser.roleTier, campaign.releaseStage)) {
-      return { ok: false, message: "目前尚未輪到你的固位開放。" };
-    }
-
-    const product = state.products.find((item) => item.id === productId && item.campaignId === campaignId);
-    if (!product) {
-      return { ok: false, message: "商品不存在。" };
-    }
-
-    const limitInfo = getClaimLimitInfo(campaignId, currentUser.id);
-    if (limitInfo.limit !== null && limitInfo.used >= limitInfo.limit) {
-      return { ok: false, message: `本活動上限為 ${limitInfo.limit} 個，你已達上限。` };
-    }
-
-    const exists = state.claims.some(
-      (claim) =>
-        claim.campaignId === campaignId &&
-        claim.productId === productId &&
-        claim.userId === currentUser.id &&
-        claim.status !== "CANCELLED_BY_ADMIN",
-    );
-
-    if (exists) {
-      return { ok: false, message: "你已喊過這個商品，前台不可取消。" };
+    const access = getProductAccess({ campaign, product, user: currentUser });
+    if (!access.ok) {
+      return { ok: false, message: access.reason };
     }
 
     const newClaim: Claim = {
@@ -755,7 +909,136 @@ export function useOrderSystem(): UseOrderSystemReturn {
       ),
     }));
 
-    return { ok: true, message: "已更新活動喊單上限。" };
+    return { ok: true, message: "已更新活動喊單上限（目前前台以商品上限為主）。" };
+  };
+
+  const adminUpdateProductRule = (args: {
+    productId: string;
+    requiredTier?: ProductRequiredTier;
+    maxPerUser?: number | null;
+    stock?: number;
+  }): ActionResult => {
+    if (!currentUser?.isAdmin) {
+      return { ok: false, message: "只有團主可以調整商品規則。" };
+    }
+
+    const { productId, requiredTier, maxPerUser, stock } = args;
+    const target = getProductById(productId);
+    if (!target) return { ok: false, message: "找不到商品。" };
+
+    if (maxPerUser !== undefined && maxPerUser !== null && maxPerUser < 1) {
+      return { ok: false, message: "商品上限至少為 1，或設定為不限。" };
+    }
+
+    if (stock !== undefined && stock < 0) {
+      return { ok: false, message: "庫存不可為負數。" };
+    }
+
+    setState((prev) => ({
+      ...prev,
+      products: prev.products.map((product) =>
+        product.id === productId
+          ? {
+            ...product,
+            requiredTier: requiredTier ?? product.requiredTier,
+            maxPerUser: maxPerUser === undefined ? product.maxPerUser : maxPerUser,
+            stock: stock ?? product.stock,
+          }
+          : product,
+      ),
+    }));
+
+    return { ok: true, message: "已更新商品規則。" };
+  };
+
+  const adminAssignCharacterSlot = (args: {
+    userId: string;
+    character: CharacterName;
+    tier: FixedTier;
+  }): ActionResult => {
+    if (!currentUser?.isAdmin) {
+      return { ok: false, message: "只有團主可以分配固位。" };
+    }
+
+    const { userId, character, tier } = args;
+    const user = state.users.find((item) => item.id === userId && !item.isAdmin);
+    if (!user) {
+      return { ok: false, message: "找不到會員。" };
+    }
+
+    const now = new Date().toISOString();
+    const exists = state.characterSlots.find((item) => item.userId === userId && item.character === character);
+
+    if (exists) {
+      setState((prev) => ({
+        ...prev,
+        characterSlots: prev.characterSlots.map((item) =>
+          item.id === exists.id ? { ...item, tier, updatedAt: now } : item,
+        ),
+      }));
+    } else {
+      setState((prev) => ({
+        ...prev,
+        characterSlots: [
+          ...prev.characterSlots,
+          {
+            id: crypto.randomUUID(),
+            userId,
+            character,
+            tier,
+            createdAt: now,
+            updatedAt: now,
+          },
+        ],
+      }));
+    }
+
+    return { ok: true, message: `${user.fbNickname} 的 ${character} 已設為 ${tier}。` };
+  };
+
+  const adminAutoAssignCharacterSlots = (character: CharacterName): ActionResult => {
+    if (!currentUser?.isAdmin) {
+      return { ok: false, message: "只有團主可以自動分配。" };
+    }
+
+    const members = state.users
+      .filter((user) => !user.isAdmin)
+      .sort((a, b) => new Date(a.createdAt).getTime() - new Date(b.createdAt).getTime());
+
+    if (members.length === 0) {
+      return { ok: false, message: "目前沒有可分配的會員。" };
+    }
+
+    const tiers = fixedTiers();
+    const now = new Date().toISOString();
+
+    setState((prev) => {
+      const nextSlots = [...prev.characterSlots];
+
+      members.forEach((member, index) => {
+        const tier = tiers[index % tiers.length];
+        const existingIndex = nextSlots.findIndex(
+          (item) => item.userId === member.id && item.character === character,
+        );
+
+        if (existingIndex >= 0) {
+          nextSlots[existingIndex] = { ...nextSlots[existingIndex], tier, updatedAt: now };
+        } else {
+          nextSlots.push({
+            id: crypto.randomUUID(),
+            userId: member.id,
+            character,
+            tier,
+            createdAt: now,
+            updatedAt: now,
+          });
+        }
+      });
+
+      return { ...prev, characterSlots: nextSlots };
+    });
+
+    return { ok: true, message: `${character} 已依註冊順序自動分配固位。` };
   };
 
   const resetAllData = (): void => {
@@ -790,11 +1073,17 @@ export function useOrderSystem(): UseOrderSystemReturn {
     canCurrentUserAccessCampaign,
     addToCart,
     removeFromCart,
+    changeCartItemQty,
     placeOrder,
     getMyCartItems,
     getMyOrders,
     getOrderItems,
+    getProductAccessForCurrentUser,
+    getUserCharacterTier,
     adminUpdateCampaignReleaseStage,
     adminUpdateCampaignMaxClaims,
+    adminUpdateProductRule,
+    adminAssignCharacterSlot,
+    adminAutoAssignCharacterSlots,
   };
 }

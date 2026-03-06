@@ -1,5 +1,12 @@
-import { RELEASE_STAGE_LABEL, ROLE_LABEL } from "./constants";
-import type { OrderStatus, PaymentMethod, ReleaseStage, RoleTier } from "../types/domain";
+import { PRODUCT_REQUIRED_TIER_LABEL, RELEASE_STAGE_LABEL, ROLE_LABEL } from "./constants";
+import type {
+  FixedTier,
+  OrderStatus,
+  PaymentMethod,
+  ProductRequiredTier,
+  ReleaseStage,
+  RoleTier,
+} from "../types/domain";
 
 export const paymentLabel: Record<PaymentMethod, string> = {
   BANK_TRANSFER: "匯款",
@@ -14,6 +21,14 @@ export function roleLabel(role: RoleTier): string {
 
 export function releaseStageLabel(stage: ReleaseStage): string {
   return RELEASE_STAGE_LABEL[stage];
+}
+
+export function fixedTierLabel(tier: FixedTier): string {
+  return ROLE_LABEL[tier];
+}
+
+export function productRequiredTierLabel(tier: ProductRequiredTier): string {
+  return PRODUCT_REQUIRED_TIER_LABEL[tier];
 }
 
 export const orderStatusLabel: Record<OrderStatus, string> = {

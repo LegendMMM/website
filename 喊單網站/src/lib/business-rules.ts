@@ -1,10 +1,13 @@
-import { BINDING_WEIGHT, BINDING_WEIGHT_FALLBACK, ROLE_PRIORITY } from "./constants";
+import { BINDING_WEIGHT, BINDING_WEIGHT_FALLBACK, ROLE_LABEL, ROLE_PRIORITY } from "./constants";
 import type {
   BindingAssignment,
   Campaign,
+  CharacterName,
   Claim,
+  FixedTier,
   PaymentMethod,
   Product,
+  ProductRequiredTier,
   ReleaseStage,
   RoleTier,
   ShipmentDraft,
@@ -149,4 +152,42 @@ export function roleCanAccessReleaseStage(roleTier: RoleTier, releaseStage: Rele
   if (releaseStage === "FIXED_1_ONLY") return roleTier === "FIXED_1";
   if (releaseStage === "FIXED_1_2") return roleTier === "FIXED_1" || roleTier === "FIXED_2";
   return roleTier === "FIXED_1" || roleTier === "FIXED_2" || roleTier === "FIXED_3";
+}
+
+export function releaseStageAllowsRequiredTier(
+  releaseStage: ReleaseStage,
+  requiredTier: ProductRequiredTier,
+): boolean {
+  if (releaseStage === "ALL_OPEN") return true;
+  if (requiredTier === "ALL_OPEN") return true;
+  if (releaseStage === "FIXED_1_ONLY") return requiredTier === "FIXED_1";
+  if (releaseStage === "FIXED_1_2") return requiredTier === "FIXED_1" || requiredTier === "FIXED_2";
+  return requiredTier === "FIXED_1" || requiredTier === "FIXED_2" || requiredTier === "FIXED_3";
+}
+
+export function canBuyByCharacterSlot(params: {
+  releaseStage: ReleaseStage;
+  requiredTier: ProductRequiredTier;
+  character: CharacterName;
+  userCharacterTier: FixedTier | null;
+}): { ok: boolean; reason: string } {
+  const { releaseStage, requiredTier, character, userCharacterTier } = params;
+
+  if (!releaseStageAllowsRequiredTier(releaseStage, requiredTier)) {
+    return { ok: false, reason: "此商品尚未開放到目前釋出階段。" };
+  }
+
+  if (releaseStage === "ALL_OPEN" || requiredTier === "ALL_OPEN") {
+    return { ok: true, reason: "" };
+  }
+
+  if (!userCharacterTier) {
+    return { ok: false, reason: `${character} 尚未分配固位，暫不可購買。` };
+  }
+
+  if (userCharacterTier !== requiredTier) {
+    return { ok: false, reason: `${character} 你的固位是 ${ROLE_LABEL[userCharacterTier]}，不符合此商品要求。` };
+  }
+
+  return { ok: true, reason: "" };
 }

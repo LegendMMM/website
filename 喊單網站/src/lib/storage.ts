@@ -8,7 +8,12 @@ function normalizeState(raw: unknown): OrderSystemState {
   const fallback = deepClone(seedState);
   if (!raw || typeof raw !== "object") return fallback;
 
-  const candidate = raw as Partial<OrderSystemState> & { campaigns?: Array<Record<string, unknown>> };
+  const candidate = raw as Partial<OrderSystemState> & {
+    campaigns?: Array<Record<string, unknown>>;
+    products?: Array<Record<string, unknown>>;
+    cartItems?: Array<Record<string, unknown>>;
+    orderItems?: Array<Record<string, unknown>>;
+  };
   const normalizedCampaigns = Array.isArray(candidate.campaigns)
     ? candidate.campaigns.map((campaign) => ({
       ...campaign,
@@ -18,17 +23,40 @@ function normalizeState(raw: unknown): OrderSystemState {
     }))
     : fallback.campaigns;
 
+  const normalizedProducts = Array.isArray(candidate.products)
+    ? candidate.products.map((product) => ({
+      ...product,
+      requiredTier: (product.requiredTier as string | undefined) ?? "ALL_OPEN",
+      maxPerUser: typeof product.maxPerUser === "number" ? product.maxPerUser : null,
+    }))
+    : fallback.products;
+
+  const normalizedCartItems = Array.isArray(candidate.cartItems)
+    ? candidate.cartItems.map((item) => ({
+      ...item,
+      qty: typeof item.qty === "number" && item.qty > 0 ? item.qty : 1,
+    }))
+    : fallback.cartItems;
+
+  const normalizedOrderItems = Array.isArray(candidate.orderItems)
+    ? candidate.orderItems.map((item) => ({
+      ...item,
+      qty: typeof item.qty === "number" && item.qty > 0 ? item.qty : 1,
+    }))
+    : fallback.orderItems;
+
   return {
     users: Array.isArray(candidate.users) ? candidate.users : fallback.users,
     campaigns: normalizedCampaigns as OrderSystemState["campaigns"],
-    products: Array.isArray(candidate.products) ? candidate.products : fallback.products,
+    products: normalizedProducts as OrderSystemState["products"],
+    characterSlots: Array.isArray(candidate.characterSlots) ? candidate.characterSlots : fallback.characterSlots,
     claims: Array.isArray(candidate.claims) ? candidate.claims : fallback.claims,
     payments: Array.isArray(candidate.payments) ? candidate.payments : fallback.payments,
     bindings: Array.isArray(candidate.bindings) ? candidate.bindings : fallback.bindings,
     shipments: Array.isArray(candidate.shipments) ? candidate.shipments : fallback.shipments,
-    cartItems: Array.isArray(candidate.cartItems) ? candidate.cartItems : fallback.cartItems,
+    cartItems: normalizedCartItems as OrderSystemState["cartItems"],
     orders: Array.isArray(candidate.orders) ? candidate.orders : fallback.orders,
-    orderItems: Array.isArray(candidate.orderItems) ? candidate.orderItems : fallback.orderItems,
+    orderItems: normalizedOrderItems as OrderSystemState["orderItems"],
   };
 }
 

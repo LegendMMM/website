@@ -1,4 +1,4 @@
-import type { ReleaseStage, RoleTier } from "../types/domain";
+import type { CharacterName, ProductRequiredTier, ReleaseStage, RoleTier } from "../types/domain";
 
 export const ROLE_PRIORITY: Record<RoleTier, number> = {
   FIXED_1: 1,
@@ -21,9 +21,27 @@ export const RELEASE_STAGE_LABEL: Record<ReleaseStage, string> = {
   ALL_OPEN: "全面開放",
 };
 
+export const PRODUCT_REQUIRED_TIER_LABEL: Record<ProductRequiredTier, string> = {
+  FIXED_1: "固一商品",
+  FIXED_2: "固二商品",
+  FIXED_3: "固三商品",
+  ALL_OPEN: "全員可購",
+};
+
+export const CHARACTER_OPTIONS: CharacterName[] = [
+  "八千代",
+  "彩葉",
+  "輝耀姬",
+  "帝",
+  "乃依",
+  "雷",
+  "真實",
+  "蘆花",
+];
+
 export const BINDING_WEIGHT: Record<string, number> = {
   八千代: 100,
-  乃伊: 90,
+  乃依: 90,
   彩葉: 80,
   輝耀姬: 70,
   帝: 60,

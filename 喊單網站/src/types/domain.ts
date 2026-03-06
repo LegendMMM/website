@@ -1,4 +1,14 @@
 export type RoleTier = "FIXED_1" | "FIXED_2" | "FIXED_3" | "LEAK_PICK";
+export type FixedTier = "FIXED_1" | "FIXED_2" | "FIXED_3";
+export type CharacterName =
+  | "八千代"
+  | "彩葉"
+  | "輝耀姬"
+  | "帝"
+  | "乃依"
+  | "雷"
+  | "真實"
+  | "蘆花";
 
 export type PricingMode = "DYNAMIC" | "AVERAGE_WITH_BINDING";
 
@@ -12,6 +22,7 @@ export type ClaimStatus = "LOCKED" | "CANCELLED_BY_ADMIN" | "CONFIRMED";
 
 export type CampaignStatus = "OPEN" | "CLOSED";
 export type ReleaseStage = "FIXED_1_ONLY" | "FIXED_1_2" | "FIXED_1_2_3" | "ALL_OPEN";
+export type ProductRequiredTier = FixedTier | "ALL_OPEN";
 
 export interface UserProfile {
   id: string;
@@ -41,12 +52,14 @@ export interface Product {
   campaignId: string;
   sku: string;
   name: string;
-  character: string;
+  character: CharacterName;
+  requiredTier: ProductRequiredTier;
   isPopular: boolean;
   hotPrice: number;
   coldPrice: number;
   averagePrice: number;
   stock: number;
+  maxPerUser: number | null;
 }
 
 export interface Claim {
@@ -96,6 +109,7 @@ export interface CartItem {
   campaignId: string;
   productId: string;
   userId: string;
+  qty: number;
   createdAt: string;
 }
 
@@ -117,13 +131,24 @@ export interface OrderItem {
   productId: string;
   userId: string;
   unitPrice: number;
+  qty: number;
   createdAt: string;
+}
+
+export interface CharacterSlot {
+  id: string;
+  userId: string;
+  character: CharacterName;
+  tier: FixedTier;
+  createdAt: string;
+  updatedAt: string;
 }
 
 export interface OrderSystemState {
   users: UserProfile[];
   campaigns: Campaign[];
   products: Product[];
+  characterSlots: CharacterSlot[];
   claims: Claim[];
   payments: Payment[];
   bindings: BindingAssignment[];
