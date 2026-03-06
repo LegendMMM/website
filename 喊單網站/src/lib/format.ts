@@ -1,9 +1,15 @@
-import { PRODUCT_REQUIRED_TIER_LABEL, RELEASE_STAGE_LABEL, ROLE_LABEL } from "./constants";
+import {
+  PRODUCT_REQUIRED_TIER_LABEL,
+  PRODUCT_TYPE_LABEL,
+  RELEASE_STAGE_LABEL,
+  ROLE_LABEL,
+} from "./constants";
 import type {
-  FixedTier,
+  CharacterTier,
   OrderStatus,
   PaymentMethod,
   ProductRequiredTier,
+  ProductType,
   ReleaseStage,
   RoleTier,
 } from "../types/domain";
@@ -23,12 +29,16 @@ export function releaseStageLabel(stage: ReleaseStage): string {
   return RELEASE_STAGE_LABEL[stage];
 }
 
-export function fixedTierLabel(tier: FixedTier): string {
+export function fixedTierLabel(tier: CharacterTier): string {
   return ROLE_LABEL[tier];
 }
 
 export function productRequiredTierLabel(tier: ProductRequiredTier): string {
   return PRODUCT_REQUIRED_TIER_LABEL[tier];
+}
+
+export function productTypeLabel(type: ProductType): string {
+  return PRODUCT_TYPE_LABEL[type];
 }
 
 export const orderStatusLabel: Record<OrderStatus, string> = {

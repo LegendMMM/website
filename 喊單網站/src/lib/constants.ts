@@ -1,4 +1,10 @@
-import type { CharacterName, ProductRequiredTier, ReleaseStage, RoleTier } from "../types/domain";
+import type {
+  CharacterName,
+  ProductRequiredTier,
+  ProductType,
+  ReleaseStage,
+  RoleTier,
+} from "../types/domain";
 
 export const ROLE_PRIORITY: Record<RoleTier, number> = {
   FIXED_1: 1,
@@ -25,7 +31,12 @@ export const PRODUCT_REQUIRED_TIER_LABEL: Record<ProductRequiredTier, string> = 
   FIXED_1: "固一商品",
   FIXED_2: "固二商品",
   FIXED_3: "固三商品",
-  ALL_OPEN: "全員可購",
+  LEAK_PICK: "撿漏商品",
+};
+
+export const PRODUCT_TYPE_LABEL: Record<ProductType, string> = {
+  NORMAL: "一般商品",
+  BLIND_BOX: "盲盒拆分",
 };
 
 export const CHARACTER_OPTIONS: CharacterName[] = [

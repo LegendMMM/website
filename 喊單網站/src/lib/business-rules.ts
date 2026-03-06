@@ -3,8 +3,8 @@ import type {
   BindingAssignment,
   Campaign,
   CharacterName,
+  CharacterTier,
   Claim,
-  FixedTier,
   PaymentMethod,
   Product,
   ProductRequiredTier,
@@ -51,7 +51,7 @@ export function calculateUserWeight(
 
   return userClaims.reduce((maxWeight, claim) => {
     const product = productsById.get(claim.productId);
-    if (!product) return maxWeight;
+    if (!product || !product.character) return maxWeight;
     const weight = BINDING_WEIGHT[product.character] ?? BINDING_WEIGHT_FALLBACK;
     return Math.max(maxWeight, weight);
   }, 0);
@@ -80,10 +80,10 @@ export function buildBindingAssignments(params: {
   const alreadyBoundBuyer = new Set(existingBindings.map((binding) => binding.buyerUserId));
 
   const bindPool = products
-    .filter((product) => !product.isPopular)
+    .filter((product) => product.type === "NORMAL" && !product.isPopular)
     .flatMap((product) => {
       const usedCount = confirmedClaims.filter((claim) => claim.productId === product.id).length;
-      const remain = Math.max(0, product.stock - usedCount);
+      const remain = Math.max(0, (product.stock ?? 0) - usedCount);
       return Array.from({ length: remain }, () => product.id);
     });
 
@@ -154,12 +154,11 @@ export function roleCanAccessReleaseStage(roleTier: RoleTier, releaseStage: Rele
   return roleTier === "FIXED_1" || roleTier === "FIXED_2" || roleTier === "FIXED_3";
 }
 
-export function releaseStageAllowsRequiredTier(
+export function releaseStageAllowsTier(
   releaseStage: ReleaseStage,
   requiredTier: ProductRequiredTier,
 ): boolean {
   if (releaseStage === "ALL_OPEN") return true;
-  if (requiredTier === "ALL_OPEN") return true;
   if (releaseStage === "FIXED_1_ONLY") return requiredTier === "FIXED_1";
   if (releaseStage === "FIXED_1_2") return requiredTier === "FIXED_1" || requiredTier === "FIXED_2";
   return requiredTier === "FIXED_1" || requiredTier === "FIXED_2" || requiredTier === "FIXED_3";
@@ -169,20 +168,20 @@ export function canBuyByCharacterSlot(params: {
   releaseStage: ReleaseStage;
   requiredTier: ProductRequiredTier;
   character: CharacterName;
-  userCharacterTier: FixedTier | null;
+  userCharacterTier: CharacterTier | null;
 }): { ok: boolean; reason: string } {
   const { releaseStage, requiredTier, character, userCharacterTier } = params;
 
-  if (!releaseStageAllowsRequiredTier(releaseStage, requiredTier)) {
+  if (!releaseStageAllowsTier(releaseStage, requiredTier)) {
     return { ok: false, reason: "此商品尚未開放到目前釋出階段。" };
   }
 
-  if (releaseStage === "ALL_OPEN" || requiredTier === "ALL_OPEN") {
+  if (releaseStage === "ALL_OPEN") {
     return { ok: true, reason: "" };
   }
 
   if (!userCharacterTier) {
-    return { ok: false, reason: `${character} 尚未分配固位，暫不可購買。` };
+    return { ok: false, reason: `${character} 尚未分配固位，暫不可填單。` };
   }
 
   if (userCharacterTier !== requiredTier) {

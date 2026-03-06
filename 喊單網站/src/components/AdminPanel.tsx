@@ -89,7 +89,7 @@ export function AdminPanel({ system, activeCampaignId }: AdminPanelProps): JSX.E
                   {queue.length === 0 && <p className="text-sm text-slate-500">無喊單。</p>}
                   {queue.map((claim, index) => {
                     const user = usersById.get(claim.userId);
-                    const isInStock = index < product.stock;
+                    const isInStock = index < (product.stock ?? 0);
                     return (
                       <div
                         key={claim.id}

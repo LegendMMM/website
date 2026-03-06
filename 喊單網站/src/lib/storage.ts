@@ -1,8 +1,28 @@
 import { seedState } from "../data/seed";
 import { SESSION_KEY, STORAGE_KEY } from "./constants";
-import type { OrderSystemState } from "../types/domain";
+import type { CharacterTier, OrderSystemState, ProductRequiredTier, ProductType } from "../types/domain";
 
 const deepClone = <T>(value: T): T => JSON.parse(JSON.stringify(value));
+
+const tierFallback: ProductRequiredTier = "FIXED_1";
+
+function normalizeRequiredTier(value: unknown): ProductRequiredTier {
+  if (value === "FIXED_1" || value === "FIXED_2" || value === "FIXED_3" || value === "LEAK_PICK") {
+    return value;
+  }
+  return tierFallback;
+}
+
+function normalizeCharacterTier(value: unknown): CharacterTier | null {
+  if (value === "FIXED_1" || value === "FIXED_2" || value === "FIXED_3" || value === "LEAK_PICK") {
+    return value;
+  }
+  return null;
+}
+
+function normalizeProductType(value: unknown): ProductType {
+  return value === "BLIND_BOX" ? "BLIND_BOX" : "NORMAL";
+}
 
 function normalizeState(raw: unknown): OrderSystemState {
   const fallback = deepClone(seedState);
@@ -11,9 +31,13 @@ function normalizeState(raw: unknown): OrderSystemState {
   const candidate = raw as Partial<OrderSystemState> & {
     campaigns?: Array<Record<string, unknown>>;
     products?: Array<Record<string, unknown>>;
+    blindBoxItems?: Array<Record<string, unknown>>;
+    characterSlots?: Array<Record<string, unknown>>;
+    claims?: Array<Record<string, unknown>>;
     cartItems?: Array<Record<string, unknown>>;
     orderItems?: Array<Record<string, unknown>>;
   };
+
   const normalizedCampaigns = Array.isArray(candidate.campaigns)
     ? candidate.campaigns.map((campaign) => ({
       ...campaign,
@@ -24,16 +48,49 @@ function normalizeState(raw: unknown): OrderSystemState {
     : fallback.campaigns;
 
   const normalizedProducts = Array.isArray(candidate.products)
-    ? candidate.products.map((product) => ({
-      ...product,
-      requiredTier: (product.requiredTier as string | undefined) ?? "ALL_OPEN",
-      maxPerUser: typeof product.maxPerUser === "number" ? product.maxPerUser : null,
-    }))
+    ? candidate.products.map((product) => {
+      const legacyCharacter = product.character;
+      return {
+        ...product,
+        type: normalizeProductType(product.type),
+        character: typeof legacyCharacter === "string" ? legacyCharacter : null,
+        requiredTier: normalizeRequiredTier(product.requiredTier),
+        imageUrl: typeof product.imageUrl === "string" ? product.imageUrl : null,
+        stock: typeof product.stock === "number" ? product.stock : null,
+        maxPerUser: typeof product.maxPerUser === "number" ? product.maxPerUser : null,
+      };
+    })
     : fallback.products;
+
+  const normalizedBlindBoxItems = Array.isArray(candidate.blindBoxItems)
+    ? candidate.blindBoxItems.map((item) => ({
+      ...item,
+      imageUrl: typeof item.imageUrl === "string" ? item.imageUrl : null,
+      stock: typeof item.stock === "number" ? item.stock : 0,
+      maxPerUser: typeof item.maxPerUser === "number" ? item.maxPerUser : null,
+    }))
+    : fallback.blindBoxItems;
+
+  const normalizedCharacterSlots = Array.isArray(candidate.characterSlots)
+    ? candidate.characterSlots
+      .map((slot) => ({
+        ...slot,
+        tier: normalizeCharacterTier(slot.tier),
+      }))
+      .filter((slot) => slot.tier !== null)
+    : fallback.characterSlots;
+
+  const normalizedClaims = Array.isArray(candidate.claims)
+    ? candidate.claims.map((claim) => ({
+      ...claim,
+      blindBoxItemId: typeof claim.blindBoxItemId === "string" ? claim.blindBoxItemId : null,
+    }))
+    : fallback.claims;
 
   const normalizedCartItems = Array.isArray(candidate.cartItems)
     ? candidate.cartItems.map((item) => ({
       ...item,
+      blindBoxItemId: typeof item.blindBoxItemId === "string" ? item.blindBoxItemId : null,
       qty: typeof item.qty === "number" && item.qty > 0 ? item.qty : 1,
     }))
     : fallback.cartItems;
@@ -41,6 +98,7 @@ function normalizeState(raw: unknown): OrderSystemState {
   const normalizedOrderItems = Array.isArray(candidate.orderItems)
     ? candidate.orderItems.map((item) => ({
       ...item,
+      blindBoxItemId: typeof item.blindBoxItemId === "string" ? item.blindBoxItemId : null,
       qty: typeof item.qty === "number" && item.qty > 0 ? item.qty : 1,
     }))
     : fallback.orderItems;
@@ -49,8 +107,9 @@ function normalizeState(raw: unknown): OrderSystemState {
     users: Array.isArray(candidate.users) ? candidate.users : fallback.users,
     campaigns: normalizedCampaigns as OrderSystemState["campaigns"],
     products: normalizedProducts as OrderSystemState["products"],
-    characterSlots: Array.isArray(candidate.characterSlots) ? candidate.characterSlots : fallback.characterSlots,
-    claims: Array.isArray(candidate.claims) ? candidate.claims : fallback.claims,
+    blindBoxItems: normalizedBlindBoxItems as OrderSystemState["blindBoxItems"],
+    characterSlots: normalizedCharacterSlots as OrderSystemState["characterSlots"],
+    claims: normalizedClaims as OrderSystemState["claims"],
     payments: Array.isArray(candidate.payments) ? candidate.payments : fallback.payments,
     bindings: Array.isArray(candidate.bindings) ? candidate.bindings : fallback.bindings,
     shipments: Array.isArray(candidate.shipments) ? candidate.shipments : fallback.shipments,

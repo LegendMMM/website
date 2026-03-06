@@ -7,20 +7,22 @@ import {
   canBuyByCharacterSlot,
   sortClaimsByPriority,
 } from "../lib/business-rules";
-import { CHARACTER_OPTIONS } from "../lib/constants";
 import { loadSessionUserId, loadState, resetState, saveSessionUserId, saveState } from "../lib/storage";
 import type {
+  BlindBoxItem,
   Campaign,
   CartItem,
   CharacterName,
+  CharacterTier,
   Claim,
-  FixedTier,
   Order,
   OrderItem,
   OrderSystemState,
   PaymentMethod,
+  PricingMode,
   Product,
   ProductRequiredTier,
+  ProductType,
   ReleaseStage,
   UserProfile,
 } from "../types/domain";
@@ -57,6 +59,54 @@ interface ProductAccessInfo {
   remaining: number | null;
 }
 
+interface TargetDescriptor {
+  character: CharacterName;
+  stock: number;
+  maxPerUser: number | null;
+  label: string;
+}
+
+interface CreateCampaignInput {
+  title: string;
+  description: string;
+  deadlineAt: string;
+  pricingMode: PricingMode;
+  releaseStage: ReleaseStage;
+}
+
+interface CreateProductInput {
+  campaignId: string;
+  sku: string;
+  name: string;
+  type: ProductType;
+  character: CharacterName | null;
+  requiredTier: ProductRequiredTier;
+  imageUrl: string | null;
+  isPopular: boolean;
+  hotPrice: number;
+  coldPrice: number;
+  averagePrice: number;
+  stock: number | null;
+  maxPerUser: number | null;
+}
+
+interface CreateBlindBoxItemInput {
+  productId: string;
+  sku: string;
+  name: string;
+  character: CharacterName;
+  imageUrl: string | null;
+  stock: number;
+  maxPerUser: number | null;
+}
+
+interface ProductRuleUpdateInput {
+  productId: string;
+  requiredTier?: ProductRequiredTier;
+  maxPerUser?: number | null;
+  stock?: number;
+}
+
 export interface UseOrderSystemReturn {
   state: OrderSystemState;
   currentUser: UserProfile | null;
@@ -65,7 +115,7 @@ export interface UseOrderSystemReturn {
   register: (input: RegisterInput) => ActionResult;
   logout: () => void;
   resetPassword: (email: string) => ActionResult;
-  claimProduct: (campaignId: string, productId: string) => ActionResult;
+  claimProduct: (campaignId: string, productId: string, blindBoxItemId?: string) => ActionResult;
   adminCancelClaim: (claimId: string) => ActionResult;
   adminConfirmClaim: (claimId: string) => ActionResult;
   submitPayment: (campaignId: string, method: PaymentMethod, lastFiveCode: string) => ActionResult;
@@ -75,36 +125,35 @@ export interface UseOrderSystemReturn {
   triggerBinding: (campaignId: string) => ActionResult;
   resetAllData: () => void;
   getProductsByCampaign: (campaignId: string) => Product[];
-  getClaimQueue: (campaignId: string, productId: string) => Claim[];
+  getBlindBoxItemsByProduct: (productId: string) => BlindBoxItem[];
+  getClaimQueue: (campaignId: string, productId: string, blindBoxItemId?: string) => Claim[];
   getUserCampaignTotal: (campaignId: string, userId: string) => number;
   getUserClaims: (campaignId: string, userId: string) => Claim[];
   getPaymentMethodsForUser: (campaignId: string, userId: string) => PaymentMethod[];
-  isClaimLockedByCurrentUser: (campaignId: string, productId: string) => boolean;
+  isClaimLockedByCurrentUser: (campaignId: string, productId: string, blindBoxItemId?: string) => boolean;
   getClaimLimitInfo: (campaignId: string, userId: string) => ClaimLimitInfo;
   canCurrentUserAccessCampaign: (campaignId: string) => boolean;
-  addToCart: (campaignId: string, productId: string) => ActionResult;
+  addToCart: (campaignId: string, productId: string, blindBoxItemId?: string) => ActionResult;
   removeFromCart: (cartItemId: string) => ActionResult;
   changeCartItemQty: (cartItemId: string, nextQty: number) => ActionResult;
   placeOrder: (campaignId: string) => ActionResult;
   getMyCartItems: (campaignId?: string) => CartItem[];
   getMyOrders: () => Order[];
   getOrderItems: (orderId: string) => OrderItem[];
-  getProductAccessForCurrentUser: (campaignId: string, productId: string) => ProductAccessInfo;
-  getUserCharacterTier: (userId: string, character: CharacterName) => FixedTier | null;
+  getProductAccessForCurrentUser: (campaignId: string, productId: string, blindBoxItemId?: string) => ProductAccessInfo;
+  getUserCharacterTier: (userId: string, character: CharacterName) => CharacterTier | null;
   adminUpdateCampaignReleaseStage: (campaignId: string, stage: ReleaseStage) => ActionResult;
   adminUpdateCampaignMaxClaims: (campaignId: string, maxClaims: number | null) => ActionResult;
-  adminUpdateProductRule: (args: {
-    productId: string;
-    requiredTier?: ProductRequiredTier;
-    maxPerUser?: number | null;
-    stock?: number;
-  }) => ActionResult;
+  adminUpdateProductRule: (args: ProductRuleUpdateInput) => ActionResult;
   adminAssignCharacterSlot: (args: {
     userId: string;
     character: CharacterName;
-    tier: FixedTier;
+    tier: CharacterTier | null;
   }) => ActionResult;
   adminAutoAssignCharacterSlots: (character: CharacterName) => ActionResult;
+  adminCreateCampaign: (input: CreateCampaignInput) => ActionResult;
+  adminCreateProduct: (input: CreateProductInput) => ActionResult;
+  adminCreateBlindBoxItem: (input: CreateBlindBoxItemInput) => ActionResult;
 }
 
 const passwordPattern = /^(?=.*[A-Za-z])(?=.*\d).{8,}$/;
@@ -127,8 +176,8 @@ function getClaimUnitPrice(claim: Claim, campaign: Campaign, productsById: Map<s
   return calculateUnitPrice(product, campaign);
 }
 
-function fixedTiers(): FixedTier[] {
-  return ["FIXED_1", "FIXED_2", "FIXED_3"];
+function characterTierCycle(): CharacterTier[] {
+  return ["FIXED_1", "FIXED_2", "FIXED_3", "LEAK_PICK"];
 }
 
 export function useOrderSystem(): UseOrderSystemReturn {
@@ -157,7 +206,11 @@ export function useOrderSystem(): UseOrderSystemReturn {
     return state.products.filter((product) => product.campaignId === campaignId);
   };
 
-  const getUserCharacterTier = (userId: string, character: CharacterName): FixedTier | null => {
+  const getBlindBoxItemsByProduct = (productId: string): BlindBoxItem[] => {
+    return state.blindBoxItems.filter((item) => item.productId === productId);
+  };
+
+  const getUserCharacterTier = (userId: string, character: CharacterName): CharacterTier | null => {
     const slot = state.characterSlots.find((item) => item.userId === userId && item.character === character);
     return slot?.tier ?? null;
   };
@@ -166,19 +219,58 @@ export function useOrderSystem(): UseOrderSystemReturn {
     return state.products.find((item) => item.id === productId);
   };
 
+  const getBlindBoxItemById = (blindBoxItemId: string): BlindBoxItem | undefined => {
+    return state.blindBoxItems.find((item) => item.id === blindBoxItemId);
+  };
+
   const getCampaignById = (campaignId: string): Campaign | undefined => {
     return state.campaigns.find((item) => item.id === campaignId);
   };
 
-  const getCurrentCommittedQty = (campaignId: string, productId: string, userId: string): number => {
+  const resolveTargetDescriptor = (product: Product, blindBoxItemId?: string): TargetDescriptor | null => {
+    if (product.type === "NORMAL") {
+      if (!product.character || product.stock === null) return null;
+      return {
+        character: product.character,
+        stock: product.stock,
+        maxPerUser: product.maxPerUser,
+        label: product.name,
+      };
+    }
+
+    if (!blindBoxItemId) return null;
+    const item = getBlindBoxItemById(blindBoxItemId);
+    if (!item || item.productId !== product.id) return null;
+
+    return {
+      character: item.character,
+      stock: item.stock,
+      maxPerUser: item.maxPerUser,
+      label: `${product.name} / ${item.name}`,
+    };
+  };
+
+  const getCurrentCommittedQty = (
+    campaignId: string,
+    productId: string,
+    blindBoxItemId: string | null,
+    userId: string,
+  ): number => {
     const cartQty = state.cartItems
-      .filter((item) => item.campaignId === campaignId && item.productId === productId && item.userId === userId)
+      .filter(
+        (item) =>
+          item.campaignId === campaignId &&
+          item.productId === productId &&
+          item.blindBoxItemId === blindBoxItemId &&
+          item.userId === userId,
+      )
       .reduce((sum, item) => sum + item.qty, 0);
 
     const claimQty = state.claims.filter(
       (claim) =>
         claim.campaignId === campaignId &&
         claim.productId === productId &&
+        claim.blindBoxItemId === blindBoxItemId &&
         claim.userId === userId &&
         claim.status !== "CANCELLED_BY_ADMIN",
     ).length;
@@ -186,15 +278,25 @@ export function useOrderSystem(): UseOrderSystemReturn {
     return cartQty + claimQty;
   };
 
-  const getReservedQtyForProduct = (campaignId: string, productId: string): number => {
+  const getReservedQtyForTarget = (
+    campaignId: string,
+    productId: string,
+    blindBoxItemId: string | null,
+  ): number => {
     const cartQty = state.cartItems
-      .filter((item) => item.campaignId === campaignId && item.productId === productId)
+      .filter(
+        (item) =>
+          item.campaignId === campaignId &&
+          item.productId === productId &&
+          item.blindBoxItemId === blindBoxItemId,
+      )
       .reduce((sum, item) => sum + item.qty, 0);
 
     const claimQty = state.claims.filter(
       (claim) =>
         claim.campaignId === campaignId &&
         claim.productId === productId &&
+        claim.blindBoxItemId === blindBoxItemId &&
         claim.status !== "CANCELLED_BY_ADMIN",
     ).length;
 
@@ -205,25 +307,32 @@ export function useOrderSystem(): UseOrderSystemReturn {
     campaign: Campaign;
     product: Product;
     user: UserProfile;
+    blindBoxItemId?: string;
   }): ProductAccessInfo => {
-    const { campaign, product, user } = args;
+    const { campaign, product, user, blindBoxItemId } = args;
 
     if (!campaignOpen(campaign)) {
       return { ok: false, reason: "活動已截止。", currentQty: 0, remaining: 0 };
     }
 
-    const currentQty = getCurrentCommittedQty(campaign.id, product.id, user.id);
-
     const roleAllowed = STAGE_TO_ALLOWED_ROLE[campaign.releaseStage].has(user.roleTier);
     if (!roleAllowed) {
-      return { ok: false, reason: "目前活動釋出階段尚未開放你的身分。", currentQty, remaining: 0 };
+      return { ok: false, reason: "目前活動釋出階段尚未開放你的身分。", currentQty: 0, remaining: 0 };
     }
 
-    const userCharacterTier = getUserCharacterTier(user.id, product.character);
+    const target = resolveTargetDescriptor(product, blindBoxItemId);
+    if (!target) {
+      return { ok: false, reason: "此商品需要先選擇盲盒角色子項。", currentQty: 0, remaining: 0 };
+    }
+
+    const targetId = product.type === "NORMAL" ? null : blindBoxItemId ?? null;
+    const currentQty = getCurrentCommittedQty(campaign.id, product.id, targetId, user.id);
+
+    const userCharacterTier = getUserCharacterTier(user.id, target.character);
     const gate = canBuyByCharacterSlot({
       releaseStage: campaign.releaseStage,
       requiredTier: product.requiredTier,
-      character: product.character,
+      character: target.character,
       userCharacterTier,
     });
 
@@ -231,24 +340,28 @@ export function useOrderSystem(): UseOrderSystemReturn {
       return { ok: false, reason: gate.reason, currentQty, remaining: 0 };
     }
 
-    if (product.maxPerUser !== null && currentQty >= product.maxPerUser) {
-      return { ok: false, reason: "已達此商品個人上限。", currentQty, remaining: 0 };
+    if (target.maxPerUser !== null && currentQty >= target.maxPerUser) {
+      return { ok: false, reason: "已達此子項個人上限。", currentQty, remaining: 0 };
     }
 
-    const reserved = getReservedQtyForProduct(campaign.id, product.id);
-    if (reserved >= product.stock) {
-      return { ok: false, reason: "此商品已無可用庫存。", currentQty, remaining: 0 };
+    const reserved = getReservedQtyForTarget(campaign.id, product.id, targetId);
+    if (reserved >= target.stock) {
+      return { ok: false, reason: `${target.label} 已無可用庫存。`, currentQty, remaining: 0 };
     }
 
     return {
       ok: true,
       reason: "",
       currentQty,
-      remaining: product.maxPerUser === null ? null : Math.max(0, product.maxPerUser - currentQty),
+      remaining: target.maxPerUser === null ? null : Math.max(0, target.maxPerUser - currentQty),
     };
   };
 
-  const getProductAccessForCurrentUser = (campaignId: string, productId: string): ProductAccessInfo => {
+  const getProductAccessForCurrentUser = (
+    campaignId: string,
+    productId: string,
+    blindBoxItemId?: string,
+  ): ProductAccessInfo => {
     if (!currentUser) {
       return { ok: false, reason: "請先登入。", currentQty: 0, remaining: 0 };
     }
@@ -259,14 +372,15 @@ export function useOrderSystem(): UseOrderSystemReturn {
       return { ok: false, reason: "找不到活動或商品。", currentQty: 0, remaining: 0 };
     }
 
-    return getProductAccess({ campaign, product, user: currentUser });
+    return getProductAccess({ campaign, product, user: currentUser, blindBoxItemId });
   };
 
-  const getClaimQueue = (campaignId: string, productId: string): Claim[] => {
+  const getClaimQueue = (campaignId: string, productId: string, blindBoxItemId?: string): Claim[] => {
     const activeClaims = state.claims.filter(
       (claim) =>
         claim.campaignId === campaignId &&
         claim.productId === productId &&
+        claim.blindBoxItemId === (blindBoxItemId ?? null) &&
         claim.status !== "CANCELLED_BY_ADMIN",
     );
     return sortClaimsByPriority(activeClaims);
@@ -338,12 +452,13 @@ export function useOrderSystem(): UseOrderSystemReturn {
     return availablePaymentMethods(user.pickupRate, total);
   };
 
-  const isClaimLockedByCurrentUser = (campaignId: string, productId: string): boolean => {
+  const isClaimLockedByCurrentUser = (campaignId: string, productId: string, blindBoxItemId?: string): boolean => {
     if (!currentUser) return false;
     return state.claims.some(
       (claim) =>
         claim.campaignId === campaignId &&
         claim.productId === productId &&
+        claim.blindBoxItemId === (blindBoxItemId ?? null) &&
         claim.userId === currentUser.id &&
         claim.status !== "CANCELLED_BY_ADMIN",
     );
@@ -384,20 +499,9 @@ export function useOrderSystem(): UseOrderSystemReturn {
       createdAt: new Date().toISOString(),
     };
 
-    const now = new Date().toISOString();
-    const starterSlots = CHARACTER_OPTIONS.map((character, index) => ({
-      id: crypto.randomUUID(),
-      userId,
-      character,
-      tier: fixedTiers()[index % 3],
-      createdAt: now,
-      updatedAt: now,
-    }));
-
     setState((prev) => ({
       ...prev,
       users: [...prev.users, nextUser],
-      characterSlots: [...prev.characterSlots, ...starterSlots],
     }));
 
     setSessionUserId(nextUser.id);
@@ -429,7 +533,7 @@ export function useOrderSystem(): UseOrderSystemReturn {
     };
   };
 
-  const addToCart = (campaignId: string, productId: string): ActionResult => {
+  const addToCart = (campaignId: string, productId: string, blindBoxItemId?: string): ActionResult => {
     if (!currentUser) {
       return { ok: false, message: "請先登入。" };
     }
@@ -440,19 +544,34 @@ export function useOrderSystem(): UseOrderSystemReturn {
       return { ok: false, message: "活動或商品不存在。" };
     }
 
-    const access = getProductAccess({ campaign, product, user: currentUser });
+    if (product.type === "BLIND_BOX" && !blindBoxItemId) {
+      return { ok: false, message: "請先選擇盲盒角色子項。" };
+    }
+
+    const access = getProductAccess({ campaign, product, user: currentUser, blindBoxItemId });
     if (!access.ok) {
       return { ok: false, message: access.reason };
     }
 
+    const targetBlindBoxItemId = blindBoxItemId ?? null;
+
     const existing = state.cartItems.find(
-      (item) => item.campaignId === campaignId && item.productId === productId && item.userId === currentUser.id,
+      (item) =>
+        item.campaignId === campaignId &&
+        item.productId === productId &&
+        item.blindBoxItemId === targetBlindBoxItemId &&
+        item.userId === currentUser.id,
     );
+
+    const target = resolveTargetDescriptor(product, blindBoxItemId);
+    if (!target) {
+      return { ok: false, message: "找不到可加入的商品子項。" };
+    }
 
     const nextQty = (existing?.qty ?? 0) + 1;
 
-    if (product.maxPerUser !== null && access.currentQty + 1 > product.maxPerUser) {
-      return { ok: false, message: `此商品每人上限 ${product.maxPerUser}，目前已達上限。` };
+    if (target.maxPerUser !== null && access.currentQty + 1 > target.maxPerUser) {
+      return { ok: false, message: `此子項每人上限 ${target.maxPerUser}，目前已達上限。` };
     }
 
     if (existing) {
@@ -467,6 +586,7 @@ export function useOrderSystem(): UseOrderSystemReturn {
         id: crypto.randomUUID(),
         campaignId,
         productId,
+        blindBoxItemId: targetBlindBoxItemId,
         userId: currentUser.id,
         qty: 1,
         createdAt: new Date().toISOString(),
@@ -481,8 +601,8 @@ export function useOrderSystem(): UseOrderSystemReturn {
   const changeCartItemQty = (cartItemId: string, nextQty: number): ActionResult => {
     if (!currentUser) return { ok: false, message: "請先登入。" };
 
-    const target = state.cartItems.find((item) => item.id === cartItemId && item.userId === currentUser.id);
-    if (!target) return { ok: false, message: "找不到購物車項目。" };
+    const targetItem = state.cartItems.find((item) => item.id === cartItemId && item.userId === currentUser.id);
+    if (!targetItem) return { ok: false, message: "找不到購物車項目。" };
 
     if (nextQty <= 0) {
       setState((prev) => ({
@@ -492,19 +612,29 @@ export function useOrderSystem(): UseOrderSystemReturn {
       return { ok: true, message: "已從購物車移除。" };
     }
 
-    const campaign = getCampaignById(target.campaignId);
-    const product = getProductById(target.productId);
+    const campaign = getCampaignById(targetItem.campaignId);
+    const product = getProductById(targetItem.productId);
     if (!campaign || !product) {
       return { ok: false, message: "活動或商品不存在。" };
     }
 
-    const committedWithoutThis = getCurrentCommittedQty(target.campaignId, target.productId, currentUser.id) - target.qty;
-    if (product.maxPerUser !== null && committedWithoutThis + nextQty > product.maxPerUser) {
-      return { ok: false, message: `此商品每人上限 ${product.maxPerUser}。` };
+    const resolved = resolveTargetDescriptor(product, targetItem.blindBoxItemId ?? undefined);
+    if (!resolved) {
+      return { ok: false, message: "找不到商品子項。" };
     }
 
-    const reservedWithoutThis = getReservedQtyForProduct(target.campaignId, target.productId) - target.qty;
-    if (reservedWithoutThis + nextQty > product.stock) {
+    const committedWithoutThis =
+      getCurrentCommittedQty(targetItem.campaignId, targetItem.productId, targetItem.blindBoxItemId, currentUser.id) -
+      targetItem.qty;
+
+    if (resolved.maxPerUser !== null && committedWithoutThis + nextQty > resolved.maxPerUser) {
+      return { ok: false, message: `此子項每人上限 ${resolved.maxPerUser}。` };
+    }
+
+    const reservedWithoutThis =
+      getReservedQtyForTarget(targetItem.campaignId, targetItem.productId, targetItem.blindBoxItemId) - targetItem.qty;
+
+    if (reservedWithoutThis + nextQty > resolved.stock) {
       return { ok: false, message: "可用庫存不足。" };
     }
 
@@ -546,7 +676,12 @@ export function useOrderSystem(): UseOrderSystemReturn {
         return { ok: false, message: "購物車有無效商品。" };
       }
 
-      const access = getProductAccess({ campaign, product, user: currentUser });
+      const access = getProductAccess({
+        campaign,
+        product,
+        user: currentUser,
+        blindBoxItemId: cartItem.blindBoxItemId ?? undefined,
+      });
       if (!access.ok) {
         return { ok: false, message: `${product.name}：${access.reason}` };
       }
@@ -563,6 +698,7 @@ export function useOrderSystem(): UseOrderSystemReturn {
         orderId,
         campaignId,
         productId: cartItem.productId,
+        blindBoxItemId: cartItem.blindBoxItemId,
         userId: currentUser.id,
         unitPrice,
         qty: cartItem.qty,
@@ -586,6 +722,7 @@ export function useOrderSystem(): UseOrderSystemReturn {
         id: crypto.randomUUID(),
         campaignId,
         productId: item.productId,
+        blindBoxItemId: item.blindBoxItemId,
         userId: currentUser.id,
         roleTier: currentUser.roleTier,
         createdAt: now,
@@ -630,7 +767,7 @@ export function useOrderSystem(): UseOrderSystemReturn {
       .sort((a, b) => new Date(a.createdAt).getTime() - new Date(b.createdAt).getTime());
   };
 
-  const claimProduct = (campaignId: string, productId: string): ActionResult => {
+  const claimProduct = (campaignId: string, productId: string, blindBoxItemId?: string): ActionResult => {
     if (!currentUser) {
       return { ok: false, message: "請先登入。" };
     }
@@ -641,7 +778,7 @@ export function useOrderSystem(): UseOrderSystemReturn {
       return { ok: false, message: "活動或商品不存在。" };
     }
 
-    const access = getProductAccess({ campaign, product, user: currentUser });
+    const access = getProductAccess({ campaign, product, user: currentUser, blindBoxItemId });
     if (!access.ok) {
       return { ok: false, message: access.reason };
     }
@@ -650,6 +787,7 @@ export function useOrderSystem(): UseOrderSystemReturn {
       id: crypto.randomUUID(),
       campaignId,
       productId,
+      blindBoxItemId: blindBoxItemId ?? null,
       userId: currentUser.id,
       roleTier: currentUser.roleTier,
       status: "LOCKED",
@@ -692,11 +830,14 @@ export function useOrderSystem(): UseOrderSystemReturn {
     const product = state.products.find((item) => item.id === target.productId);
     if (!product) return { ok: false, message: "商品不存在。" };
 
-    const queue = getClaimQueue(target.campaignId, target.productId);
+    const queue = getClaimQueue(target.campaignId, target.productId, target.blindBoxItemId ?? undefined);
     const queueIndex = queue.findIndex((claim) => claim.id === target.id);
     if (queueIndex < 0) return { ok: false, message: "此單不在有效排隊清單。" };
 
-    if (queueIndex >= product.stock) {
+    const resolved = resolveTargetDescriptor(product, target.blindBoxItemId ?? undefined);
+    const stock = resolved?.stock ?? 0;
+
+    if (queueIndex >= stock) {
       return { ok: false, message: "此會員目前排在候補，尚未進入可分配名額。" };
     }
 
@@ -912,12 +1053,7 @@ export function useOrderSystem(): UseOrderSystemReturn {
     return { ok: true, message: "已更新活動喊單上限（目前前台以商品上限為主）。" };
   };
 
-  const adminUpdateProductRule = (args: {
-    productId: string;
-    requiredTier?: ProductRequiredTier;
-    maxPerUser?: number | null;
-    stock?: number;
-  }): ActionResult => {
+  const adminUpdateProductRule = (args: ProductRuleUpdateInput): ActionResult => {
     if (!currentUser?.isAdmin) {
       return { ok: false, message: "只有團主可以調整商品規則。" };
     }
@@ -934,6 +1070,10 @@ export function useOrderSystem(): UseOrderSystemReturn {
       return { ok: false, message: "庫存不可為負數。" };
     }
 
+    if (requiredTier === undefined && target.requiredTier === undefined) {
+      return { ok: false, message: "商品固位必填。" };
+    }
+
     setState((prev) => ({
       ...prev,
       products: prev.products.map((product) =>
@@ -942,7 +1082,7 @@ export function useOrderSystem(): UseOrderSystemReturn {
             ...product,
             requiredTier: requiredTier ?? product.requiredTier,
             maxPerUser: maxPerUser === undefined ? product.maxPerUser : maxPerUser,
-            stock: stock ?? product.stock,
+            stock: stock === undefined ? product.stock : (product.type === "NORMAL" ? stock : product.stock),
           }
           : product,
       ),
@@ -954,7 +1094,7 @@ export function useOrderSystem(): UseOrderSystemReturn {
   const adminAssignCharacterSlot = (args: {
     userId: string;
     character: CharacterName;
-    tier: FixedTier;
+    tier: CharacterTier | null;
   }): ActionResult => {
     if (!currentUser?.isAdmin) {
       return { ok: false, message: "只有團主可以分配固位。" };
@@ -968,6 +1108,16 @@ export function useOrderSystem(): UseOrderSystemReturn {
 
     const now = new Date().toISOString();
     const exists = state.characterSlots.find((item) => item.userId === userId && item.character === character);
+
+    if (!tier) {
+      if (exists) {
+        setState((prev) => ({
+          ...prev,
+          characterSlots: prev.characterSlots.filter((item) => item.id !== exists.id),
+        }));
+      }
+      return { ok: true, message: `${user.fbNickname} 的 ${character} 已設為無。` };
+    }
 
     if (exists) {
       setState((prev) => ({
@@ -1009,7 +1159,7 @@ export function useOrderSystem(): UseOrderSystemReturn {
       return { ok: false, message: "目前沒有可分配的會員。" };
     }
 
-    const tiers = fixedTiers();
+    const tiers = characterTierCycle();
     const now = new Date().toISOString();
 
     setState((prev) => {
@@ -1038,7 +1188,131 @@ export function useOrderSystem(): UseOrderSystemReturn {
       return { ...prev, characterSlots: nextSlots };
     });
 
-    return { ok: true, message: `${character} 已依註冊順序自動分配固位。` };
+    return { ok: true, message: `${character} 已依註冊順序自動分配固位（含撿漏）。` };
+  };
+
+  const adminCreateCampaign = (input: CreateCampaignInput): ActionResult => {
+    if (!currentUser?.isAdmin) {
+      return { ok: false, message: "只有團主可以新增活動。" };
+    }
+
+    if (!input.title.trim()) {
+      return { ok: false, message: "活動名稱必填。" };
+    }
+
+    if (!input.deadlineAt) {
+      return { ok: false, message: "請設定活動截止時間。" };
+    }
+
+    const campaign: Campaign = {
+      id: crypto.randomUUID(),
+      title: input.title.trim(),
+      description: input.description.trim(),
+      deadlineAt: new Date(input.deadlineAt).toISOString(),
+      status: "OPEN",
+      pricingMode: input.pricingMode,
+      releaseStage: input.releaseStage,
+      maxClaimsPerUser: null,
+      createdBy: currentUser.id,
+    };
+
+    setState((prev) => ({
+      ...prev,
+      campaigns: [campaign, ...prev.campaigns],
+    }));
+
+    return { ok: true, message: `已建立活動「${campaign.title}」。` };
+  };
+
+  const adminCreateProduct = (input: CreateProductInput): ActionResult => {
+    if (!currentUser?.isAdmin) {
+      return { ok: false, message: "只有團主可以新增商品。" };
+    }
+
+    const campaign = getCampaignById(input.campaignId);
+    if (!campaign) return { ok: false, message: "找不到活動。" };
+
+    if (!input.sku.trim() || !input.name.trim()) {
+      return { ok: false, message: "商品 SKU 與名稱必填。" };
+    }
+
+    if (!input.requiredTier) {
+      return { ok: false, message: "商品級固位必填。" };
+    }
+
+    if (input.type === "NORMAL") {
+      if (!input.character) {
+        return { ok: false, message: "一般商品必須指定角色。" };
+      }
+      if (input.stock === null || input.stock < 0) {
+        return { ok: false, message: "一般商品庫存必須 >= 0。" };
+      }
+    }
+
+    const product: Product = {
+      id: crypto.randomUUID(),
+      campaignId: input.campaignId,
+      sku: input.sku.trim(),
+      name: input.name.trim(),
+      type: input.type,
+      character: input.type === "NORMAL" ? input.character : null,
+      requiredTier: input.requiredTier,
+      imageUrl: input.imageUrl && input.imageUrl.trim() ? input.imageUrl.trim() : null,
+      isPopular: input.isPopular,
+      hotPrice: input.hotPrice,
+      coldPrice: input.coldPrice,
+      averagePrice: input.averagePrice,
+      stock: input.type === "NORMAL" ? input.stock : null,
+      maxPerUser: input.maxPerUser,
+    };
+
+    setState((prev) => ({
+      ...prev,
+      products: [product, ...prev.products],
+    }));
+
+    return { ok: true, message: `已建立商品「${product.name}」。` };
+  };
+
+  const adminCreateBlindBoxItem = (input: CreateBlindBoxItemInput): ActionResult => {
+    if (!currentUser?.isAdmin) {
+      return { ok: false, message: "只有團主可以新增盲盒子項。" };
+    }
+
+    const product = getProductById(input.productId);
+    if (!product || product.type !== "BLIND_BOX") {
+      return { ok: false, message: "找不到盲盒商品。" };
+    }
+
+    if (!input.sku.trim() || !input.name.trim()) {
+      return { ok: false, message: "子項 SKU 與名稱必填。" };
+    }
+
+    if (input.stock < 0) {
+      return { ok: false, message: "子項庫存不可小於 0。" };
+    }
+
+    if (input.maxPerUser !== null && input.maxPerUser < 1) {
+      return { ok: false, message: "子項上限至少為 1，或設為不限。" };
+    }
+
+    const blindBoxItem: BlindBoxItem = {
+      id: crypto.randomUUID(),
+      productId: input.productId,
+      sku: input.sku.trim(),
+      name: input.name.trim(),
+      character: input.character,
+      imageUrl: input.imageUrl && input.imageUrl.trim() ? input.imageUrl.trim() : null,
+      stock: input.stock,
+      maxPerUser: input.maxPerUser,
+    };
+
+    setState((prev) => ({
+      ...prev,
+      blindBoxItems: [blindBoxItem, ...prev.blindBoxItems],
+    }));
+
+    return { ok: true, message: `已新增子項「${blindBoxItem.name}」。` };
   };
 
   const resetAllData = (): void => {
@@ -1064,6 +1338,7 @@ export function useOrderSystem(): UseOrderSystemReturn {
     triggerBinding,
     resetAllData,
     getProductsByCampaign,
+    getBlindBoxItemsByProduct,
     getClaimQueue,
     getUserCampaignTotal,
     getUserClaims,
@@ -1085,5 +1360,8 @@ export function useOrderSystem(): UseOrderSystemReturn {
     adminUpdateProductRule,
     adminAssignCharacterSlot,
     adminAutoAssignCharacterSlots,
+    adminCreateCampaign,
+    adminCreateProduct,
+    adminCreateBlindBoxItem,
   };
 }

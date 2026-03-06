@@ -1,5 +1,7 @@
 export type RoleTier = "FIXED_1" | "FIXED_2" | "FIXED_3" | "LEAK_PICK";
 export type FixedTier = "FIXED_1" | "FIXED_2" | "FIXED_3";
+export type CharacterTier = FixedTier | "LEAK_PICK";
+
 export type CharacterName =
   | "八千代"
   | "彩葉"
@@ -22,7 +24,8 @@ export type ClaimStatus = "LOCKED" | "CANCELLED_BY_ADMIN" | "CONFIRMED";
 
 export type CampaignStatus = "OPEN" | "CLOSED";
 export type ReleaseStage = "FIXED_1_ONLY" | "FIXED_1_2" | "FIXED_1_2_3" | "ALL_OPEN";
-export type ProductRequiredTier = FixedTier | "ALL_OPEN";
+export type ProductRequiredTier = CharacterTier;
+export type ProductType = "NORMAL" | "BLIND_BOX";
 
 export interface UserProfile {
   id: string;
@@ -52,12 +55,25 @@ export interface Product {
   campaignId: string;
   sku: string;
   name: string;
-  character: CharacterName;
+  type: ProductType;
+  character: CharacterName | null;
   requiredTier: ProductRequiredTier;
+  imageUrl: string | null;
   isPopular: boolean;
   hotPrice: number;
   coldPrice: number;
   averagePrice: number;
+  stock: number | null;
+  maxPerUser: number | null;
+}
+
+export interface BlindBoxItem {
+  id: string;
+  productId: string;
+  sku: string;
+  name: string;
+  character: CharacterName;
+  imageUrl: string | null;
   stock: number;
   maxPerUser: number | null;
 }
@@ -66,6 +82,7 @@ export interface Claim {
   id: string;
   campaignId: string;
   productId: string;
+  blindBoxItemId: string | null;
   userId: string;
   roleTier: RoleTier;
   createdAt: string;
@@ -108,6 +125,7 @@ export interface CartItem {
   id: string;
   campaignId: string;
   productId: string;
+  blindBoxItemId: string | null;
   userId: string;
   qty: number;
   createdAt: string;
@@ -129,6 +147,7 @@ export interface OrderItem {
   orderId: string;
   campaignId: string;
   productId: string;
+  blindBoxItemId: string | null;
   userId: string;
   unitPrice: number;
   qty: number;
@@ -139,7 +158,7 @@ export interface CharacterSlot {
   id: string;
   userId: string;
   character: CharacterName;
-  tier: FixedTier;
+  tier: CharacterTier;
   createdAt: string;
   updatedAt: string;
 }
@@ -148,6 +167,7 @@ export interface OrderSystemState {
   users: UserProfile[];
   campaigns: Campaign[];
   products: Product[];
+  blindBoxItems: BlindBoxItem[];
   characterSlots: CharacterSlot[];
   claims: Claim[];
   payments: Payment[];
