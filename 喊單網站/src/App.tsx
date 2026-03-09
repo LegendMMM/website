@@ -1715,7 +1715,7 @@ export default function App(): JSX.Element {
   if (!system.currentUser) {
     return (
       <main className="site-shell grid min-h-screen place-items-center px-4 py-12 grid-bg">
-        <AuthCard onLogin={system.login} onRegister={system.register} onResetPassword={system.resetPassword} />
+        <AuthCard onLogin={system.login} onRegister={system.register} />
       </main>
     );
   }

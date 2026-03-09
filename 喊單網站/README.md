@@ -69,8 +69,8 @@
   - `VITE_SUPABASE_ANON_KEY`
 
 ## 測試帳號（Demo 模式）
-- 團主：admin@example.com / Admin1234
+- 團主：admin@example.com / 團主Momo（Email + FB 暱稱登入）
 - 會員：
-  - yachiyo@example.com / User1234
-  - noi@example.com / User1234
-  - newbie@example.com / User1234
+  - yachiyo@example.com / 八千代派
+  - noi@example.com / 乃依一生推
+  - newbie@example.com / 新手小葵

@@ -35,7 +35,6 @@ interface ActionResult {
 
 interface RegisterInput {
   email: string;
-  password: string;
   fbNickname: string;
 }
 
@@ -117,10 +116,9 @@ export interface UseOrderSystemReturn {
   state: OrderSystemState;
   currentUser: UserProfile | null;
   visibleCampaigns: Campaign[];
-  login: (email: string, password: string) => ActionResult;
+  login: (email: string, fbNickname: string) => ActionResult;
   register: (input: RegisterInput) => ActionResult;
   logout: () => void;
-  resetPassword: (email: string) => ActionResult;
   claimProduct: (campaignId: string, productId: string, blindBoxItemId?: string) => ActionResult;
   adminCancelClaim: (claimId: string) => ActionResult;
   adminConfirmClaim: (claimId: string) => ActionResult;
@@ -162,7 +160,6 @@ export interface UseOrderSystemReturn {
   adminCreateBlindBoxItem: (input: CreateBlindBoxItemInput) => ActionResult;
 }
 
-const passwordPattern = /^(?=.*[A-Za-z])(?=.*\d).{8,}$/;
 const lastFivePattern = /^\d{5}$/;
 
 const STAGE_TO_ALLOWED_ROLE: Record<ReleaseStage, Set<string>> = {
@@ -479,22 +476,19 @@ export function useOrderSystem(): UseOrderSystemReturn {
     );
   };
 
-  const login = (email: string, password: string): ActionResult => {
+  const login = (email: string, fbNickname: string): ActionResult => {
     const user = state.users.find((item) => item.email === email);
-    if (!user || user.password !== password) {
-      return { ok: false, message: "帳號或密碼錯誤。" };
+    if (!user || user.fbNickname !== fbNickname) {
+      return { ok: false, message: "Email 或 FB 暱稱錯誤。" };
     }
     setSessionUserId(user.id);
     return { ok: true, message: "登入成功。" };
   };
 
   const register = (input: RegisterInput): ActionResult => {
-    const { email, password, fbNickname } = input;
-    if (!email || !password || !fbNickname) {
-      return { ok: false, message: "請完整填寫 Email、密碼與 FB 暱稱。" };
-    }
-    if (!passwordPattern.test(password)) {
-      return { ok: false, message: "密碼至少 8 碼，且需包含英文與數字。" };
+    const { email, fbNickname } = input;
+    if (!email || !fbNickname) {
+      return { ok: false, message: "請完整填寫 Email 與 FB 暱稱。" };
     }
     const exists = state.users.some((user) => user.email === email);
     if (exists) {
@@ -506,7 +500,7 @@ export function useOrderSystem(): UseOrderSystemReturn {
     const nextUser: UserProfile = {
       id: userId,
       email,
-      password,
+      password: "",
       fbNickname,
       roleTier: "LEAK_PICK",
       pickupRate: 100,
@@ -526,26 +520,6 @@ export function useOrderSystem(): UseOrderSystemReturn {
 
   const logout = (): void => {
     setSessionUserId(null);
-  };
-
-  const resetPassword = (email: string): ActionResult => {
-    const user = state.users.find((item) => item.email === email);
-    if (!user) {
-      return { ok: false, message: "找不到此 Email。" };
-    }
-
-    const temporaryPassword = "Temp1234";
-    setState((prev) => ({
-      ...prev,
-      users: prev.users.map((item) =>
-        item.id === user.id ? { ...item, password: temporaryPassword } : item,
-      ),
-    }));
-
-    return {
-      ok: true,
-      message: "已重設為暫時密碼 Temp1234，請登入後立即更改。",
-    };
   };
 
   const addToCart = (campaignId: string, productId: string, blindBoxItemId?: string): ActionResult => {
@@ -1360,7 +1334,6 @@ export function useOrderSystem(): UseOrderSystemReturn {
     login,
     register,
     logout,
-    resetPassword,
     claimProduct,
     adminCancelClaim,
     adminConfirmClaim,
