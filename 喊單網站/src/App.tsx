@@ -5,6 +5,14 @@ import type { UseOrderSystemReturn } from "./hooks/useOrderSystem";
 import { useOrderSystem } from "./hooks/useOrderSystem";
 import { CHARACTER_OPTIONS, PRODUCT_SERIES_OPTIONS } from "./lib/constants";
 import {
+  BLIND_ITEM_IMPORT_CSV_TEMPLATE,
+  PRODUCT_IMPORT_CSV_TEMPLATE,
+  parseBlindItemImportCsv,
+  parseBlindItemImportJson,
+  parseProductImportCsv,
+  parseProductImportJson,
+} from "./lib/import-utils";
+import {
   fixedTierLabel,
   formatDate,
   orderStatusLabel,
@@ -14,7 +22,7 @@ import {
   roleLabel,
   twd,
 } from "./lib/format";
-import { isSupabaseEnabled } from "./lib/supabase";
+import { isSupabaseEnabled, testSupabaseConnection } from "./lib/supabase";
 import type {
   Campaign,
   CharacterName,
@@ -701,6 +709,8 @@ function MeView(props: { system: UseOrderSystemReturn }): JSX.Element {
 function AdminView(props: { system: UseOrderSystemReturn }): JSX.Element {
   const { system } = props;
   const [feedback, setFeedback] = useState("");
+  const [supabaseFeedback, setSupabaseFeedback] = useState("");
+  const [checkingSupabase, setCheckingSupabase] = useState(false);
   const [selectedCharacter, setSelectedCharacter] = useState<CharacterName>("八千代");
 
   const [campaignTitle, setCampaignTitle] = useState("");
@@ -738,6 +748,8 @@ function AdminView(props: { system: UseOrderSystemReturn }): JSX.Element {
   const [blindImageUrl, setBlindImageUrl] = useState("");
   const [blindStock, setBlindStock] = useState("1");
   const [blindMaxPerUser, setBlindMaxPerUser] = useState("1");
+  const [importMode, setImportMode] = useState<"PRODUCT_CSV" | "PRODUCT_JSON" | "BLIND_CSV" | "BLIND_JSON">("PRODUCT_CSV");
+  const [importText, setImportText] = useState("");
 
   useEffect(() => {
     if (!productCampaignId && system.state.campaigns[0]) {
@@ -763,6 +775,114 @@ function AdminView(props: { system: UseOrderSystemReturn }): JSX.Element {
     ? system.getBlindBoxItemsByProduct(blindProductId)
     : [];
 
+  const handleImport = () => {
+    const text = importText.trim();
+    if (!text) {
+      setFeedback("請先貼上匯入內容。");
+      return;
+    }
+
+    if (importMode === "PRODUCT_CSV" || importMode === "PRODUCT_JSON") {
+      const parsed = importMode === "PRODUCT_CSV"
+        ? parseProductImportCsv(text)
+        : parseProductImportJson(text);
+
+      if (parsed.errors.length > 0) {
+        setFeedback(`匯入失敗：${parsed.errors.slice(0, 3).join(" / ")}`);
+        return;
+      }
+
+      if (parsed.rows.length === 0) {
+        setFeedback("沒有可匯入的商品資料。");
+        return;
+      }
+
+      let successCount = 0;
+      let firstError = "";
+      parsed.rows.forEach((row) => {
+        const result = system.adminCreateProduct({
+          campaignId: productCampaignId,
+          sku: row.sku,
+          name: row.name,
+          series: row.series,
+          type: row.type,
+          character: row.type === "NORMAL" ? row.character : null,
+          slotRestrictionEnabled: row.slotRestrictionEnabled,
+          slotRestrictedCharacter: row.slotRestrictionEnabled ? row.slotRestrictedCharacter : null,
+          requiredTier: row.requiredTier,
+          imageUrl: row.imageUrl,
+          isPopular: row.isPopular,
+          hotPrice: row.hotPrice,
+          coldPrice: row.coldPrice,
+          averagePrice: row.averagePrice,
+          stock: row.type === "NORMAL" ? row.stock : null,
+          maxPerUser: row.maxPerUser,
+        });
+        if (result.ok) {
+          successCount += 1;
+        } else if (!firstError) {
+          firstError = result.message;
+        }
+      });
+
+      setFeedback(
+        firstError
+          ? `已匯入 ${successCount} 筆，失敗原因：${firstError}`
+          : `商品匯入成功，共 ${successCount} 筆。`,
+      );
+      return;
+    }
+
+    const parsed = importMode === "BLIND_CSV"
+      ? parseBlindItemImportCsv(text)
+      : parseBlindItemImportJson(text);
+
+    if (parsed.errors.length > 0) {
+      setFeedback(`匯入失敗：${parsed.errors.slice(0, 3).join(" / ")}`);
+      return;
+    }
+
+    if (parsed.rows.length === 0) {
+      setFeedback("沒有可匯入的盲盒子項資料。");
+      return;
+    }
+
+    const productsInCampaign = system.getProductsByCampaign(productCampaignId);
+    const bySku = new Map(productsInCampaign.map((item) => [item.sku, item]));
+
+    let successCount = 0;
+    let firstError = "";
+
+    parsed.rows.forEach((row) => {
+      const parent = bySku.get(row.parentSku);
+      if (!parent || parent.type !== "BLIND_BOX") {
+        if (!firstError) firstError = `找不到盲盒母商品 SKU：${row.parentSku}`;
+        return;
+      }
+
+      const result = system.adminCreateBlindBoxItem({
+        productId: parent.id,
+        sku: row.sku,
+        name: row.name,
+        character: row.character,
+        imageUrl: row.imageUrl,
+        stock: row.stock,
+        maxPerUser: row.maxPerUser,
+      });
+      if (result.ok) {
+        successCount += 1;
+      } else if (!firstError) {
+        firstError = result.message;
+      }
+    });
+
+    setFeedback(
+      firstError
+        ? `已匯入 ${successCount} 筆，失敗原因：${firstError}`
+        : `盲盒子項匯入成功，共 ${successCount} 筆。`,
+    );
+  };
+
   return (
     <section className="space-y-5">
       <div className="glass-card p-5">
@@ -770,6 +890,105 @@ function AdminView(props: { system: UseOrderSystemReturn }): JSX.Element {
         <p className="mt-2 text-sm text-slate-600">可新增活動、商品、盲盒子項，並維持每個商品必填商品級固位。</p>
         {feedback && <p className="mt-2 text-sm font-semibold text-slate-800">{feedback}</p>}
       </div>
+
+      <section className="grid gap-5 xl:grid-cols-2">
+        <div className="glass-card p-5">
+          <h3 className="text-lg font-bold text-slate-900">Supabase 設定</h3>
+          <p className="mt-2 text-sm text-slate-600">
+            目前狀態：{isSupabaseEnabled ? "已設定環境變數" : "未設定環境變數（目前使用 Local Demo）"}
+          </p>
+          <div className="mt-3 flex flex-wrap gap-2">
+            <button
+              type="button"
+              className="rounded-xl bg-slate-900 px-4 py-2 text-sm font-semibold text-white hover:bg-slate-700 disabled:opacity-60"
+              disabled={checkingSupabase}
+              onClick={async () => {
+                setCheckingSupabase(true);
+                const result = await testSupabaseConnection();
+                setSupabaseFeedback(result.message);
+                setCheckingSupabase(false);
+              }}
+            >
+              {checkingSupabase ? "檢查中..." : "測試 Supabase 連線"}
+            </button>
+          </div>
+          <p className="mt-2 text-xs text-slate-500">
+            你要先在 `.env` 設定 `VITE_SUPABASE_URL` 與 `VITE_SUPABASE_ANON_KEY`，再到 Supabase SQL Editor 執行 `supabase/schema.sql`。
+          </p>
+          {supabaseFeedback && <p className="mt-2 text-sm font-semibold text-slate-800">{supabaseFeedback}</p>}
+        </div>
+
+        <div className="glass-card p-5">
+          <h3 className="text-lg font-bold text-slate-900">表單匯入商品（批次）</h3>
+          <p className="mt-2 text-sm text-slate-600">支援商品與盲盒子項兩類匯入，可用 CSV 或 JSON。</p>
+
+          <div className="mt-3 grid gap-3 text-sm">
+            <label className="block">
+              匯入目標活動
+              <select
+                className="mt-1 w-full rounded-xl border border-slate-200 px-3 py-2"
+                value={productCampaignId}
+                onChange={(event) => setProductCampaignId(event.target.value)}
+              >
+                {system.state.campaigns.map((campaign) => (
+                  <option key={campaign.id} value={campaign.id}>{campaign.title}</option>
+                ))}
+              </select>
+            </label>
+
+            <label className="block">
+              匯入模式
+              <select
+                className="mt-1 w-full rounded-xl border border-slate-200 px-3 py-2"
+                value={importMode}
+                onChange={(event) => setImportMode(event.target.value as "PRODUCT_CSV" | "PRODUCT_JSON" | "BLIND_CSV" | "BLIND_JSON")}
+              >
+                <option value="PRODUCT_CSV">商品 CSV</option>
+                <option value="PRODUCT_JSON">商品 JSON</option>
+                <option value="BLIND_CSV">盲盒子項 CSV</option>
+                <option value="BLIND_JSON">盲盒子項 JSON</option>
+              </select>
+            </label>
+
+            <div className="flex flex-wrap gap-2">
+              <button
+                type="button"
+                className="rounded-lg border px-3 py-1.5 text-xs font-semibold"
+                onClick={() => {
+                  if (importMode === "PRODUCT_CSV") setImportText(PRODUCT_IMPORT_CSV_TEMPLATE);
+                  if (importMode === "BLIND_CSV") setImportText(BLIND_ITEM_IMPORT_CSV_TEMPLATE);
+                  if (importMode === "PRODUCT_JSON") setImportText("[]");
+                  if (importMode === "BLIND_JSON") setImportText("[]");
+                }}
+              >
+                載入模板
+              </button>
+              <button
+                type="button"
+                className="rounded-lg border px-3 py-1.5 text-xs font-semibold"
+                onClick={() => setImportText("")}
+              >
+                清空
+              </button>
+            </div>
+
+            <textarea
+              className="min-h-48 w-full rounded-xl border border-slate-200 px-3 py-2 font-mono text-xs"
+              placeholder="貼上 CSV 或 JSON"
+              value={importText}
+              onChange={(event) => setImportText(event.target.value)}
+            />
+
+            <button
+              type="button"
+              className="w-full rounded-xl bg-slate-900 px-4 py-2 font-semibold text-white hover:bg-slate-700"
+              onClick={handleImport}
+            >
+              開始匯入
+            </button>
+          </div>
+        </div>
+      </section>
 
       <div className="grid gap-5 xl:grid-cols-2">
         <section className="glass-card p-5">

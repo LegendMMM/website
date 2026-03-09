@@ -31,11 +31,21 @@
 ## Supabase 設定
 1. 在 Supabase 建立專案。
 2. 將 `supabase/schema.sql` 貼到 SQL Editor 執行。
-3. 在 `.env` 填入：
+3. 再執行 `supabase/migrations/20260309_upgrade_product_model.sql`（新增系列、固位限制、盲盒子項與訂單模型）。
+4. 在 `.env` 填入：
    - `VITE_SUPABASE_URL`
    - `VITE_SUPABASE_ANON_KEY`
 
 > 未設定 Supabase 時，前端會使用 Demo Local 模式（localStorage）供流程驗證。
+
+## 商品匯入（後台）
+管理員頁提供四種批次匯入模式：
+- 商品 CSV
+- 商品 JSON
+- 盲盒子項 CSV
+- 盲盒子項 JSON
+
+可先用「載入模板」再貼上資料直接匯入。
 
 ## 核心規則落地
 - 禁止前台刪單：
