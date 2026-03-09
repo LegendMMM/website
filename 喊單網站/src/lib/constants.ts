@@ -1,6 +1,7 @@
 import type {
   CharacterName,
   ProductRequiredTier,
+  ProductSeries,
   ProductType,
   ReleaseStage,
   RoleTier,
@@ -38,6 +39,13 @@ export const PRODUCT_TYPE_LABEL: Record<ProductType, string> = {
   NORMAL: "一般商品",
   BLIND_BOX: "盲盒拆分",
 };
+
+export const PRODUCT_SERIES_OPTIONS: ProductSeries[] = [
+  "Q版系列",
+  "HOBBY系列",
+  "徽章系列",
+  "其他系列",
+];
 
 export const CHARACTER_OPTIONS: CharacterName[] = [
   "八千代",

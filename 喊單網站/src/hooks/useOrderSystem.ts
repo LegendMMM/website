@@ -22,6 +22,7 @@ import type {
   PricingMode,
   Product,
   ProductRequiredTier,
+  ProductSeries,
   ProductType,
   ReleaseStage,
   UserProfile,
@@ -78,6 +79,7 @@ interface CreateProductInput {
   campaignId: string;
   sku: string;
   name: string;
+  series: ProductSeries;
   type: ProductType;
   character: CharacterName | null;
   requiredTier: ProductRequiredTier;
@@ -1254,6 +1256,7 @@ export function useOrderSystem(): UseOrderSystemReturn {
       campaignId: input.campaignId,
       sku: input.sku.trim(),
       name: input.name.trim(),
+      series: input.series,
       type: input.type,
       character: input.type === "NORMAL" ? input.character : null,
       requiredTier: input.requiredTier,

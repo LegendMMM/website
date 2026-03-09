@@ -3,7 +3,7 @@ import { motion } from "framer-motion";
 import { AuthCard } from "./components/AuthCard";
 import type { UseOrderSystemReturn } from "./hooks/useOrderSystem";
 import { useOrderSystem } from "./hooks/useOrderSystem";
-import { CHARACTER_OPTIONS } from "./lib/constants";
+import { CHARACTER_OPTIONS, PRODUCT_SERIES_OPTIONS } from "./lib/constants";
 import {
   fixedTierLabel,
   formatDate,
@@ -22,6 +22,7 @@ import type {
   PricingMode,
   Product,
   ProductRequiredTier,
+  ProductSeries,
   ProductType,
   ReleaseStage,
 } from "./types/domain";
@@ -124,9 +125,18 @@ function CampaignView(props: {
 }): JSX.Element {
   const { system, campaign, onGoCart, onBack, onOpenBlindBox } = props;
   const [feedback, setFeedback] = useState("");
+  const [selectedSeries, setSelectedSeries] = useState<ProductSeries | null>(null);
   const products = system.getProductsByCampaign(campaign.id);
   const cartItems = system.getMyCartItems(campaign.id);
   const cartMap = new Map(cartItems.map((item) => [`${item.productId}::${item.blindBoxItemId ?? "none"}`, item]));
+  const seriesGroups = useMemo(() => {
+    return PRODUCT_SERIES_OPTIONS.map((series) => ({
+      series,
+      products: products.filter((item) => item.series === series),
+    })).filter((group) => group.products.length > 0);
+  }, [products]);
+
+  const visibleProducts = selectedSeries ? products.filter((item) => item.series === selectedSeries) : [];
 
   return (
     <section className="space-y-5">
@@ -143,12 +153,50 @@ function CampaignView(props: {
           <span className="state-pill bg-slate-100 text-slate-700">釋出：{releaseStageLabel(campaign.releaseStage)}</span>
           <span className="state-pill bg-slate-100 text-slate-700">截止：{formatDate(campaign.deadlineAt)}</span>
         </div>
+        {!selectedSeries && <p className="mt-3 text-sm text-slate-700">先選系列，再進入商品喊單。</p>}
+        {selectedSeries && (
+          <div className="mt-3 flex items-center gap-2">
+            <span className="state-pill bg-slate-900 text-white">{selectedSeries}</span>
+            <button
+              type="button"
+              className="rounded-lg border px-3 py-1 text-xs font-semibold"
+              onClick={() => setSelectedSeries(null)}
+            >
+              返回系列列表
+            </button>
+          </div>
+        )}
 
         {feedback && <p className="mt-3 text-sm font-semibold text-slate-800">{feedback}</p>}
       </div>
 
+      {!selectedSeries && (
+        <div className="grid gap-4 md:grid-cols-2 xl:grid-cols-4">
+          {seriesGroups.map((group) => (
+            <article key={group.series} className="glass-card p-5">
+              <h3 className="text-xl font-bold text-slate-900">{group.series}</h3>
+              <p className="mt-2 text-sm text-slate-600">共 {group.products.length} 個商品</p>
+              <div className="mt-3 space-y-1 text-xs text-slate-500">
+                {group.products.slice(0, 3).map((item) => (
+                  <p key={item.id}>- {item.name}</p>
+                ))}
+                {group.products.length > 3 && <p>...還有 {group.products.length - 3} 個</p>}
+              </div>
+              <button
+                type="button"
+                className="mt-4 w-full rounded-xl bg-slate-900 px-4 py-2 text-sm font-semibold text-white hover:bg-slate-700"
+                onClick={() => setSelectedSeries(group.series)}
+              >
+                進入 {group.series}
+              </button>
+            </article>
+          ))}
+        </div>
+      )}
+
+      {selectedSeries && (
       <div className="grid gap-4 md:grid-cols-2 xl:grid-cols-3">
-        {products.map((product) => {
+        {visibleProducts.map((product) => {
           const myQty = cartMap.get(`${product.id}::none`)?.qty ?? 0;
           const normalAccess = product.type === "NORMAL"
             ? system.getProductAccessForCurrentUser(campaign.id, product.id)
@@ -169,6 +217,7 @@ function CampaignView(props: {
                 <div>
                   <p className="text-xs text-slate-500">{product.sku}</p>
                   <h3 className="text-base font-bold text-slate-900">{product.name}</h3>
+                  <p className="text-xs text-slate-500">系列：{product.series}</p>
                   <p className="text-xs text-slate-500">類型：{productTypeLabel(product.type)}</p>
                 </div>
                 <span className={`state-pill ${product.isPopular ? "bg-rose-100 text-rose-700" : "bg-emerald-100 text-emerald-700"}`}>
@@ -232,6 +281,7 @@ function CampaignView(props: {
           );
         })}
       </div>
+      )}
     </section>
   );
 }
@@ -576,6 +626,7 @@ function AdminView(props: { system: UseOrderSystemReturn }): JSX.Element {
 
   const [productCampaignId, setProductCampaignId] = useState(system.state.campaigns[0]?.id ?? "");
   const [productType, setProductType] = useState<ProductType>("NORMAL");
+  const [productSeries, setProductSeries] = useState<ProductSeries>("Q版系列");
   const [productSku, setProductSku] = useState("");
   const [productName, setProductName] = useState("");
   const [productCharacter, setProductCharacter] = useState<CharacterName>("八千代");
@@ -722,7 +773,7 @@ function AdminView(props: { system: UseOrderSystemReturn }): JSX.Element {
               </select>
             </label>
 
-            <div className="grid gap-3 sm:grid-cols-2">
+            <div className="grid gap-3 sm:grid-cols-3">
               <label className="block">
                 商品類型
                 <select
@@ -732,6 +783,19 @@ function AdminView(props: { system: UseOrderSystemReturn }): JSX.Element {
                 >
                   {productTypeOptions.map((type) => (
                     <option key={type} value={type}>{productTypeLabel(type)}</option>
+                  ))}
+                </select>
+              </label>
+
+              <label className="block">
+                商品系列
+                <select
+                  className="mt-1 w-full rounded-xl border border-slate-200 px-3 py-2"
+                  value={productSeries}
+                  onChange={(event) => setProductSeries(event.target.value as ProductSeries)}
+                >
+                  {PRODUCT_SERIES_OPTIONS.map((series) => (
+                    <option key={series} value={series}>{series}</option>
                   ))}
                 </select>
               </label>
@@ -852,6 +916,7 @@ function AdminView(props: { system: UseOrderSystemReturn }): JSX.Element {
                   campaignId: productCampaignId,
                   sku: productSku,
                   name: productName,
+                  series: productSeries,
                   type: productType,
                   character: productType === "NORMAL" ? productCharacter : null,
                   requiredTier: productRequiredTier,
@@ -1015,6 +1080,7 @@ function AdminView(props: { system: UseOrderSystemReturn }): JSX.Element {
               {system.getProductsByCampaign(campaign.id).map((product) => (
                 <div key={product.id} className="rounded-lg border border-slate-200 p-2">
                   <p className="text-xs font-semibold text-slate-900">{product.name}</p>
+                  <p className="text-[11px] text-slate-500">系列：{product.series}</p>
                   <p className="text-[11px] text-slate-500">類型：{productTypeLabel(product.type)}</p>
                   <p className="text-[11px] text-slate-500">需求：{productRequiredTierLabel(product.requiredTier)} / 上限：{product.maxPerUser ?? "不限"}</p>
                   {product.type === "NORMAL" && <p className="text-[11px] text-slate-500">庫存：{product.stock ?? 0}</p>}

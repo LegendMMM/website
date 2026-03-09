@@ -1,6 +1,6 @@
 import { seedState } from "../data/seed";
 import { SESSION_KEY, STORAGE_KEY } from "./constants";
-import type { CharacterTier, OrderSystemState, ProductRequiredTier, ProductType } from "../types/domain";
+import type { CharacterTier, OrderSystemState, ProductRequiredTier, ProductSeries, ProductType } from "../types/domain";
 
 const deepClone = <T>(value: T): T => JSON.parse(JSON.stringify(value));
 
@@ -22,6 +22,13 @@ function normalizeCharacterTier(value: unknown): CharacterTier | null {
 
 function normalizeProductType(value: unknown): ProductType {
   return value === "BLIND_BOX" ? "BLIND_BOX" : "NORMAL";
+}
+
+function normalizeProductSeries(value: unknown): ProductSeries {
+  if (value === "Q版系列" || value === "HOBBY系列" || value === "徽章系列" || value === "其他系列") {
+    return value;
+  }
+  return "其他系列";
 }
 
 function normalizeState(raw: unknown): OrderSystemState {
@@ -52,6 +59,7 @@ function normalizeState(raw: unknown): OrderSystemState {
       const legacyCharacter = product.character;
       return {
         ...product,
+        series: normalizeProductSeries(product.series),
         type: normalizeProductType(product.type),
         character: typeof legacyCharacter === "string" ? legacyCharacter : null,
         requiredTier: normalizeRequiredTier(product.requiredTier),

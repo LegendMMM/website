@@ -26,6 +26,7 @@ export type CampaignStatus = "OPEN" | "CLOSED";
 export type ReleaseStage = "FIXED_1_ONLY" | "FIXED_1_2" | "FIXED_1_2_3" | "ALL_OPEN";
 export type ProductRequiredTier = CharacterTier;
 export type ProductType = "NORMAL" | "BLIND_BOX";
+export type ProductSeries = "Q版系列" | "HOBBY系列" | "徽章系列" | "其他系列";
 
 export interface UserProfile {
   id: string;
@@ -55,6 +56,7 @@ export interface Product {
   campaignId: string;
   sku: string;
   name: string;
+  series: ProductSeries;
   type: ProductType;
   character: CharacterName | null;
   requiredTier: ProductRequiredTier;
