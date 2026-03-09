@@ -116,7 +116,7 @@ export interface UseOrderSystemReturn {
   state: OrderSystemState;
   currentUser: UserProfile | null;
   visibleCampaigns: Campaign[];
-  login: (email: string, fbNickname: string) => ActionResult;
+  login: (identifier: string) => ActionResult;
   register: (input: RegisterInput) => ActionResult;
   logout: () => void;
   claimProduct: (campaignId: string, productId: string, blindBoxItemId?: string) => ActionResult;
@@ -476,10 +476,20 @@ export function useOrderSystem(): UseOrderSystemReturn {
     );
   };
 
-  const login = (email: string, fbNickname: string): ActionResult => {
-    const user = state.users.find((item) => item.email === email);
-    if (!user || user.fbNickname !== fbNickname) {
-      return { ok: false, message: "Email 或 FB 暱稱錯誤。" };
+  const login = (identifier: string): ActionResult => {
+    const normalized = identifier.trim().toLowerCase();
+    if (!normalized) {
+      return { ok: false, message: "請輸入 Email 或 FB 暱稱。" };
+    }
+
+    const user = state.users.find((item) => {
+      const email = item.email.trim().toLowerCase();
+      const nickname = item.fbNickname.trim().toLowerCase();
+      return email === normalized || nickname === normalized;
+    });
+
+    if (!user) {
+      return { ok: false, message: "找不到對應帳號（請確認 Email 或 FB 暱稱）。" };
     }
     setSessionUserId(user.id);
     return { ok: true, message: "登入成功。" };

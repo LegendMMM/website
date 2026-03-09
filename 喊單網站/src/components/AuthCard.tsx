@@ -1,7 +1,7 @@
 import { useState } from "react";
 
 interface AuthCardProps {
-  onLogin: (email: string, fbNickname: string) => { ok: boolean; message: string };
+  onLogin: (identifier: string) => { ok: boolean; message: string };
   onRegister: (input: { email: string; fbNickname: string }) => { ok: boolean; message: string };
 }
 
@@ -9,6 +9,7 @@ type Mode = "login" | "register";
 
 export function AuthCard({ onLogin, onRegister }: AuthCardProps): JSX.Element {
   const [mode, setMode] = useState<Mode>("login");
+  const [identifier, setIdentifier] = useState("");
   const [email, setEmail] = useState("");
   const [fbNickname, setFbNickname] = useState("");
   const [message, setMessage] = useState("");
@@ -17,7 +18,7 @@ export function AuthCard({ onLogin, onRegister }: AuthCardProps): JSX.Element {
   const submit = () => {
     const result =
       mode === "login"
-        ? onLogin(email, fbNickname)
+        ? onLogin(identifier)
         : onRegister({ email, fbNickname });
 
     setIsError(!result.ok);
@@ -28,30 +29,45 @@ export function AuthCard({ onLogin, onRegister }: AuthCardProps): JSX.Element {
     <div className="glass-card mx-auto w-full max-w-lg animate-rise p-8">
       <p className="text-sm font-semibold uppercase tracking-[0.2em] text-slate-500">團主喊單帳本</p>
       <h1 className="mt-2 text-3xl font-extrabold text-slate-900">登入系統</h1>
-      <p className="mt-2 text-sm text-slate-600">可用測試帳號：admin@example.com / 團主Momo</p>
+      <p className="mt-2 text-sm text-slate-600">可用測試帳號：admin@example.com 或 團主Momo</p>
 
       <div className="mt-6 space-y-3">
-        <label className="block text-sm font-semibold text-slate-700">
-          Email
-          <input
-            value={email}
-            onChange={(event) => setEmail(event.target.value)}
-            className="mt-2 w-full rounded-xl border border-slate-200 px-3 py-2 focus:border-accent-500 focus:outline-none"
-            placeholder="you@example.com"
-            type="email"
-          />
-        </label>
+        {mode === "login" ? (
+          <label className="block text-sm font-semibold text-slate-700">
+            Email 或 FB 暱稱
+            <input
+              value={identifier}
+              onChange={(event) => setIdentifier(event.target.value)}
+              className="mt-2 w-full rounded-xl border border-slate-200 px-3 py-2 focus:border-accent-500 focus:outline-none"
+              placeholder="輸入 Email 或 FB 暱稱"
+              type="text"
+            />
+          </label>
+        ) : (
+          <>
+            <label className="block text-sm font-semibold text-slate-700">
+              Email
+              <input
+                value={email}
+                onChange={(event) => setEmail(event.target.value)}
+                className="mt-2 w-full rounded-xl border border-slate-200 px-3 py-2 focus:border-accent-500 focus:outline-none"
+                placeholder="you@example.com"
+                type="email"
+              />
+            </label>
 
-        <label className="block text-sm font-semibold text-slate-700">
-          FB 暱稱
-          <input
-            value={fbNickname}
-            onChange={(event) => setFbNickname(event.target.value)}
-            className="mt-2 w-full rounded-xl border border-slate-200 px-3 py-2 focus:border-accent-500 focus:outline-none"
-            placeholder="請填你的 FB 暱稱"
-            type="text"
-          />
-        </label>
+            <label className="block text-sm font-semibold text-slate-700">
+              FB 暱稱
+              <input
+                value={fbNickname}
+                onChange={(event) => setFbNickname(event.target.value)}
+                className="mt-2 w-full rounded-xl border border-slate-200 px-3 py-2 focus:border-accent-500 focus:outline-none"
+                placeholder="請填你的 FB 暱稱"
+                type="text"
+              />
+            </label>
+          </>
+        )}
 
         <button
           onClick={submit}
