@@ -6,7 +6,9 @@ import { useOrderSystem } from "./hooks/useOrderSystem";
 import { CHARACTER_OPTIONS, PRODUCT_SERIES_OPTIONS } from "./lib/constants";
 import {
   BLIND_ITEM_IMPORT_CSV_TEMPLATE,
+  type BlindBoxItemImportRow,
   PRODUCT_IMPORT_CSV_TEMPLATE,
+  type ProductImportRow,
   parseBlindItemImportCsv,
   parseBlindItemImportJson,
   parseProductImportCsv,
@@ -22,7 +24,7 @@ import {
   roleLabel,
   twd,
 } from "./lib/format";
-import { isSupabaseEnabled, testSupabaseConnection } from "./lib/supabase";
+import { isSupabaseEnabled, supabase, testSupabaseConnection } from "./lib/supabase";
 import type {
   Campaign,
   CharacterName,
@@ -775,7 +777,82 @@ function AdminView(props: { system: UseOrderSystemReturn }): JSX.Element {
     ? system.getBlindBoxItemsByProduct(blindProductId)
     : [];
 
-  const handleImport = () => {
+  const syncProductsToSupabase = async (rows: ProductImportRow[]): Promise<{ ok: boolean; message: string }> => {
+    if (!isSupabaseEnabled || !supabase) {
+      return { ok: false, message: "未設定 Supabase，僅寫入本地 Demo。" };
+    }
+
+    const payload = rows.map((row) => ({
+      campaign_id: productCampaignId,
+      sku: row.sku,
+      name: row.name,
+      series: row.series,
+      type: row.type,
+      character_name: row.type === "NORMAL" ? row.character : null,
+      slot_restriction_enabled: row.slotRestrictionEnabled,
+      slot_restricted_character: row.slotRestrictionEnabled ? row.slotRestrictedCharacter : null,
+      required_tier: row.requiredTier,
+      image_url: row.imageUrl,
+      is_popular: row.isPopular,
+      hot_price: row.hotPrice,
+      cold_price: row.coldPrice,
+      average_price: row.averagePrice,
+      stock: row.type === "NORMAL" ? row.stock : null,
+      max_per_user: row.maxPerUser,
+    }));
+
+    const { error } = await supabase.from("products").insert(payload);
+    if (error) {
+      return { ok: false, message: `Supabase 寫入失敗：${error.message}` };
+    }
+    return { ok: true, message: `Supabase 已同步 ${payload.length} 筆商品。` };
+  };
+
+  const syncBlindItemsToSupabase = async (rows: BlindBoxItemImportRow[]): Promise<{ ok: boolean; message: string }> => {
+    if (!isSupabaseEnabled || !supabase) {
+      return { ok: false, message: "未設定 Supabase，僅寫入本地 Demo。" };
+    }
+
+    const { data: productsData, error: productsError } = await supabase
+      .from("products")
+      .select("id, sku, type")
+      .eq("campaign_id", productCampaignId);
+
+    if (productsError) {
+      return { ok: false, message: `查詢母商品失敗：${productsError.message}` };
+    }
+
+    const blindProductBySku = new Map(
+      (productsData ?? [])
+        .filter((item) => item.type === "BLIND_BOX")
+        .map((item) => [item.sku, item.id]),
+    );
+
+    const payload: Array<Record<string, unknown>> = [];
+    for (const row of rows) {
+      const productId = blindProductBySku.get(row.parentSku);
+      if (!productId) {
+        return { ok: false, message: `Supabase 找不到盲盒母商品 SKU：${row.parentSku}` };
+      }
+      payload.push({
+        product_id: productId,
+        sku: row.sku,
+        name: row.name,
+        character_name: row.character,
+        image_url: row.imageUrl,
+        stock: row.stock,
+        max_per_user: row.maxPerUser,
+      });
+    }
+
+    const { error } = await supabase.from("blind_box_items").insert(payload);
+    if (error) {
+      return { ok: false, message: `Supabase 寫入失敗：${error.message}` };
+    }
+    return { ok: true, message: `Supabase 已同步 ${payload.length} 筆盲盒子項。` };
+  };
+
+  const handleImport = async () => {
     const text = importText.trim();
     if (!text) {
       setFeedback("請先貼上匯入內容。");
@@ -825,11 +902,13 @@ function AdminView(props: { system: UseOrderSystemReturn }): JSX.Element {
         }
       });
 
-      setFeedback(
+      const localFeedback =
         firstError
           ? `已匯入 ${successCount} 筆，失敗原因：${firstError}`
-          : `商品匯入成功，共 ${successCount} 筆。`,
-      );
+          : `商品匯入成功，共 ${successCount} 筆。`;
+
+      const syncResult = await syncProductsToSupabase(parsed.rows);
+      setFeedback(`${localFeedback} ${syncResult.message}`);
       return;
     }
 
@@ -876,11 +955,13 @@ function AdminView(props: { system: UseOrderSystemReturn }): JSX.Element {
       }
     });
 
-    setFeedback(
+    const localFeedback =
       firstError
         ? `已匯入 ${successCount} 筆，失敗原因：${firstError}`
-        : `盲盒子項匯入成功，共 ${successCount} 筆。`,
-    );
+        : `盲盒子項匯入成功，共 ${successCount} 筆。`;
+
+    const syncResult = await syncBlindItemsToSupabase(parsed.rows);
+    setFeedback(`${localFeedback} ${syncResult.message}`);
   };
 
   return (
