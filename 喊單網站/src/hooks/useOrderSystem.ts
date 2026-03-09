@@ -159,6 +159,7 @@ export interface UseOrderSystemReturn {
   adminCreateCampaign: (input: CreateCampaignInput) => ActionResult;
   adminCreateProduct: (input: CreateProductInput) => ActionResult;
   adminCreateBlindBoxItem: (input: CreateBlindBoxItemInput) => ActionResult;
+  refreshCurrentUserAdminFlag: () => Promise<ActionResult>;
 }
 
 const lastFivePattern = /^\d{5}$/;
@@ -184,6 +185,14 @@ function characterTierCycle(): CharacterTier[] {
   return ["FIXED_1", "FIXED_2", "FIXED_3", "LEAK_PICK"];
 }
 
+function normalizeEmail(value: string): string {
+  return value.trim().toLowerCase();
+}
+
+function normalizeNickname(value: string): string {
+  return value.trim().toLowerCase();
+}
+
 export function useOrderSystem(): UseOrderSystemReturn {
   const [state, setState] = useState<OrderSystemState>(() => loadState());
   const [sessionUserId, setSessionUserId] = useState<string | null>(() => loadSessionUserId());
@@ -203,6 +212,8 @@ export function useOrderSystem(): UseOrderSystemReturn {
 
   const syncAdminFlagFromSupabase = async (user: UserProfile): Promise<void> => {
     if (!supabase) return;
+    const normalizedEmail = normalizeEmail(user.email);
+    if (!normalizedEmail) return;
 
     const applyAdminFlag = (isAdmin: boolean) => {
       setState((prev) => ({
@@ -217,7 +228,7 @@ export function useOrderSystem(): UseOrderSystemReturn {
     const overrideResult = await supabase
       .from("admin_overrides")
       .select("is_admin")
-      .eq("email", user.email)
+      .ilike("email", normalizedEmail)
       .maybeSingle();
 
     if (!overrideResult.error && overrideResult.data) {
@@ -228,7 +239,7 @@ export function useOrderSystem(): UseOrderSystemReturn {
     const profileResult = await supabase
       .from("profiles")
       .select("is_admin")
-      .eq("email", user.email)
+      .ilike("email", normalizedEmail)
       .maybeSingle();
 
     if (!profileResult.error && profileResult.data) {
@@ -240,7 +251,7 @@ export function useOrderSystem(): UseOrderSystemReturn {
     if (!currentUser) return;
     void syncAdminFlagFromSupabase(currentUser);
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [currentUser?.id]);
+  }, [currentUser?.id, currentUser?.email]);
 
   const visibleCampaigns = useMemo(
     () => state.campaigns.filter((campaign) => campaign.status === "OPEN"),
@@ -519,14 +530,14 @@ export function useOrderSystem(): UseOrderSystemReturn {
   };
 
   const login = (identifier: string): ActionResult => {
-    const normalized = identifier.trim().toLowerCase();
+    const normalized = normalizeEmail(identifier);
     if (!normalized) {
       return { ok: false, message: "請輸入 Email 或 FB 暱稱。" };
     }
 
     const user = state.users.find((item) => {
-      const email = item.email.trim().toLowerCase();
-      const nickname = item.fbNickname.trim().toLowerCase();
+      const email = normalizeEmail(item.email);
+      const nickname = normalizeNickname(item.fbNickname);
       return email === normalized || nickname === normalized;
     });
 
@@ -539,11 +550,12 @@ export function useOrderSystem(): UseOrderSystemReturn {
   };
 
   const register = (input: RegisterInput): ActionResult => {
-    const { email, fbNickname } = input;
-    if (!email || !fbNickname) {
+    const normalizedEmail = normalizeEmail(input.email);
+    const normalizedNickname = input.fbNickname.trim();
+    if (!normalizedEmail || !normalizedNickname) {
       return { ok: false, message: "請完整填寫 Email 與 FB 暱稱。" };
     }
-    const exists = state.users.some((user) => user.email === email);
+    const exists = state.users.some((user) => normalizeEmail(user.email) === normalizedEmail);
     if (exists) {
       return { ok: false, message: "此 Email 已註冊。" };
     }
@@ -552,9 +564,9 @@ export function useOrderSystem(): UseOrderSystemReturn {
 
     const nextUser: UserProfile = {
       id: userId,
-      email,
+      email: normalizedEmail,
       password: "",
-      fbNickname,
+      fbNickname: normalizedNickname,
       roleTier: "LEAK_PICK",
       pickupRate: 100,
       isAdmin: false,
@@ -574,6 +586,18 @@ export function useOrderSystem(): UseOrderSystemReturn {
 
   const logout = (): void => {
     setSessionUserId(null);
+  };
+
+  const refreshCurrentUserAdminFlag = async (): Promise<ActionResult> => {
+    if (!currentUser) {
+      return { ok: false, message: "請先登入。" };
+    }
+    if (!supabase) {
+      return { ok: false, message: "尚未設定 Supabase 環境變數。" };
+    }
+
+    await syncAdminFlagFromSupabase(currentUser);
+    return { ok: true, message: "已重新同步權限，若帳號有管理員設定會自動顯示活動設定按鈕。" };
   };
 
   const addToCart = (campaignId: string, productId: string, blindBoxItemId?: string): ActionResult => {
@@ -1423,5 +1447,6 @@ export function useOrderSystem(): UseOrderSystemReturn {
     adminCreateCampaign,
     adminCreateProduct,
     adminCreateBlindBoxItem,
+    refreshCurrentUserAdminFlag,
   };
 }

@@ -31,6 +31,14 @@ function normalizeProductSeries(value: unknown): ProductSeries {
   return "其他系列";
 }
 
+function normalizeEmail(value: unknown): string {
+  return typeof value === "string" ? value.trim().toLowerCase() : "";
+}
+
+function normalizeNickname(value: unknown): string {
+  return typeof value === "string" ? value.trim() : "";
+}
+
 function normalizeState(raw: unknown): OrderSystemState {
   const fallback = deepClone(seedState);
   if (!raw || typeof raw !== "object") return fallback;
@@ -123,7 +131,13 @@ function normalizeState(raw: unknown): OrderSystemState {
     : fallback.orderItems;
 
   return {
-    users: Array.isArray(candidate.users) ? candidate.users : fallback.users,
+    users: Array.isArray(candidate.users)
+      ? candidate.users.map((user) => ({
+        ...user,
+        email: normalizeEmail(user.email),
+        fbNickname: normalizeNickname(user.fbNickname),
+      }))
+      : fallback.users,
     campaigns: normalizedCampaigns as OrderSystemState["campaigns"],
     products: normalizedProducts as OrderSystemState["products"],
     blindBoxItems: normalizedBlindBoxItems as OrderSystemState["blindBoxItems"],

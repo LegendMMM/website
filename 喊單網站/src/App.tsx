@@ -1693,6 +1693,7 @@ export default function App(): JSX.Element {
   const [view, setView] = useState<PageView>("home");
   const [selectedCampaignId, setSelectedCampaignId] = useState<string>("");
   const [selectedBlindProductId, setSelectedBlindProductId] = useState<string>("");
+  const [permissionSyncFeedback, setPermissionSyncFeedback] = useState<string>("");
 
   useEffect(() => {
     if (!system.currentUser) {
@@ -1740,6 +1741,21 @@ export default function App(): JSX.Element {
               <p className="text-xs text-slate-500">
                 資料模式：{isSupabaseEnabled ? "Supabase 已連線（可接正式資料）" : "Demo Local 模式（未設定 Supabase）"}
               </p>
+              {!system.currentUser.isAdmin && isSupabaseEnabled && (
+                <div className="mt-2 flex flex-wrap items-center gap-2">
+                  <button
+                    type="button"
+                    className="rounded-lg border border-slate-300 bg-white px-3 py-1 text-xs font-semibold text-slate-700 hover:bg-slate-50"
+                    onClick={async () => {
+                      const result = await system.refreshCurrentUserAdminFlag();
+                      setPermissionSyncFeedback(result.message);
+                    }}
+                  >
+                    重新同步管理員權限
+                  </button>
+                  {permissionSyncFeedback && <p className="text-xs text-slate-500">{permissionSyncFeedback}</p>}
+                </div>
+              )}
             </div>
 
             <HeaderNav currentView={view} setView={setView} system={system} />
