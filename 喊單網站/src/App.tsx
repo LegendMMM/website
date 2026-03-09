@@ -125,7 +125,10 @@ function CampaignView(props: {
 }): JSX.Element {
   const { system, campaign, onGoCart, onBack, onOpenBlindBox } = props;
   const [feedback, setFeedback] = useState("");
-  const [selectedSeries, setSelectedSeries] = useState<ProductSeries | null>(null);
+  const [selectedSeries, setSelectedSeries] = useState<ProductSeries>(PRODUCT_SERIES_OPTIONS[0]);
+  const [keyword, setKeyword] = useState("");
+  const [onlyAvailable, setOnlyAvailable] = useState(false);
+  const [sortBy, setSortBy] = useState<"popular" | "priceAsc" | "priceDesc">("popular");
   const products = system.getProductsByCampaign(campaign.id);
   const cartItems = system.getMyCartItems(campaign.id);
   const cartMap = new Map(cartItems.map((item) => [`${item.productId}::${item.blindBoxItemId ?? "none"}`, item]));
@@ -136,7 +139,56 @@ function CampaignView(props: {
     })).filter((group) => group.products.length > 0);
   }, [products]);
 
-  const visibleProducts = selectedSeries ? products.filter((item) => item.series === selectedSeries) : [];
+  useEffect(() => {
+    if (seriesGroups.length === 0) return;
+    if (!seriesGroups.some((group) => group.series === selectedSeries)) {
+      setSelectedSeries(seriesGroups[0].series);
+    }
+  }, [selectedSeries, seriesGroups]);
+
+  const selectedSeriesProducts = useMemo(
+    () => products.filter((item) => item.series === selectedSeries),
+    [products, selectedSeries],
+  );
+
+  const visibleProducts = useMemo(() => {
+    const normalizedKeyword = keyword.trim().toLowerCase();
+
+    const withPrice = selectedSeriesProducts.map((product) => ({
+      product,
+      price: campaign.pricingMode === "DYNAMIC"
+        ? (product.isPopular ? product.hotPrice : product.coldPrice)
+        : product.averagePrice,
+    }));
+
+    const filtered = withPrice.filter(({ product }) => {
+      const matchesKeyword = normalizedKeyword.length === 0
+        || product.name.toLowerCase().includes(normalizedKeyword)
+        || product.sku.toLowerCase().includes(normalizedKeyword)
+        || (product.character?.toLowerCase().includes(normalizedKeyword) ?? false);
+
+      if (!matchesKeyword) return false;
+
+      if (!onlyAvailable) return true;
+
+      if (product.type === "NORMAL") {
+        const access = system.getProductAccessForCurrentUser(campaign.id, product.id);
+        return access.ok;
+      }
+
+      const blindItems = system.getBlindBoxItemsByProduct(product.id);
+      return blindItems.some((item) => system.getProductAccessForCurrentUser(campaign.id, product.id, item.id).ok);
+    });
+
+    const sorted = [...filtered].sort((a, b) => {
+      if (sortBy === "priceAsc") return a.price - b.price;
+      if (sortBy === "priceDesc") return b.price - a.price;
+      if (a.product.isPopular === b.product.isPopular) return a.product.name.localeCompare(b.product.name);
+      return a.product.isPopular ? -1 : 1;
+    });
+
+    return sorted.map((item) => item.product);
+  }, [campaign.id, campaign.pricingMode, keyword, onlyAvailable, selectedSeriesProducts, sortBy, system]);
 
   return (
     <section className="space-y-5">
@@ -153,49 +205,80 @@ function CampaignView(props: {
           <span className="state-pill bg-slate-100 text-slate-700">釋出：{releaseStageLabel(campaign.releaseStage)}</span>
           <span className="state-pill bg-slate-100 text-slate-700">截止：{formatDate(campaign.deadlineAt)}</span>
         </div>
-        {!selectedSeries && <p className="mt-3 text-sm text-slate-700">先選系列，再進入商品喊單。</p>}
-        {selectedSeries && (
-          <div className="mt-3 flex items-center gap-2">
-            <span className="state-pill bg-slate-900 text-white">{selectedSeries}</span>
-            <button
-              type="button"
-              className="rounded-lg border px-3 py-1 text-xs font-semibold"
-              onClick={() => setSelectedSeries(null)}
-            >
-              返回系列列表
-            </button>
-          </div>
-        )}
+        <p className="mt-3 text-sm text-slate-700">先選系列，再用篩選快速找到可喊商品。</p>
 
         {feedback && <p className="mt-3 text-sm font-semibold text-slate-800">{feedback}</p>}
       </div>
 
-      {!selectedSeries && (
-        <div className="grid gap-4 md:grid-cols-2 xl:grid-cols-4">
+      <div className="glass-card p-3">
+        <div className="flex flex-wrap gap-2">
           {seriesGroups.map((group) => (
-            <article key={group.series} className="glass-card p-5">
-              <h3 className="text-xl font-bold text-slate-900">{group.series}</h3>
-              <p className="mt-2 text-sm text-slate-600">共 {group.products.length} 個商品</p>
-              <div className="mt-3 space-y-1 text-xs text-slate-500">
-                {group.products.slice(0, 3).map((item) => (
-                  <p key={item.id}>- {item.name}</p>
-                ))}
-                {group.products.length > 3 && <p>...還有 {group.products.length - 3} 個</p>}
-              </div>
-              <button
-                type="button"
-                className="mt-4 w-full rounded-xl bg-slate-900 px-4 py-2 text-sm font-semibold text-white hover:bg-slate-700"
-                onClick={() => setSelectedSeries(group.series)}
-              >
-                進入 {group.series}
-              </button>
-            </article>
+            <button
+              key={group.series}
+              type="button"
+              className={`rounded-full border px-4 py-2 text-sm font-semibold ${
+                selectedSeries === group.series
+                  ? "border-slate-900 bg-slate-900 text-white"
+                  : "border-slate-200 bg-white text-slate-700"
+              }`}
+              onClick={() => setSelectedSeries(group.series)}
+            >
+              {group.series} ({group.products.length})
+            </button>
           ))}
         </div>
-      )}
+      </div>
 
-      {selectedSeries && (
-      <div className="grid gap-4 md:grid-cols-2 xl:grid-cols-3">
+      <div className="grid gap-4 lg:grid-cols-[280px_minmax(0,1fr)]">
+        <aside className="glass-card p-4">
+          <h3 className="text-base font-bold text-slate-900">系列篩選</h3>
+          <p className="mt-1 text-xs text-slate-500">目前系列：{selectedSeries}</p>
+
+          <div className="mt-3 space-y-3 text-sm">
+            <label className="block">
+              搜尋關鍵字
+              <input
+                className="mt-1 w-full rounded-xl border px-3 py-2"
+                placeholder="商品名 / SKU / 角色"
+                value={keyword}
+                onChange={(event) => setKeyword(event.target.value)}
+              />
+            </label>
+
+            <label className="flex items-center gap-2 text-sm text-slate-700">
+              <input
+                type="checkbox"
+                checked={onlyAvailable}
+                onChange={(event) => setOnlyAvailable(event.target.checked)}
+              />
+              只看目前可喊
+            </label>
+
+            <label className="block">
+              排序
+              <select
+                className="mt-1 w-full rounded-xl border px-3 py-2"
+                value={sortBy}
+                onChange={(event) => setSortBy(event.target.value as "popular" | "priceAsc" | "priceDesc")}
+              >
+                <option value="popular">熱門優先</option>
+                <option value="priceAsc">價格由低到高</option>
+                <option value="priceDesc">價格由高到低</option>
+              </select>
+            </label>
+          </div>
+
+          <div className="mt-4 rounded-xl border border-slate-200 bg-white/70 p-3 text-xs text-slate-600">
+            顯示 {visibleProducts.length} / {selectedSeriesProducts.length} 件
+          </div>
+        </aside>
+
+        <div className="space-y-3">
+          {visibleProducts.length === 0 && (
+            <div className="glass-card p-5 text-sm text-slate-600">此系列目前沒有符合條件的商品。</div>
+          )}
+
+      <div className="grid gap-4 md:grid-cols-2 2xl:grid-cols-3">
         {visibleProducts.map((product) => {
           const myQty = cartMap.get(`${product.id}::none`)?.qty ?? 0;
           const normalAccess = product.type === "NORMAL"
@@ -217,8 +300,7 @@ function CampaignView(props: {
                 <div>
                   <p className="text-xs text-slate-500">{product.sku}</p>
                   <h3 className="text-base font-bold text-slate-900">{product.name}</h3>
-                  <p className="text-xs text-slate-500">系列：{product.series}</p>
-                  <p className="text-xs text-slate-500">類型：{productTypeLabel(product.type)}</p>
+                  <p className="text-xs text-slate-500">{product.series} / {productTypeLabel(product.type)}</p>
                 </div>
                 <span className={`state-pill ${product.isPopular ? "bg-rose-100 text-rose-700" : "bg-emerald-100 text-emerald-700"}`}>
                   {product.isPopular ? "熱門" : "一般"}
@@ -227,21 +309,18 @@ function CampaignView(props: {
 
               <div className="mt-3 space-y-1 text-sm text-slate-600">
                 <p>單價：{twd(price)}</p>
-                <p>商品固位：{productRequiredTierLabel(product.requiredTier)}</p>
+                <p>固位：{productRequiredTierLabel(product.requiredTier)}</p>
 
                 {product.type === "NORMAL" && (
                   <>
-                    <p>角色：{product.character ?? "-"}</p>
-                    <p>你的角色固位：{myTier ? fixedTierLabel(myTier) : "未分配"}</p>
-                    <p>商品上限：{product.maxPerUser ?? "不限"}</p>
-                    <p>你已加入：{myQty}</p>
+                    <p>角色：{product.character ?? "-"} / 你的固位：{myTier ? fixedTierLabel(myTier) : "未分配"}</p>
+                    <p>上限：{product.maxPerUser ?? "不限"} / 已加入：{myQty}</p>
                   </>
                 )}
 
                 {product.type === "BLIND_BOX" && (
                   <>
-                    <p>盲盒子項：{blindItemsCount} 項</p>
-                    <p>此商品需進入子頁，依角色子項填單。</p>
+                    <p>盲盒子項：{blindItemsCount} 項（進入拆分頁挑角色）</p>
                   </>
                 )}
               </div>
@@ -281,7 +360,8 @@ function CampaignView(props: {
           );
         })}
       </div>
-      )}
+        </div>
+      </div>
     </section>
   );
 }
