@@ -7,6 +7,7 @@ import {
   canBuyByCharacterSlot,
   sortClaimsByPriority,
 } from "../lib/business-rules";
+import { supabase } from "../lib/supabase";
 import { loadSessionUserId, loadState, resetState, saveSessionUserId, saveState } from "../lib/storage";
 import type {
   BlindBoxItem,
@@ -199,6 +200,47 @@ export function useOrderSystem(): UseOrderSystemReturn {
     () => state.users.find((user) => user.id === sessionUserId) ?? null,
     [sessionUserId, state.users],
   );
+
+  const syncAdminFlagFromSupabase = async (user: UserProfile): Promise<void> => {
+    if (!supabase) return;
+
+    const applyAdminFlag = (isAdmin: boolean) => {
+      setState((prev) => ({
+        ...prev,
+        users: prev.users.map((item) =>
+          item.id === user.id ? { ...item, isAdmin } : item,
+        ),
+      }));
+    };
+
+    // Prefer explicit overrides table. If absent, fallback to profiles.is_admin.
+    const overrideResult = await supabase
+      .from("admin_overrides")
+      .select("is_admin")
+      .eq("email", user.email)
+      .maybeSingle();
+
+    if (!overrideResult.error && overrideResult.data) {
+      applyAdminFlag(Boolean(overrideResult.data.is_admin));
+      return;
+    }
+
+    const profileResult = await supabase
+      .from("profiles")
+      .select("is_admin")
+      .eq("email", user.email)
+      .maybeSingle();
+
+    if (!profileResult.error && profileResult.data) {
+      applyAdminFlag(Boolean(profileResult.data.is_admin));
+    }
+  };
+
+  useEffect(() => {
+    if (!currentUser) return;
+    void syncAdminFlagFromSupabase(currentUser);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [currentUser?.id]);
 
   const visibleCampaigns = useMemo(
     () => state.campaigns.filter((campaign) => campaign.status === "OPEN"),
@@ -492,6 +534,7 @@ export function useOrderSystem(): UseOrderSystemReturn {
       return { ok: false, message: "找不到對應帳號（請確認 Email 或 FB 暱稱）。" };
     }
     setSessionUserId(user.id);
+    void syncAdminFlagFromSupabase(user);
     return { ok: true, message: "登入成功。" };
   };
 
@@ -524,6 +567,7 @@ export function useOrderSystem(): UseOrderSystemReturn {
     }));
 
     setSessionUserId(nextUser.id);
+    void syncAdminFlagFromSupabase(nextUser);
 
     return { ok: true, message: "註冊成功，已自動登入。" };
   };

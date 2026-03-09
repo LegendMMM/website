@@ -32,7 +32,8 @@
 1. 在 Supabase 建立專案。
 2. 將 `supabase/schema.sql` 貼到 SQL Editor 執行。
 3. 再執行 `supabase/migrations/20260309_upgrade_product_model.sql`（新增系列、固位限制、盲盒子項與訂單模型）。
-4. 在 `.env` 填入：
+4. 建議再執行 `supabase/migrations/20260310_admin_overrides.sql`（用 email 控管管理員權限）。
+5. 在 `.env` 填入：
    - `VITE_SUPABASE_URL`
    - `VITE_SUPABASE_ANON_KEY`
 
@@ -46,6 +47,19 @@
 - 盲盒子項 JSON
 
 可先用「載入模板」再貼上資料直接匯入。
+
+## 設定管理員（Supabase）
+若要讓某個帳號成為管理員，可在 SQL Editor 執行：
+
+```sql
+select public.set_admin_override('your-email@example.com', true, 'promote as admin');
+```
+
+取消管理員：
+
+```sql
+select public.set_admin_override('your-email@example.com', false, 'revoke admin');
+```
 
 ## 核心規則落地
 - 禁止前台刪單：
