@@ -1184,14 +1184,14 @@ export default function App(): JSX.Element {
 
   if (!system.currentUser) {
     return (
-      <main className="grid min-h-screen place-items-center px-4 py-12 grid-bg">
+      <main className="site-shell grid min-h-screen place-items-center px-4 py-12 grid-bg">
         <AuthCard onLogin={system.login} onRegister={system.register} onResetPassword={system.resetPassword} />
       </main>
     );
   }
 
   return (
-    <main className="min-h-screen px-4 py-6 md:px-8 lg:px-12">
+    <main className="site-shell min-h-screen px-4 py-6 md:px-8 lg:px-12">
       <div className="mx-auto max-w-7xl space-y-5">
         <motion.header
           initial={{ opacity: 0, y: 8 }}
