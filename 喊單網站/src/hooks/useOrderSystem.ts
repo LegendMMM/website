@@ -61,7 +61,7 @@ interface ProductAccessInfo {
 }
 
 interface TargetDescriptor {
-  character: CharacterName;
+  character: CharacterName | null;
   stock: number;
   maxPerUser: number | null;
   label: string;
@@ -82,6 +82,8 @@ interface CreateProductInput {
   series: ProductSeries;
   type: ProductType;
   character: CharacterName | null;
+  slotRestrictionEnabled: boolean;
+  slotRestrictedCharacter: CharacterName | null;
   requiredTier: ProductRequiredTier;
   imageUrl: string | null;
   isPopular: boolean;
@@ -107,6 +109,8 @@ interface ProductRuleUpdateInput {
   requiredTier?: ProductRequiredTier;
   maxPerUser?: number | null;
   stock?: number;
+  slotRestrictionEnabled?: boolean;
+  slotRestrictedCharacter?: CharacterName | null;
 }
 
 export interface UseOrderSystemReturn {
@@ -231,7 +235,7 @@ export function useOrderSystem(): UseOrderSystemReturn {
 
   const resolveTargetDescriptor = (product: Product, blindBoxItemId?: string): TargetDescriptor | null => {
     if (product.type === "NORMAL") {
-      if (!product.character || product.stock === null) return null;
+      if (product.stock === null) return null;
       return {
         character: product.character,
         stock: product.stock,
@@ -250,6 +254,12 @@ export function useOrderSystem(): UseOrderSystemReturn {
       maxPerUser: item.maxPerUser,
       label: `${product.name} / ${item.name}`,
     };
+  };
+
+  const resolveSlotGateCharacter = (product: Product, target: TargetDescriptor): CharacterName | null => {
+    if (!product.slotRestrictionEnabled) return null;
+    if (product.slotRestrictedCharacter) return product.slotRestrictedCharacter;
+    return target.character;
   };
 
   const getCurrentCommittedQty = (
@@ -330,16 +340,19 @@ export function useOrderSystem(): UseOrderSystemReturn {
     const targetId = product.type === "NORMAL" ? null : blindBoxItemId ?? null;
     const currentQty = getCurrentCommittedQty(campaign.id, product.id, targetId, user.id);
 
-    const userCharacterTier = getUserCharacterTier(user.id, target.character);
-    const gate = canBuyByCharacterSlot({
-      releaseStage: campaign.releaseStage,
-      requiredTier: product.requiredTier,
-      character: target.character,
-      userCharacterTier,
-    });
+    const gateCharacter = resolveSlotGateCharacter(product, target);
+    if (gateCharacter) {
+      const userCharacterTier = getUserCharacterTier(user.id, gateCharacter);
+      const gate = canBuyByCharacterSlot({
+        releaseStage: campaign.releaseStage,
+        requiredTier: product.requiredTier,
+        character: gateCharacter,
+        userCharacterTier,
+      });
 
-    if (!gate.ok) {
-      return { ok: false, reason: gate.reason, currentQty, remaining: 0 };
+      if (!gate.ok) {
+        return { ok: false, reason: gate.reason, currentQty, remaining: 0 };
+      }
     }
 
     if (target.maxPerUser !== null && currentQty >= target.maxPerUser) {
@@ -1060,7 +1073,7 @@ export function useOrderSystem(): UseOrderSystemReturn {
       return { ok: false, message: "只有團主可以調整商品規則。" };
     }
 
-    const { productId, requiredTier, maxPerUser, stock } = args;
+    const { productId, requiredTier, maxPerUser, stock, slotRestrictionEnabled, slotRestrictedCharacter } = args;
     const target = getProductById(productId);
     if (!target) return { ok: false, message: "找不到商品。" };
 
@@ -1070,6 +1083,15 @@ export function useOrderSystem(): UseOrderSystemReturn {
 
     if (stock !== undefined && stock < 0) {
       return { ok: false, message: "庫存不可為負數。" };
+    }
+
+    const nextSlotRestrictionEnabled = slotRestrictionEnabled ?? target.slotRestrictionEnabled;
+    const nextSlotRestrictedCharacter = slotRestrictedCharacter === undefined
+      ? target.slotRestrictedCharacter
+      : slotRestrictedCharacter;
+
+    if (nextSlotRestrictionEnabled && !nextSlotRestrictedCharacter) {
+      return { ok: false, message: "啟用固位限制時必須指定限制角色。" };
     }
 
     if (requiredTier === undefined && target.requiredTier === undefined) {
@@ -1085,6 +1107,8 @@ export function useOrderSystem(): UseOrderSystemReturn {
             requiredTier: requiredTier ?? product.requiredTier,
             maxPerUser: maxPerUser === undefined ? product.maxPerUser : maxPerUser,
             stock: stock === undefined ? product.stock : (product.type === "NORMAL" ? stock : product.stock),
+            slotRestrictionEnabled: nextSlotRestrictionEnabled,
+            slotRestrictedCharacter: nextSlotRestrictionEnabled ? nextSlotRestrictedCharacter : null,
           }
           : product,
       ),
@@ -1251,6 +1275,10 @@ export function useOrderSystem(): UseOrderSystemReturn {
       }
     }
 
+    if (input.slotRestrictionEnabled && !input.slotRestrictedCharacter) {
+      return { ok: false, message: "啟用固位限制時，必須指定限制角色。" };
+    }
+
     const product: Product = {
       id: crypto.randomUUID(),
       campaignId: input.campaignId,
@@ -1259,6 +1287,8 @@ export function useOrderSystem(): UseOrderSystemReturn {
       series: input.series,
       type: input.type,
       character: input.type === "NORMAL" ? input.character : null,
+      slotRestrictionEnabled: input.slotRestrictionEnabled,
+      slotRestrictedCharacter: input.slotRestrictionEnabled ? input.slotRestrictedCharacter : null,
       requiredTier: input.requiredTier,
       imageUrl: input.imageUrl && input.imageUrl.trim() ? input.imageUrl.trim() : null,
       isPopular: input.isPopular,

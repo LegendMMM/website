@@ -284,8 +284,9 @@ function CampaignView(props: {
           const normalAccess = product.type === "NORMAL"
             ? system.getProductAccessForCurrentUser(campaign.id, product.id)
             : null;
-          const myTier = system.currentUser && product.character
-            ? system.getUserCharacterTier(system.currentUser.id, product.character)
+          const slotCharacter = product.slotRestrictionEnabled ? product.slotRestrictedCharacter : null;
+          const myTier = system.currentUser && slotCharacter
+            ? system.getUserCharacterTier(system.currentUser.id, slotCharacter)
             : null;
           const price = campaign.pricingMode === "DYNAMIC"
             ? (product.isPopular ? product.hotPrice : product.coldPrice)
@@ -310,10 +311,14 @@ function CampaignView(props: {
               <div className="mt-3 space-y-1 text-sm text-slate-600">
                 <p>單價：{twd(price)}</p>
                 <p>固位：{productRequiredTierLabel(product.requiredTier)}</p>
+                <p>固位限制：{product.slotRestrictionEnabled ? "啟用" : "關閉（全員可喊）"}</p>
 
                 {product.type === "NORMAL" && (
                   <>
-                    <p>角色：{product.character ?? "-"} / 你的固位：{myTier ? fixedTierLabel(myTier) : "未分配"}</p>
+                    <p>商品角色：{product.character ?? "-"}</p>
+                    {product.slotRestrictionEnabled && (
+                      <p>限制角色：{slotCharacter ?? "-"} / 你的固位：{myTier ? fixedTierLabel(myTier) : "未分配"}</p>
+                    )}
                     <p>上限：{product.maxPerUser ?? "不限"} / 已加入：{myQty}</p>
                   </>
                 )}
@@ -710,6 +715,8 @@ function AdminView(props: { system: UseOrderSystemReturn }): JSX.Element {
   const [productSku, setProductSku] = useState("");
   const [productName, setProductName] = useState("");
   const [productCharacter, setProductCharacter] = useState<CharacterName>("八千代");
+  const [productSlotRestrictionEnabled, setProductSlotRestrictionEnabled] = useState(true);
+  const [productSlotRestrictedCharacter, setProductSlotRestrictedCharacter] = useState<CharacterName>("八千代");
   const [productRequiredTier, setProductRequiredTier] = useState<ProductRequiredTier>("FIXED_1");
   const [productImageUrl, setProductImageUrl] = useState("");
   const [productIsPopular, setProductIsPopular] = useState(true);
@@ -915,7 +922,13 @@ function AdminView(props: { system: UseOrderSystemReturn }): JSX.Element {
                 <select
                   className="mt-1 w-full rounded-xl border border-slate-200 px-3 py-2"
                   value={productCharacter}
-                  onChange={(event) => setProductCharacter(event.target.value as CharacterName)}
+                  onChange={(event) => {
+                    const next = event.target.value as CharacterName;
+                    setProductCharacter(next);
+                    if (!productSlotRestrictedCharacter) {
+                      setProductSlotRestrictedCharacter(next);
+                    }
+                  }}
                 >
                   {CHARACTER_OPTIONS.map((character) => (
                     <option key={character} value={character}>{character}</option>
@@ -923,6 +936,33 @@ function AdminView(props: { system: UseOrderSystemReturn }): JSX.Element {
                 </select>
               </label>
             )}
+
+            <div className="rounded-2xl border border-slate-200 bg-white/60 p-3 text-sm">
+              <label className="flex items-center gap-2 text-sm text-slate-700">
+                <input
+                  type="checkbox"
+                  checked={productSlotRestrictionEnabled}
+                  onChange={(event) => setProductSlotRestrictionEnabled(event.target.checked)}
+                />
+                啟用固位限制
+              </label>
+              <p className="mt-1 text-xs text-slate-500">關閉後此商品全員可喊，不看角色固位。</p>
+
+              {productSlotRestrictionEnabled && (
+                <label className="mt-3 block">
+                  限制角色
+                  <select
+                    className="mt-1 w-full rounded-xl border border-slate-200 px-3 py-2"
+                    value={productSlotRestrictedCharacter}
+                    onChange={(event) => setProductSlotRestrictedCharacter(event.target.value as CharacterName)}
+                  >
+                    {CHARACTER_OPTIONS.map((character) => (
+                      <option key={character} value={character}>{character}</option>
+                    ))}
+                  </select>
+                </label>
+              )}
+            </div>
 
             <input
               className="w-full rounded-xl border border-slate-200 px-3 py-2"
@@ -999,6 +1039,8 @@ function AdminView(props: { system: UseOrderSystemReturn }): JSX.Element {
                   series: productSeries,
                   type: productType,
                   character: productType === "NORMAL" ? productCharacter : null,
+                  slotRestrictionEnabled: productSlotRestrictionEnabled,
+                  slotRestrictedCharacter: productSlotRestrictionEnabled ? productSlotRestrictedCharacter : null,
                   requiredTier: productRequiredTier,
                   imageUrl: productImageUrl || null,
                   isPopular: productIsPopular,
@@ -1163,6 +1205,9 @@ function AdminView(props: { system: UseOrderSystemReturn }): JSX.Element {
                   <p className="text-[11px] text-slate-500">系列：{product.series}</p>
                   <p className="text-[11px] text-slate-500">類型：{productTypeLabel(product.type)}</p>
                   <p className="text-[11px] text-slate-500">需求：{productRequiredTierLabel(product.requiredTier)} / 上限：{product.maxPerUser ?? "不限"}</p>
+                  <p className="text-[11px] text-slate-500">
+                    固位限制：{product.slotRestrictionEnabled ? `啟用（${product.slotRestrictedCharacter ?? "未設定"}）` : "關閉（全員）"}
+                  </p>
                   {product.type === "NORMAL" && <p className="text-[11px] text-slate-500">庫存：{product.stock ?? 0}</p>}
 
                   <div className="mt-1 flex flex-wrap gap-1">
@@ -1181,6 +1226,45 @@ function AdminView(props: { system: UseOrderSystemReturn }): JSX.Element {
                         {productRequiredTierLabel(tier)}
                       </button>
                     ))}
+
+                    <button
+                      type="button"
+                      className="rounded border px-2 py-0.5 text-[11px]"
+                      onClick={() => {
+                        const result = system.adminUpdateProductRule({
+                          productId: product.id,
+                          slotRestrictionEnabled: !product.slotRestrictionEnabled,
+                          slotRestrictedCharacter: product.slotRestrictedCharacter ?? product.character,
+                        });
+                        setFeedback(result.message);
+                      }}
+                    >
+                      {product.slotRestrictionEnabled ? "關固位限制" : "開固位限制"}
+                    </button>
+
+                    <button
+                      type="button"
+                      className="rounded border px-2 py-0.5 text-[11px]"
+                      onClick={() => {
+                        const value = window.prompt(
+                          "設定限制角色（八千代/彩葉/輝耀姬/帝/乃依/雷/真實/蘆花）",
+                          product.slotRestrictedCharacter ?? product.character ?? "八千代",
+                        );
+                        if (value === null) return;
+                        if (!CHARACTER_OPTIONS.includes(value as CharacterName)) {
+                          setFeedback("角色名稱無效。");
+                          return;
+                        }
+                        const result = system.adminUpdateProductRule({
+                          productId: product.id,
+                          slotRestrictionEnabled: true,
+                          slotRestrictedCharacter: value as CharacterName,
+                        });
+                        setFeedback(result.message);
+                      }}
+                    >
+                      設限制角色
+                    </button>
 
                     <button
                       type="button"

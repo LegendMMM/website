@@ -57,11 +57,22 @@ function normalizeState(raw: unknown): OrderSystemState {
   const normalizedProducts = Array.isArray(candidate.products)
     ? candidate.products.map((product) => {
       const legacyCharacter = product.character;
+      const slotRestrictionEnabled =
+        typeof product.slotRestrictionEnabled === "boolean"
+          ? product.slotRestrictionEnabled
+          : true;
+      const slotRestrictedCharacter =
+        typeof product.slotRestrictedCharacter === "string"
+          ? product.slotRestrictedCharacter
+          : (typeof legacyCharacter === "string" ? legacyCharacter : null);
+
       return {
         ...product,
         series: normalizeProductSeries(product.series),
         type: normalizeProductType(product.type),
         character: typeof legacyCharacter === "string" ? legacyCharacter : null,
+        slotRestrictionEnabled,
+        slotRestrictedCharacter: slotRestrictionEnabled ? slotRestrictedCharacter : null,
         requiredTier: normalizeRequiredTier(product.requiredTier),
         imageUrl: typeof product.imageUrl === "string" ? product.imageUrl : null,
         stock: typeof product.stock === "number" ? product.stock : null,

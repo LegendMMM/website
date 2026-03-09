@@ -59,6 +59,8 @@ export interface Product {
   series: ProductSeries;
   type: ProductType;
   character: CharacterName | null;
+  slotRestrictionEnabled: boolean;
+  slotRestrictedCharacter: CharacterName | null;
   requiredTier: ProductRequiredTier;
   imageUrl: string | null;
   isPopular: boolean;
