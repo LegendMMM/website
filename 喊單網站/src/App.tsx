@@ -2290,8 +2290,8 @@ export default function App(): JSX.Element {
           >
             <div className="flex flex-wrap items-start justify-between gap-4">
               <div>
-                <p className="text-xs font-semibold uppercase tracking-[0.2em] text-slate-500">LegendMMM Admin Console</p>
-                <h1 className="mt-1 text-3xl font-extrabold text-slate-900">管理員營運後台</h1>
+                <p className="text-xs font-semibold uppercase tracking-[0.2em] text-slate-500">Tsukuyomi Admin Cosmos</p>
+                <h1 className="mt-1 text-3xl font-extrabold text-slate-900">超時空輝耀姬・管理後台</h1>
                 <p className="mt-2 text-sm text-slate-600">登入帳號：{system.currentUser.fbNickname}（{system.currentUser.email}）</p>
                 <p className="text-xs text-slate-500">資料模式：{isSupabaseEnabled ? "Supabase 已連線" : "Demo Local 模式"}</p>
               </div>
@@ -2361,8 +2361,8 @@ export default function App(): JSX.Element {
         >
           <div className="flex flex-wrap items-start justify-between gap-4">
             <div>
-              <p className="text-xs font-semibold uppercase tracking-[0.2em] text-slate-500">LegendMMM Shopping Hub</p>
-              <h1 className="mt-1 text-3xl font-extrabold text-slate-900">活動導覽與盲盒拆分系統</h1>
+              <p className="text-xs font-semibold uppercase tracking-[0.2em] text-slate-500">Tsukuyomi Order Cosmos</p>
+              <h1 className="mt-1 text-3xl font-extrabold text-slate-900">超時空輝耀姬・活動導覽與拆分系統</h1>
               <p className="mt-2 text-sm text-slate-600">你好，{system.currentUser.fbNickname}（{system.currentUser.email}）</p>
               <p className="text-xs text-slate-500">
                 身分：{system.currentUser.isAdmin ? "管理員" : "會員"} / 帳號固位：{roleLabel(system.currentUser.roleTier)} / 取貨率：

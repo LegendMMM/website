@@ -27,8 +27,8 @@ export function AuthCard({ onLogin, onRegister }: AuthCardProps): JSX.Element {
 
   return (
     <div className="glass-card mx-auto w-full max-w-lg animate-rise p-8">
-      <p className="text-sm font-semibold uppercase tracking-[0.2em] text-slate-500">團主喊單帳本</p>
-      <h1 className="mt-2 text-3xl font-extrabold text-slate-900">登入系統</h1>
+      <p className="text-sm font-semibold uppercase tracking-[0.2em] text-slate-500">Tsukuyomi Order Gate</p>
+      <h1 className="mt-2 text-3xl font-extrabold text-slate-900">超時空輝耀姬・登入</h1>
       <p className="mt-2 text-sm text-slate-600">可用測試帳號：admin@example.com 或 團主Momo</p>
 
       <div className="mt-6 space-y-3">
