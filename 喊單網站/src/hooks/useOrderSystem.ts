@@ -158,9 +158,11 @@ export interface UseOrderSystemReturn {
   }) => ActionResult;
   adminAutoAssignCharacterSlots: (character: CharacterName) => ActionResult;
   adminCreateCampaign: (input: CreateCampaignInput) => ActionResult;
+  adminDeleteCampaign: (campaignId: string) => ActionResult;
   adminCreateProduct: (input: CreateProductInput) => ActionResult;
   adminCreateBlindBoxItem: (input: CreateBlindBoxItemInput) => ActionResult;
   adminSetUserAdmin: (userId: string, isAdmin: boolean) => Promise<ActionResult>;
+  adminDeleteUser: (userId: string) => Promise<ActionResult>;
   adminUpdateUserPickupRate: (userId: string, pickupRate: number) => ActionResult;
   adminUpdateOrderStatus: (orderId: string, status: OrderStatus) => ActionResult;
   refreshCurrentUserAdminFlag: () => Promise<ActionResult>;
@@ -1306,6 +1308,40 @@ export function useOrderSystem(): UseOrderSystemReturn {
     return { ok: true, message: `已建立活動「${campaign.title}」。` };
   };
 
+  const adminDeleteCampaign = (campaignId: string): ActionResult => {
+    if (!currentUser?.isAdmin) {
+      return { ok: false, message: "只有團主可以刪除活動。" };
+    }
+
+    const campaign = state.campaigns.find((item) => item.id === campaignId);
+    if (!campaign) {
+      return { ok: false, message: "找不到活動。" };
+    }
+
+    const productIds = new Set(
+      state.products.filter((product) => product.campaignId === campaignId).map((product) => product.id),
+    );
+    const orderIds = new Set(
+      state.orders.filter((order) => order.campaignId === campaignId).map((order) => order.id),
+    );
+
+    setState((prev) => ({
+      ...prev,
+      campaigns: prev.campaigns.filter((item) => item.id !== campaignId),
+      products: prev.products.filter((item) => item.campaignId !== campaignId),
+      blindBoxItems: prev.blindBoxItems.filter((item) => !productIds.has(item.productId)),
+      claims: prev.claims.filter((item) => item.campaignId !== campaignId),
+      payments: prev.payments.filter((item) => item.campaignId !== campaignId),
+      bindings: prev.bindings.filter((item) => item.campaignId !== campaignId),
+      shipments: prev.shipments.filter((item) => item.campaignId !== campaignId),
+      cartItems: prev.cartItems.filter((item) => item.campaignId !== campaignId),
+      orders: prev.orders.filter((item) => item.campaignId !== campaignId),
+      orderItems: prev.orderItems.filter((item) => !orderIds.has(item.orderId)),
+    }));
+
+    return { ok: true, message: `已刪除活動「${campaign.title}」及其關聯資料。` };
+  };
+
   const adminCreateProduct = (input: CreateProductInput): ActionResult => {
     if (!currentUser?.isAdmin) {
       return { ok: false, message: "只有團主可以新增商品。" };
@@ -1444,6 +1480,56 @@ export function useOrderSystem(): UseOrderSystemReturn {
     return { ok: true, message: `${target.fbNickname} 已${isAdmin ? "設為" : "取消"}管理員。` };
   };
 
+  const adminDeleteUser = async (userId: string): Promise<ActionResult> => {
+    if (!currentUser?.isAdmin) {
+      return { ok: false, message: "只有管理員可以刪除帳號。" };
+    }
+
+    const target = state.users.find((item) => item.id === userId);
+    if (!target) {
+      return { ok: false, message: "找不到指定帳號。" };
+    }
+
+    if (target.id === currentUser.id) {
+      return { ok: false, message: "不可刪除目前登入中的管理員帳號。" };
+    }
+
+    const adminCount = state.users.filter((item) => item.isAdmin).length;
+    if (target.isAdmin && adminCount <= 1) {
+      return { ok: false, message: "系統至少要保留一位管理員。" };
+    }
+
+    const orderIds = new Set(
+      state.orders.filter((order) => order.userId === userId).map((order) => order.id),
+    );
+
+    setState((prev) => ({
+      ...prev,
+      users: prev.users.filter((item) => item.id !== userId),
+      characterSlots: prev.characterSlots.filter((item) => item.userId !== userId),
+      claims: prev.claims.filter((item) => item.userId !== userId),
+      payments: prev.payments.filter((item) => item.userId !== userId),
+      bindings: prev.bindings.filter((item) => item.buyerUserId !== userId),
+      shipments: prev.shipments.filter((item) => item.userId !== userId),
+      cartItems: prev.cartItems.filter((item) => item.userId !== userId),
+      orders: prev.orders.filter((item) => item.userId !== userId),
+      orderItems: prev.orderItems.filter((item) => !orderIds.has(item.orderId) && item.userId !== userId),
+    }));
+
+    if (supabase) {
+      const { error } = await supabase
+        .from("admin_overrides")
+        .delete()
+        .ilike("email", normalizeEmail(target.email));
+
+      if (error) {
+        return { ok: false, message: `本地已刪除帳號，但 Supabase 權限清理失敗：${error.message}` };
+      }
+    }
+
+    return { ok: true, message: `已刪除帳號 ${target.fbNickname}。` };
+  };
+
   const adminUpdateUserPickupRate = (userId: string, pickupRate: number): ActionResult => {
     if (!currentUser?.isAdmin) {
       return { ok: false, message: "只有管理員可以調整取貨率。" };
@@ -1533,9 +1619,11 @@ export function useOrderSystem(): UseOrderSystemReturn {
     adminAssignCharacterSlot,
     adminAutoAssignCharacterSlots,
     adminCreateCampaign,
+    adminDeleteCampaign,
     adminCreateProduct,
     adminCreateBlindBoxItem,
     adminSetUserAdmin,
+    adminDeleteUser,
     adminUpdateUserPickupRate,
     adminUpdateOrderStatus,
     refreshCurrentUserAdminFlag,
