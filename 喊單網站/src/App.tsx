@@ -18,17 +18,20 @@ import {
   fixedTierLabel,
   formatDate,
   orderStatusLabel,
+  paymentLabel,
   productRequiredTierLabel,
   productTypeLabel,
   releaseStageLabel,
   roleLabel,
   twd,
 } from "./lib/format";
+import { downloadTextFile } from "./lib/download";
 import { isSupabaseEnabled, supabase, testSupabaseConnection } from "./lib/supabase";
 import type {
   Campaign,
   CharacterName,
   CharacterTier,
+  OrderStatus,
   PricingMode,
   Product,
   ProductRequiredTier,
@@ -37,20 +40,38 @@ import type {
   ReleaseStage,
 } from "./types/domain";
 
-type PageView = "home" | "campaign" | "blindBox" | "cart" | "me" | "admin";
+type PageView = "home" | "campaign" | "blindBox" | "cart" | "me";
+type RootRoute = "shop" | "admin";
+type AdminTab = "dashboard" | "members" | "claims" | "orders" | "payments" | "shipping" | "settings";
 
 const stageOptions: ReleaseStage[] = ["FIXED_1_ONLY", "FIXED_1_2", "FIXED_1_2_3", "ALL_OPEN"];
 const requiredTierOptions: ProductRequiredTier[] = ["FIXED_1", "FIXED_2", "FIXED_3", "LEAK_PICK"];
 const characterTierOptions: CharacterTier[] = ["FIXED_1", "FIXED_2", "FIXED_3", "LEAK_PICK"];
 const productTypeOptions: ProductType[] = ["NORMAL", "BLIND_BOX"];
 const pricingModeOptions: PricingMode[] = ["DYNAMIC", "AVERAGE_WITH_BINDING"];
+const orderStatusOptions: OrderStatus[] = ["PLACED", "PAID", "CANCELLED"];
+const adminTabs: Array<{ id: AdminTab; label: string }> = [
+  { id: "dashboard", label: "總覽" },
+  { id: "members", label: "會員" },
+  { id: "claims", label: "喊單" },
+  { id: "orders", label: "訂單" },
+  { id: "payments", label: "付款" },
+  { id: "shipping", label: "物流" },
+  { id: "settings", label: "活動與商品設定" },
+];
+
+function readRootRoute(): RootRoute {
+  if (typeof window === "undefined") return "shop";
+  return window.location.hash.startsWith("#/admin") ? "admin" : "shop";
+}
 
 function HeaderNav(props: {
   currentView: PageView;
   setView: (view: PageView) => void;
   system: UseOrderSystemReturn;
+  onGoAdmin: () => void;
 }): JSX.Element {
-  const { currentView, setView, system } = props;
+  const { currentView, setView, system, onGoAdmin } = props;
   const cartCount = system.currentUser
     ? system.getMyCartItems().reduce((sum, item) => sum + item.qty, 0)
     : 0;
@@ -66,7 +87,7 @@ function HeaderNav(props: {
       <button className={buttonClass("cart")} type="button" onClick={() => setView("cart")}>購物車 ({cartCount})</button>
       <button className={buttonClass("me")} type="button" onClick={() => setView("me")}>個人主頁</button>
       {system.currentUser?.isAdmin && (
-        <button className={buttonClass("admin")} type="button" onClick={() => setView("admin")}>活動設定</button>
+        <button className="rounded-xl border border-slate-200 bg-white px-4 py-2 text-sm font-semibold text-slate-700" type="button" onClick={onGoAdmin}>管理後台</button>
       )}
       <button
         onClick={system.logout}
@@ -708,7 +729,7 @@ function MeView(props: { system: UseOrderSystemReturn }): JSX.Element {
   );
 }
 
-function AdminView(props: { system: UseOrderSystemReturn }): JSX.Element {
+function AdminSettingsPanel(props: { system: UseOrderSystemReturn }): JSX.Element {
   const { system } = props;
   const [feedback, setFeedback] = useState("");
   const [supabaseFeedback, setSupabaseFeedback] = useState("");
@@ -1688,12 +1709,419 @@ function AdminView(props: { system: UseOrderSystemReturn }): JSX.Element {
   );
 }
 
+function AdminConsoleView(props: {
+  system: UseOrderSystemReturn;
+  onBackToShop: () => void;
+}): JSX.Element {
+  const { system, onBackToShop } = props;
+  const [tab, setTab] = useState<AdminTab>("dashboard");
+  const [feedback, setFeedback] = useState("");
+  const [exportCampaignId, setExportCampaignId] = useState(system.state.campaigns[0]?.id ?? "");
+
+  useEffect(() => {
+    if (!system.state.campaigns.length) {
+      setExportCampaignId("");
+      return;
+    }
+    if (!exportCampaignId || !system.state.campaigns.some((item) => item.id === exportCampaignId)) {
+      setExportCampaignId(system.state.campaigns[0].id);
+    }
+  }, [exportCampaignId, system.state.campaigns]);
+
+  const userById = useMemo(() => new Map(system.state.users.map((user) => [user.id, user])), [system.state.users]);
+  const campaignById = useMemo(
+    () => new Map(system.state.campaigns.map((campaign) => [campaign.id, campaign])),
+    [system.state.campaigns],
+  );
+  const productById = useMemo(() => new Map(system.state.products.map((product) => [product.id, product])), [system.state.products]);
+  const blindItemById = useMemo(
+    () => new Map(system.state.blindBoxItems.map((item) => [item.id, item])),
+    [system.state.blindBoxItems],
+  );
+  const orderItemsByOrderId = useMemo(() => {
+    const map = new Map<string, ReturnType<typeof system.getOrderItems>>();
+    system.state.orders.forEach((order) => {
+      map.set(order.id, system.getOrderItems(order.id));
+    });
+    return map;
+  }, [system, system.state.orders, system.state.orderItems]);
+
+  const allClaims = useMemo(
+    () => [...system.state.claims].sort((a, b) => new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime()),
+    [system.state.claims],
+  );
+  const allOrders = useMemo(
+    () => [...system.state.orders].sort((a, b) => new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime()),
+    [system.state.orders],
+  );
+  const allPayments = useMemo(
+    () => [...system.state.payments].sort((a, b) => new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime()),
+    [system.state.payments],
+  );
+  const allShipments = useMemo(
+    () => [...system.state.shipments].sort((a, b) => a.campaignId.localeCompare(b.campaignId)),
+    [system.state.shipments],
+  );
+
+  const memberRows = useMemo(() => {
+    return system.state.users
+      .map((user) => {
+        const orders = system.state.orders.filter((order) => order.userId === user.id);
+        const orderTotal = orders.reduce((sum, order) => sum + order.totalAmount, 0);
+        const pendingClaims = system.state.claims.filter(
+          (claim) => claim.userId === user.id && claim.status === "LOCKED",
+        ).length;
+        return {
+          user,
+          orderCount: orders.length,
+          orderTotal,
+          pendingClaims,
+        };
+      })
+      .sort((a, b) => Number(b.user.isAdmin) - Number(a.user.isAdmin) || a.user.fbNickname.localeCompare(b.user.fbNickname));
+  }, [system.state.claims, system.state.orders, system.state.users]);
+
+  const dashboardStats = useMemo(() => {
+    const totalOrderAmount = system.state.orders.reduce((sum, order) => sum + order.totalAmount, 0);
+    return {
+      users: system.state.users.length,
+      admins: system.state.users.filter((user) => user.isAdmin).length,
+      claimsLocked: system.state.claims.filter((claim) => claim.status === "LOCKED").length,
+      claimsConfirmed: system.state.claims.filter((claim) => claim.status === "CONFIRMED").length,
+      orders: system.state.orders.length,
+      paymentsPending: system.state.payments.filter((payment) => !payment.reconciled).length,
+      shipments: system.state.shipments.length,
+      totalOrderAmount,
+    };
+  }, [system.state.claims, system.state.orders, system.state.payments, system.state.shipments, system.state.users]);
+
+  return (
+    <section className="space-y-5">
+      <div className="glass-card p-5">
+        <div className="flex flex-wrap items-center justify-between gap-2">
+          <div>
+            <h2 className="text-2xl font-extrabold text-slate-900">管理員後台（獨立頁）</h2>
+            <p className="mt-2 text-sm text-slate-600">你可以在這裡查看所有帳號、所有訂單，並執行完整團主管理操作。</p>
+          </div>
+          <button
+            type="button"
+            className="rounded-xl border border-slate-200 bg-white px-4 py-2 text-sm font-semibold text-slate-700"
+            onClick={onBackToShop}
+          >
+            返回商城頁
+          </button>
+        </div>
+        {feedback && <p className="mt-3 text-sm font-semibold text-slate-800">{feedback}</p>}
+      </div>
+
+      <div className="glass-card p-3">
+        <div className="flex flex-wrap gap-2">
+          {adminTabs.map((item) => (
+            <button
+              key={item.id}
+              type="button"
+              className={`rounded-full border px-4 py-2 text-sm font-semibold ${
+                tab === item.id ? "border-slate-900 bg-slate-900 text-white" : "border-slate-200 bg-white text-slate-700"
+              }`}
+              onClick={() => setTab(item.id)}
+            >
+              {item.label}
+            </button>
+          ))}
+        </div>
+      </div>
+
+      {tab === "dashboard" && (
+        <section className="space-y-4">
+          <div className="grid gap-3 md:grid-cols-2 xl:grid-cols-4">
+            <div className="glass-card p-4"><p className="text-xs text-slate-500">帳號總數</p><p className="mt-1 text-2xl font-extrabold text-slate-900">{dashboardStats.users}</p></div>
+            <div className="glass-card p-4"><p className="text-xs text-slate-500">管理員</p><p className="mt-1 text-2xl font-extrabold text-slate-900">{dashboardStats.admins}</p></div>
+            <div className="glass-card p-4"><p className="text-xs text-slate-500">待審喊單</p><p className="mt-1 text-2xl font-extrabold text-slate-900">{dashboardStats.claimsLocked}</p></div>
+            <div className="glass-card p-4"><p className="text-xs text-slate-500">已確認喊單</p><p className="mt-1 text-2xl font-extrabold text-slate-900">{dashboardStats.claimsConfirmed}</p></div>
+            <div className="glass-card p-4"><p className="text-xs text-slate-500">訂單數</p><p className="mt-1 text-2xl font-extrabold text-slate-900">{dashboardStats.orders}</p></div>
+            <div className="glass-card p-4"><p className="text-xs text-slate-500">待對帳付款</p><p className="mt-1 text-2xl font-extrabold text-slate-900">{dashboardStats.paymentsPending}</p></div>
+            <div className="glass-card p-4"><p className="text-xs text-slate-500">物流筆數</p><p className="mt-1 text-2xl font-extrabold text-slate-900">{dashboardStats.shipments}</p></div>
+            <div className="glass-card p-4"><p className="text-xs text-slate-500">訂單總金額</p><p className="mt-1 text-2xl font-extrabold text-slate-900">{twd(dashboardStats.totalOrderAmount)}</p></div>
+          </div>
+        </section>
+      )}
+
+      {tab === "members" && (
+        <section className="glass-card p-5">
+          <h3 className="text-lg font-bold text-slate-900">帳號總覽</h3>
+          <p className="mt-1 text-sm text-slate-600">可直接調整管理員權限與取貨率，並檢視每位會員訂單表現。</p>
+          <div className="mt-4 space-y-3">
+            {memberRows.map(({ user, orderCount, orderTotal, pendingClaims }) => (
+              <article key={user.id} className="rounded-xl border border-slate-200 p-4">
+                <div className="flex flex-wrap items-start justify-between gap-3">
+                  <div>
+                    <p className="text-base font-bold text-slate-900">{user.fbNickname}</p>
+                    <p className="text-xs text-slate-500">{user.email}</p>
+                    <p className="mt-1 text-xs text-slate-500">
+                      身分：{user.isAdmin ? "管理員" : "會員"} / 帳號固位：{roleLabel(user.roleTier)} / 取貨率：{user.pickupRate}%
+                    </p>
+                    <p className="text-xs text-slate-500">
+                      訂單 {orderCount} 筆 / 累計 {twd(orderTotal)} / 待審喊單 {pendingClaims}
+                    </p>
+                  </div>
+                  <div className="flex flex-wrap gap-2">
+                    <button
+                      type="button"
+                      className="rounded-lg border border-slate-200 px-3 py-1.5 text-xs font-semibold"
+                      onClick={async () => {
+                        const result = await system.adminSetUserAdmin(user.id, !user.isAdmin);
+                        setFeedback(result.message);
+                      }}
+                      disabled={user.id === system.currentUser?.id}
+                    >
+                      {user.isAdmin ? "取消管理員" : "設為管理員"}
+                    </button>
+                    <button
+                      type="button"
+                      className="rounded-lg border border-slate-200 px-3 py-1.5 text-xs font-semibold"
+                      onClick={() => {
+                        const value = window.prompt("請輸入新的取貨率（0-100）", String(user.pickupRate));
+                        if (value === null) return;
+                        const result = system.adminUpdateUserPickupRate(user.id, Number(value));
+                        setFeedback(result.message);
+                      }}
+                    >
+                      調整取貨率
+                    </button>
+                  </div>
+                </div>
+              </article>
+            ))}
+          </div>
+        </section>
+      )}
+
+      {tab === "claims" && (
+        <section className="glass-card p-5">
+          <h3 className="text-lg font-bold text-slate-900">喊單審核</h3>
+          <p className="mt-1 text-sm text-slate-600">可依順位確認分配，或由管理員手動取消。</p>
+          <div className="mt-4 space-y-3">
+            {allClaims.length === 0 && <p className="text-sm text-slate-500">目前沒有喊單資料。</p>}
+            {allClaims.map((claim) => {
+              const campaign = campaignById.get(claim.campaignId);
+              const product = productById.get(claim.productId);
+              const blindItem = claim.blindBoxItemId ? blindItemById.get(claim.blindBoxItemId) : null;
+              const user = userById.get(claim.userId);
+              const label = blindItem
+                ? `${product?.name ?? "未知商品"} / ${blindItem.name}`
+                : product?.name ?? "未知商品";
+              const queue = system.getClaimQueue(claim.campaignId, claim.productId, claim.blindBoxItemId ?? undefined);
+              const rank = queue.findIndex((item) => item.id === claim.id) + 1;
+              const stock = claim.blindBoxItemId ? (blindItem?.stock ?? 0) : (product?.stock ?? 0);
+
+              return (
+                <article key={claim.id} className="rounded-xl border border-slate-200 p-4">
+                  <div className="flex flex-wrap items-start justify-between gap-3">
+                    <div>
+                      <p className="text-base font-bold text-slate-900">{label}</p>
+                      <p className="text-xs text-slate-500">
+                        {campaign?.title ?? "未知活動"} / {user?.fbNickname ?? "未知會員"} / {formatDate(claim.createdAt)}
+                      </p>
+                      <p className="text-xs text-slate-500">
+                        狀態：{claim.status} / 順位：{rank > 0 ? rank : "-"} / 名額：{stock}
+                      </p>
+                    </div>
+                    <div className="flex flex-wrap gap-2">
+                      <button
+                        type="button"
+                        className="rounded-lg border border-slate-200 px-3 py-1.5 text-xs font-semibold"
+                        onClick={() => {
+                          const result = system.adminConfirmClaim(claim.id);
+                          setFeedback(result.message);
+                        }}
+                        disabled={claim.status !== "LOCKED"}
+                      >
+                        確認分配
+                      </button>
+                      <button
+                        type="button"
+                        className="rounded-lg border border-rose-300 bg-rose-50 px-3 py-1.5 text-xs font-semibold text-rose-700"
+                        onClick={() => {
+                          const result = system.adminCancelClaim(claim.id);
+                          setFeedback(result.message);
+                        }}
+                        disabled={claim.status === "CANCELLED_BY_ADMIN"}
+                      >
+                        取消喊單
+                      </button>
+                    </div>
+                  </div>
+                </article>
+              );
+            })}
+          </div>
+        </section>
+      )}
+
+      {tab === "orders" && (
+        <section className="glass-card p-5">
+          <h3 className="text-lg font-bold text-slate-900">全站訂單</h3>
+          <div className="mt-4 space-y-3">
+            {allOrders.length === 0 && <p className="text-sm text-slate-500">目前沒有訂單。</p>}
+            {allOrders.map((order) => {
+              const campaign = campaignById.get(order.campaignId);
+              const user = userById.get(order.userId);
+              const items = orderItemsByOrderId.get(order.id) ?? [];
+              return (
+                <article key={order.id} className="rounded-xl border border-slate-200 p-4">
+                  <div className="flex flex-wrap items-start justify-between gap-3">
+                    <div>
+                      <p className="text-base font-bold text-slate-900">{campaign?.title ?? "未知活動"}</p>
+                      <p className="text-xs text-slate-500">
+                        訂單：{order.id.slice(0, 8)} / 會員：{user?.fbNickname ?? "未知會員"} / {formatDate(order.createdAt)}
+                      </p>
+                      <p className="text-sm font-semibold text-slate-700">總額：{twd(order.totalAmount)}</p>
+                    </div>
+                    <div className="flex flex-wrap gap-2">
+                      {orderStatusOptions.map((status) => (
+                        <button
+                          key={status}
+                          type="button"
+                          className={`rounded-lg border px-3 py-1.5 text-xs font-semibold ${
+                            order.status === status ? "border-slate-900 bg-slate-900 text-white" : "border-slate-200"
+                          }`}
+                          onClick={() => {
+                            const result = system.adminUpdateOrderStatus(order.id, status);
+                            setFeedback(result.message);
+                          }}
+                        >
+                          {orderStatusLabel[status]}
+                        </button>
+                      ))}
+                    </div>
+                  </div>
+                  <div className="mt-3 space-y-1 text-sm text-slate-600">
+                    {items.map((item) => {
+                      const product = productById.get(item.productId);
+                      const blindItem = item.blindBoxItemId ? blindItemById.get(item.blindBoxItemId) : null;
+                      const label = blindItem
+                        ? `${product?.name ?? "未知商品"} / ${blindItem.name}`
+                        : product?.name ?? "未知商品";
+                      return <p key={item.id}>- {label} x {item.qty}（{twd(item.unitPrice)}）</p>;
+                    })}
+                  </div>
+                </article>
+              );
+            })}
+          </div>
+        </section>
+      )}
+
+      {tab === "payments" && (
+        <section className="glass-card p-5">
+          <h3 className="text-lg font-bold text-slate-900">付款對帳</h3>
+          <div className="mt-4 space-y-3">
+            {allPayments.length === 0 && <p className="text-sm text-slate-500">目前沒有付款資料。</p>}
+            {allPayments.map((payment) => {
+              const campaign = campaignById.get(payment.campaignId);
+              const user = userById.get(payment.userId);
+              return (
+                <article key={payment.id} className="rounded-xl border border-slate-200 p-4">
+                  <div className="flex flex-wrap items-start justify-between gap-3">
+                    <div>
+                      <p className="text-base font-bold text-slate-900">{campaign?.title ?? "未知活動"}</p>
+                      <p className="text-xs text-slate-500">
+                        會員：{user?.fbNickname ?? "未知會員"} / {formatDate(payment.createdAt)}
+                      </p>
+                      <p className="text-sm text-slate-700">
+                        金額：{twd(payment.amount)} / 方式：{paymentLabel[payment.method]} / 末五碼：{payment.lastFiveCode}
+                      </p>
+                    </div>
+                    <button
+                      type="button"
+                      className="rounded-lg border border-slate-200 px-3 py-1.5 text-xs font-semibold disabled:opacity-60"
+                      onClick={() => {
+                        const result = system.reconcilePayment(payment.id);
+                        setFeedback(result.message);
+                      }}
+                      disabled={payment.reconciled}
+                    >
+                      {payment.reconciled ? "已對帳" : "標記對帳完成"}
+                    </button>
+                  </div>
+                </article>
+              );
+            })}
+          </div>
+        </section>
+      )}
+
+      {tab === "shipping" && (
+        <section className="space-y-4">
+          <div className="glass-card p-5">
+            <h3 className="text-lg font-bold text-slate-900">物流與賣貨便匯出</h3>
+            <div className="mt-3 flex flex-wrap items-center gap-2">
+              <select
+                className="rounded-xl border border-slate-200 px-3 py-2 text-sm"
+                value={exportCampaignId}
+                onChange={(event) => setExportCampaignId(event.target.value)}
+              >
+                {system.state.campaigns.map((campaign) => (
+                  <option key={campaign.id} value={campaign.id}>{campaign.title}</option>
+                ))}
+              </select>
+              <button
+                type="button"
+                className="rounded-xl bg-slate-900 px-4 py-2 text-sm font-semibold text-white hover:bg-slate-700"
+                onClick={() => {
+                  const csv = system.exportMyShipCsv(exportCampaignId);
+                  downloadTextFile(`shipments-${exportCampaignId}.csv`, csv, "text/csv;charset=utf-8");
+                  setFeedback("已匯出賣貨便 CSV。");
+                }}
+                disabled={!exportCampaignId}
+              >
+                匯出指定活動 CSV
+              </button>
+            </div>
+          </div>
+
+          <div className="glass-card p-5">
+            <h3 className="text-lg font-bold text-slate-900">物流資料清單</h3>
+            <div className="mt-4 space-y-3">
+              {allShipments.length === 0 && <p className="text-sm text-slate-500">目前沒有物流資料。</p>}
+              {allShipments.map((shipment) => {
+                const campaign = campaignById.get(shipment.campaignId);
+                const user = userById.get(shipment.userId);
+                return (
+                  <article key={shipment.id} className="rounded-xl border border-slate-200 p-4">
+                    <p className="text-base font-bold text-slate-900">{campaign?.title ?? "未知活動"}</p>
+                    <p className="text-xs text-slate-500">
+                      會員：{user?.fbNickname ?? "未知會員"} / 付款：{paymentLabel[shipment.paymentMethod]} / 可 COD：{shipment.canUseCod ? "是" : "否"}
+                    </p>
+                    <p className="text-sm text-slate-700">
+                      收件：{shipment.receiverName} / {shipment.receiverPhone} / 門市：{shipment.receiverStoreCode}
+                    </p>
+                  </article>
+                );
+              })}
+            </div>
+          </div>
+        </section>
+      )}
+
+      {tab === "settings" && <AdminSettingsPanel system={system} />}
+    </section>
+  );
+}
+
 export default function App(): JSX.Element {
   const system = useOrderSystem();
+  const [rootRoute, setRootRoute] = useState<RootRoute>(() => readRootRoute());
   const [view, setView] = useState<PageView>("home");
   const [selectedCampaignId, setSelectedCampaignId] = useState<string>("");
   const [selectedBlindProductId, setSelectedBlindProductId] = useState<string>("");
   const [permissionSyncFeedback, setPermissionSyncFeedback] = useState<string>("");
+
+  useEffect(() => {
+    const handleHashChange = () => setRootRoute(readRootRoute());
+    window.addEventListener("hashchange", handleHashChange);
+    return () => window.removeEventListener("hashchange", handleHashChange);
+  }, []);
 
   useEffect(() => {
     if (!system.currentUser) {
@@ -1713,10 +2141,82 @@ export default function App(): JSX.Element {
     [selectedBlindProductId, system.state.products],
   );
 
+  const navigateRoot = (route: RootRoute): void => {
+    window.location.hash = route === "admin" ? "/admin" : "/";
+    setRootRoute(route);
+  };
+
   if (!system.currentUser) {
     return (
       <main className="site-shell grid min-h-screen place-items-center px-4 py-12 grid-bg">
         <AuthCard onLogin={system.login} onRegister={system.register} />
+      </main>
+    );
+  }
+
+  if (rootRoute === "admin") {
+    return (
+      <main className="site-shell min-h-screen px-4 py-6 md:px-8 lg:px-12">
+        <div className="mx-auto max-w-7xl space-y-5">
+          <motion.header
+            initial={{ opacity: 0, y: 8 }}
+            animate={{ opacity: 1, y: 0 }}
+            className="glass-card p-5"
+          >
+            <div className="flex flex-wrap items-start justify-between gap-4">
+              <div>
+                <p className="text-xs font-semibold uppercase tracking-[0.2em] text-slate-500">LegendMMM Admin Console</p>
+                <h1 className="mt-1 text-3xl font-extrabold text-slate-900">管理員營運後台</h1>
+                <p className="mt-2 text-sm text-slate-600">登入帳號：{system.currentUser.fbNickname}（{system.currentUser.email}）</p>
+                <p className="text-xs text-slate-500">資料模式：{isSupabaseEnabled ? "Supabase 已連線" : "Demo Local 模式"}</p>
+              </div>
+              <div className="flex flex-wrap items-center gap-2">
+                <button
+                  type="button"
+                  className="rounded-xl border border-slate-200 bg-white px-4 py-2 text-sm font-semibold text-slate-700"
+                  onClick={() => navigateRoot("shop")}
+                >
+                  前往商城頁
+                </button>
+                <button
+                  onClick={system.logout}
+                  className="rounded-xl border border-rose-300 bg-rose-50 px-4 py-2 text-sm font-semibold text-rose-700"
+                  type="button"
+                >
+                  登出
+                </button>
+              </div>
+            </div>
+          </motion.header>
+
+          {system.currentUser.isAdmin ? (
+            <AdminConsoleView system={system} onBackToShop={() => navigateRoot("shop")} />
+          ) : (
+            <div className="glass-card p-5 text-sm text-slate-600">
+              <p>你目前沒有管理員權限，無法進入後台。</p>
+              <div className="mt-3 flex flex-wrap gap-2">
+                <button
+                  type="button"
+                  className="rounded-lg border border-slate-300 bg-white px-3 py-1 text-xs font-semibold text-slate-700 hover:bg-slate-50"
+                  onClick={async () => {
+                    const result = await system.refreshCurrentUserAdminFlag();
+                    setPermissionSyncFeedback(result.message);
+                  }}
+                >
+                  重新同步管理員權限
+                </button>
+                <button
+                  type="button"
+                  className="rounded-lg border border-slate-200 bg-white px-3 py-1 text-xs font-semibold text-slate-700"
+                  onClick={() => navigateRoot("shop")}
+                >
+                  回到商城
+                </button>
+              </div>
+              {permissionSyncFeedback && <p className="mt-2 text-xs text-slate-500">{permissionSyncFeedback}</p>}
+            </div>
+          )}
+        </div>
       </main>
     );
   }
@@ -1758,7 +2258,7 @@ export default function App(): JSX.Element {
               )}
             </div>
 
-            <HeaderNav currentView={view} setView={setView} system={system} />
+            <HeaderNav currentView={view} setView={setView} system={system} onGoAdmin={() => navigateRoot("admin")} />
           </div>
         </motion.header>
 
@@ -1821,12 +2321,6 @@ export default function App(): JSX.Element {
         )}
 
         {view === "me" && <MeView system={system} />}
-
-        {view === "admin" && system.currentUser.isAdmin && <AdminView system={system} />}
-
-        {view === "admin" && !system.currentUser.isAdmin && (
-          <div className="glass-card p-5 text-sm text-slate-600">你沒有管理員權限。</div>
-        )}
       </div>
     </main>
   );

@@ -18,6 +18,7 @@ import type {
   Claim,
   Order,
   OrderItem,
+  OrderStatus,
   OrderSystemState,
   PaymentMethod,
   PricingMode,
@@ -159,6 +160,9 @@ export interface UseOrderSystemReturn {
   adminCreateCampaign: (input: CreateCampaignInput) => ActionResult;
   adminCreateProduct: (input: CreateProductInput) => ActionResult;
   adminCreateBlindBoxItem: (input: CreateBlindBoxItemInput) => ActionResult;
+  adminSetUserAdmin: (userId: string, isAdmin: boolean) => Promise<ActionResult>;
+  adminUpdateUserPickupRate: (userId: string, pickupRate: number) => ActionResult;
+  adminUpdateOrderStatus: (orderId: string, status: OrderStatus) => ActionResult;
   refreshCurrentUserAdminFlag: () => Promise<ActionResult>;
 }
 
@@ -1400,6 +1404,90 @@ export function useOrderSystem(): UseOrderSystemReturn {
     return { ok: true, message: `已新增子項「${blindBoxItem.name}」。` };
   };
 
+  const adminSetUserAdmin = async (userId: string, isAdmin: boolean): Promise<ActionResult> => {
+    if (!currentUser?.isAdmin) {
+      return { ok: false, message: "只有管理員可以調整權限。" };
+    }
+
+    const target = state.users.find((item) => item.id === userId);
+    if (!target) {
+      return { ok: false, message: "找不到指定帳號。" };
+    }
+
+    if (target.id === currentUser.id && !isAdmin) {
+      return { ok: false, message: "不可移除自己的管理員權限。" };
+    }
+
+    setState((prev) => ({
+      ...prev,
+      users: prev.users.map((item) =>
+        item.id === userId ? { ...item, isAdmin } : item,
+      ),
+    }));
+
+    if (supabase) {
+      const { error } = await supabase.from("admin_overrides").upsert(
+        {
+          email: normalizeEmail(target.email),
+          is_admin: isAdmin,
+          note: `set by ${normalizeEmail(currentUser.email)}`,
+          updated_at: new Date().toISOString(),
+        },
+        { onConflict: "email" },
+      );
+
+      if (error) {
+        return { ok: false, message: `本地已更新，但 Supabase 同步失敗：${error.message}` };
+      }
+    }
+
+    return { ok: true, message: `${target.fbNickname} 已${isAdmin ? "設為" : "取消"}管理員。` };
+  };
+
+  const adminUpdateUserPickupRate = (userId: string, pickupRate: number): ActionResult => {
+    if (!currentUser?.isAdmin) {
+      return { ok: false, message: "只有管理員可以調整取貨率。" };
+    }
+
+    if (Number.isNaN(pickupRate) || pickupRate < 0 || pickupRate > 100) {
+      return { ok: false, message: "取貨率需介於 0 到 100 之間。" };
+    }
+
+    const target = state.users.find((item) => item.id === userId);
+    if (!target) {
+      return { ok: false, message: "找不到指定帳號。" };
+    }
+
+    setState((prev) => ({
+      ...prev,
+      users: prev.users.map((item) =>
+        item.id === userId ? { ...item, pickupRate: Math.round(pickupRate) } : item,
+      ),
+    }));
+
+    return { ok: true, message: `${target.fbNickname} 取貨率已更新為 ${Math.round(pickupRate)}%。` };
+  };
+
+  const adminUpdateOrderStatus = (orderId: string, status: OrderStatus): ActionResult => {
+    if (!currentUser?.isAdmin) {
+      return { ok: false, message: "只有管理員可以更新訂單狀態。" };
+    }
+
+    const target = state.orders.find((item) => item.id === orderId);
+    if (!target) {
+      return { ok: false, message: "找不到訂單。" };
+    }
+
+    setState((prev) => ({
+      ...prev,
+      orders: prev.orders.map((item) =>
+        item.id === orderId ? { ...item, status } : item,
+      ),
+    }));
+
+    return { ok: true, message: `訂單狀態已更新為 ${status}。` };
+  };
+
   const resetAllData = (): void => {
     setState(resetState());
     setSessionUserId("u-admin-001");
@@ -1447,6 +1535,9 @@ export function useOrderSystem(): UseOrderSystemReturn {
     adminCreateCampaign,
     adminCreateProduct,
     adminCreateBlindBoxItem,
+    adminSetUserAdmin,
+    adminUpdateUserPickupRate,
+    adminUpdateOrderStatus,
     refreshCurrentUserAdminFlag,
   };
 }
