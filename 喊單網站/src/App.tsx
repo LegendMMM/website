@@ -30,6 +30,7 @@ import { isSupabaseEnabled, supabase, testSupabaseConnection } from "./lib/supab
 import type {
   Campaign,
   CharacterName,
+  CharacterSlot,
   CharacterTier,
   OrderStatus,
   Product,
@@ -68,6 +69,36 @@ function readAdminTab(): AdminTab {
   const allowed = new Set<AdminTab>(adminTabs.map((item) => item.id));
   if (!raw || !allowed.has(raw)) return "dashboard";
   return raw;
+}
+
+const FIXED_SLOT_PRIORITY: Record<CharacterTier, number> = {
+  FIXED_1: 1,
+  FIXED_2: 2,
+  FIXED_3: 3,
+  LEAK_PICK: 4,
+};
+
+function formatCharacterSlotSummary(slots: CharacterSlot[]): string {
+  const normalized = slots
+    .slice()
+    .sort(
+      (a, b) =>
+        FIXED_SLOT_PRIORITY[a.tier] - FIXED_SLOT_PRIORITY[b.tier]
+        || a.character.localeCompare(b.character, "zh-Hant"),
+    );
+
+  const fixedSlots = normalized.filter((slot) => slot.tier !== "LEAK_PICK");
+  if (fixedSlots.length > 0) {
+    const preview = fixedSlots.slice(0, 3).map((slot) => `${slot.character} ${fixedTierLabel(slot.tier)}`);
+    return fixedSlots.length > 3 ? `${preview.join("、")} 等 ${fixedSlots.length} 項` : preview.join("、");
+  }
+
+  const leakCount = normalized.filter((slot) => slot.tier === "LEAK_PICK").length;
+  if (leakCount > 0) {
+    return `撿漏 ${leakCount} 角`;
+  }
+
+  return "未分配";
 }
 
 function HeaderNav(props: {
@@ -717,7 +748,7 @@ function MeView(props: { system: UseOrderSystemReturn }): JSX.Element {
                 <article key={claim.id} className="rounded-xl border border-slate-200 px-3 py-2 text-sm">
                   <p className="font-semibold text-slate-900">{label}</p>
                   <p className="text-xs text-slate-500">{campaign?.title ?? "未知活動"} / {formatDate(claim.createdAt)}</p>
-                  <p className="text-xs text-slate-600">資格：{roleLabel(claim.roleTier)}</p>
+                  <p className="text-xs text-slate-600">排單固位：{roleLabel(claim.roleTier)}</p>
                   <p className="text-xs font-semibold text-slate-700">狀態：{claim.status}</p>
                 </article>
               );
@@ -847,9 +878,6 @@ function AdminSettingsPanel(props: { system: UseOrderSystemReturn }): JSX.Elemen
         row.type === "BLIND_BOX" && row.slotRestrictionEnabled ? row.slotRestrictedCharacter : null,
       image_url: row.imageUrl,
       price: row.price,
-      hot_price: row.price,
-      cold_price: row.price,
-      average_price: row.price,
       stock: row.type === "NORMAL" ? row.stock : null,
       max_per_user: row.maxPerUser,
     }));
@@ -1100,7 +1128,8 @@ function AdminSettingsPanel(props: { system: UseOrderSystemReturn }): JSX.Elemen
             </button>
           </div>
           <p className="mt-2 text-xs text-slate-500">
-            你要先在 `.env` 設定 `VITE_SUPABASE_URL` 與 `VITE_SUPABASE_ANON_KEY`，再到 Supabase SQL Editor 執行 `supabase/schema.sql` 與最新 migration。
+            新專案請先在 `.env` 設定 `VITE_SUPABASE_URL` 與 `VITE_SUPABASE_ANON_KEY`，再到 Supabase SQL Editor 執行 `supabase/schema.sql`。
+            若你是從舊版資料升級，再補跑對應 migration。
           </p>
           {supabaseFeedback && <p className="mt-2 text-sm font-semibold text-slate-800">{supabaseFeedback}</p>}
         </div>
@@ -1366,7 +1395,7 @@ function AdminSettingsPanel(props: { system: UseOrderSystemReturn }): JSX.Elemen
                 onChange={(event) => setProductPrice(event.target.value)}
               />
               <div className="rounded-xl border border-dashed border-slate-300 px-3 py-2 text-xs text-slate-500">
-                價格改為手動設定，不再區分熱門/冷門/均價模式。
+                價格為手動設定；盲盒子項若留空，會自動沿用母商品價格。
               </div>
             </div>
 
@@ -1926,6 +1955,16 @@ function AdminConsoleView(props: {
   ]);
 
   const memberRows = useMemo(() => {
+    const slotsByUser = new Map<string, CharacterSlot[]>();
+    system.state.characterSlots.forEach((slot) => {
+      const existing = slotsByUser.get(slot.userId);
+      if (existing) {
+        existing.push(slot);
+        return;
+      }
+      slotsByUser.set(slot.userId, [slot]);
+    });
+
     return system.state.users
       .map((user) => {
         const orders = system.state.orders.filter((order) => order.userId === user.id);
@@ -1933,15 +1972,23 @@ function AdminConsoleView(props: {
         const pendingClaims = system.state.claims.filter(
           (claim) => claim.userId === user.id && claim.status === "LOCKED",
         ).length;
+        const slotSummary = formatCharacterSlotSummary(slotsByUser.get(user.id) ?? []);
         return {
           user,
           orderCount: orders.length,
           orderTotal,
           pendingClaims,
+          slotSummary,
         };
       })
       .sort((a, b) => Number(b.user.isAdmin) - Number(a.user.isAdmin) || a.user.fbNickname.localeCompare(b.user.fbNickname));
-  }, [system.state.claims, system.state.orders, system.state.users]);
+  }, [system.state.characterSlots, system.state.claims, system.state.orders, system.state.users]);
+
+  const currentUserSlotSummary = useMemo(() => {
+    const userId = system.currentUser?.id;
+    if (!userId) return "未分配";
+    return formatCharacterSlotSummary(system.state.characterSlots.filter((slot) => slot.userId === userId));
+  }, [system.currentUser?.id, system.state.characterSlots]);
 
   const dashboardStats = useMemo(() => {
     const totalOrderAmount = system.state.orders.reduce((sum, order) => sum + order.totalAmount, 0);
@@ -2050,14 +2097,14 @@ function AdminConsoleView(props: {
           <h3 className="text-lg font-bold text-slate-900">帳號總覽</h3>
           <p className="mt-1 text-sm text-slate-600">可直接調整管理員權限與取貨率，並檢視每位會員訂單表現。</p>
           <div className="mt-4 space-y-3">
-            {memberRows.map(({ user, orderCount, orderTotal, pendingClaims }) => (
+            {memberRows.map(({ user, orderCount, orderTotal, pendingClaims, slotSummary }) => (
               <article key={user.id} className="rounded-xl border border-slate-200 p-4">
                 <div className="flex flex-wrap items-start justify-between gap-3">
                   <div>
                     <p className="text-base font-bold text-slate-900">{user.fbNickname}</p>
                     <p className="text-xs text-slate-500">{user.email}</p>
                     <p className="mt-1 text-xs text-slate-500">
-                      身分：{user.isAdmin ? "管理員" : "會員"} / 帳號固位：{roleLabel(user.roleTier)} / 取貨率：{user.pickupRate}%
+                      身分：{user.isAdmin ? "管理員" : "會員"} / 角色固位：{slotSummary} / 取貨率：{user.pickupRate}%
                     </p>
                     <p className="text-xs text-slate-500">
                       訂單 {orderCount} 筆 / 累計 {twd(orderTotal)} / 待審喊單 {pendingClaims}
@@ -2479,7 +2526,7 @@ export default function App(): JSX.Element {
               <h1 className="mt-1 text-3xl font-extrabold text-slate-900">超時空輝耀姬・活動導覽與拆分系統</h1>
               <p className="mt-2 text-sm text-slate-600">你好，{system.currentUser.fbNickname}（{system.currentUser.email}）</p>
               <p className="text-xs text-slate-500">
-                身分：{system.currentUser.isAdmin ? "管理員" : "會員"} / 帳號固位：{roleLabel(system.currentUser.roleTier)} / 取貨率：
+                身分：{system.currentUser.isAdmin ? "管理員" : "會員"} / 角色固位：{currentUserSlotSummary} / 取貨率：
                 {system.currentUser.pickupRate}%
               </p>
               <p className="text-xs text-slate-500">

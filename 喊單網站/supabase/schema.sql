@@ -1,23 +1,73 @@
 -- Group Order Ledger schema for Supabase
--- Execute in Supabase SQL Editor.
+-- Current app model: general products are always open; only blind-box items use character slot ordering.
+-- This schema is designed for the current front-end flow, which uses anon access plus app-side business rules.
 
 create extension if not exists "pgcrypto";
 
-create type public.role_tier as enum ('FIXED_1', 'FIXED_2', 'FIXED_3', 'LEAK_PICK');
-create type public.pricing_mode as enum ('DYNAMIC', 'AVERAGE_WITH_BINDING');
-create type public.campaign_status as enum ('OPEN', 'CLOSED');
-create type public.claim_status as enum ('LOCKED', 'CANCELLED_BY_ADMIN', 'CONFIRMED');
-create type public.payment_method as enum ('BANK_TRANSFER', 'CARDLESS_DEPOSIT', 'EMPTY_PACKAGE', 'CASH_ON_DELIVERY');
+DO $$ BEGIN
+  IF NOT EXISTS (SELECT 1 FROM pg_type WHERE typname = 'role_tier') THEN
+    CREATE TYPE public.role_tier AS ENUM ('FIXED_1', 'FIXED_2', 'FIXED_3', 'LEAK_PICK');
+  END IF;
+END $$;
+
+DO $$ BEGIN
+  IF NOT EXISTS (SELECT 1 FROM pg_type WHERE typname = 'campaign_status') THEN
+    CREATE TYPE public.campaign_status AS ENUM ('OPEN', 'CLOSED');
+  END IF;
+END $$;
+
+DO $$ BEGIN
+  IF NOT EXISTS (SELECT 1 FROM pg_type WHERE typname = 'claim_status') THEN
+    CREATE TYPE public.claim_status AS ENUM ('LOCKED', 'CANCELLED_BY_ADMIN', 'CONFIRMED');
+  END IF;
+END $$;
+
+DO $$ BEGIN
+  IF NOT EXISTS (SELECT 1 FROM pg_type WHERE typname = 'payment_method') THEN
+    CREATE TYPE public.payment_method AS ENUM ('BANK_TRANSFER', 'CARDLESS_DEPOSIT', 'EMPTY_PACKAGE', 'CASH_ON_DELIVERY');
+  END IF;
+END $$;
+
+DO $$ BEGIN
+  IF NOT EXISTS (SELECT 1 FROM pg_type WHERE typname = 'product_type') THEN
+    CREATE TYPE public.product_type AS ENUM ('NORMAL', 'BLIND_BOX');
+  END IF;
+END $$;
 
 create table if not exists public.profiles (
-  id uuid primary key references auth.users(id) on delete cascade,
+  id uuid primary key default gen_random_uuid(),
   email text not null unique,
-  fb_nickname text not null,
+  fb_nickname text not null unique,
   role_tier public.role_tier not null default 'LEAK_PICK',
   pickup_rate numeric(5,2) not null default 100,
   is_admin boolean not null default false,
   created_at timestamptz not null default now()
 );
+
+comment on column public.profiles.role_tier is 'Compatibility field only. Actual slot rules are stored in character_slots.';
+
+create table if not exists public.admin_overrides (
+  email text primary key,
+  is_admin boolean not null default true,
+  note text,
+  created_at timestamptz not null default now(),
+  updated_at timestamptz not null default now()
+);
+
+create or replace function public.set_admin_override(target_email text, target_is_admin boolean, target_note text default null)
+returns void
+language plpgsql
+as $$
+begin
+  insert into public.admin_overrides(email, is_admin, note, updated_at)
+  values (lower(trim(target_email)), target_is_admin, target_note, now())
+  on conflict (email)
+  do update set
+    is_admin = excluded.is_admin,
+    note = excluded.note,
+    updated_at = now();
+end;
+$$;
 
 create table if not exists public.campaigns (
   id uuid primary key default gen_random_uuid(),
@@ -25,53 +75,70 @@ create table if not exists public.campaigns (
   description text not null default '',
   deadline_at timestamptz not null,
   status public.campaign_status not null default 'OPEN',
-  pricing_mode public.pricing_mode not null,
-  created_by uuid not null references public.profiles(id),
+  release_stage text not null default 'ALL_OPEN',
+  max_claims_per_user integer,
+  created_by uuid references public.profiles(id),
   created_at timestamptz not null default now()
 );
 
 create table if not exists public.products (
   id uuid primary key default gen_random_uuid(),
   campaign_id uuid not null references public.campaigns(id) on delete cascade,
-  sku text not null,
+  sku text not null unique,
+  name text not null,
+  series text not null default '未分類',
+  type public.product_type not null default 'NORMAL',
+  character_name text,
+  slot_restriction_enabled boolean not null default false,
+  slot_restricted_character text,
+  image_url text,
+  price integer not null default 0 check (price >= 0),
+  stock integer check (stock is null or stock >= 0),
+  max_per_user integer check (max_per_user is null or max_per_user > 0),
+  created_at timestamptz not null default now()
+);
+
+create table if not exists public.blind_box_items (
+  id uuid primary key default gen_random_uuid(),
+  product_id uuid not null references public.products(id) on delete cascade,
+  sku text not null unique,
   name text not null,
   character_name text not null,
-  price integer not null default 0 check (price >= 0),
-  is_popular boolean not null default false,
-  hot_price integer not null check (hot_price >= 0),
-  cold_price integer not null check (cold_price >= 0),
-  average_price integer not null check (average_price >= 0),
-  stock integer not null check (stock >= 0),
+  image_url text,
+  price integer check (price is null or price >= 0),
+  stock integer check (stock is null or stock >= 0),
+  max_per_user integer check (max_per_user is null or max_per_user > 0),
   created_at timestamptz not null default now()
+);
+
+create table if not exists public.character_slots (
+  id uuid primary key default gen_random_uuid(),
+  user_id uuid not null references public.profiles(id) on delete cascade,
+  character_name text not null,
+  tier public.role_tier not null,
+  created_at timestamptz not null default now(),
+  updated_at timestamptz not null default now(),
+  unique(user_id, character_name)
 );
 
 create table if not exists public.claims (
   id uuid primary key default gen_random_uuid(),
   campaign_id uuid not null references public.campaigns(id) on delete cascade,
   product_id uuid not null references public.products(id) on delete cascade,
-  user_id uuid not null references public.profiles(id),
-  role_tier public.role_tier not null,
+  blind_box_item_id uuid references public.blind_box_items(id) on delete cascade,
+  user_id uuid not null references public.profiles(id) on delete cascade,
+  role_tier public.role_tier not null default 'LEAK_PICK',
   status public.claim_status not null default 'LOCKED',
   created_at timestamptz not null default now()
 );
 
-create unique index if not exists uq_claim_once
-on public.claims(campaign_id, product_id, user_id)
-where status <> 'CANCELLED_BY_ADMIN';
-
-create table if not exists public.bindings (
-  id uuid primary key default gen_random_uuid(),
-  campaign_id uuid not null references public.campaigns(id) on delete cascade,
-  buyer_user_id uuid not null references public.profiles(id),
-  bind_product_id uuid not null references public.products(id),
-  reason text not null,
-  created_at timestamptz not null default now()
-);
+create index if not exists idx_claims_campaign_product on public.claims(campaign_id, product_id, created_at);
+create index if not exists idx_claims_user on public.claims(user_id, created_at);
 
 create table if not exists public.payments (
   id uuid primary key default gen_random_uuid(),
   campaign_id uuid not null references public.campaigns(id) on delete cascade,
-  user_id uuid not null references public.profiles(id),
+  user_id uuid not null references public.profiles(id) on delete cascade,
   amount integer not null check (amount >= 0),
   method public.payment_method not null,
   last_five_code text not null default '-----',
@@ -82,38 +149,46 @@ create table if not exists public.payments (
 create table if not exists public.shipments (
   id uuid primary key default gen_random_uuid(),
   campaign_id uuid not null references public.campaigns(id) on delete cascade,
-  user_id uuid not null references public.profiles(id),
-  order_amount integer not null,
+  user_id uuid not null references public.profiles(id) on delete cascade,
+  order_amount integer not null check (order_amount >= 0),
   payment_method public.payment_method not null,
+  can_use_cod boolean not null default false,
   receiver_name text not null,
   receiver_phone text not null,
   receiver_store_code text not null,
   created_at timestamptz not null default now()
 );
 
-create or replace function public.handle_new_user()
-returns trigger
-language plpgsql
-security definer
-set search_path = public
-as $$
-begin
-  insert into public.profiles(id, email, fb_nickname)
-  values (
-    new.id,
-    coalesce(new.email, ''),
-    coalesce(new.raw_user_meta_data ->> 'fb_nickname', '未填寫')
-  )
-  on conflict (id) do nothing;
+create table if not exists public.cart_items (
+  id uuid primary key default gen_random_uuid(),
+  campaign_id uuid not null references public.campaigns(id) on delete cascade,
+  product_id uuid not null references public.products(id) on delete cascade,
+  blind_box_item_id uuid references public.blind_box_items(id) on delete cascade,
+  user_id uuid not null references public.profiles(id) on delete cascade,
+  qty integer not null check (qty > 0),
+  created_at timestamptz not null default now()
+);
 
-  return new;
-end;
-$$;
+create table if not exists public.orders (
+  id uuid primary key default gen_random_uuid(),
+  campaign_id uuid not null references public.campaigns(id) on delete cascade,
+  user_id uuid not null references public.profiles(id) on delete cascade,
+  status text not null default 'PLACED',
+  total_amount integer not null check (total_amount >= 0),
+  created_at timestamptz not null default now()
+);
 
-drop trigger if exists on_auth_user_created on auth.users;
-create trigger on_auth_user_created
-after insert on auth.users
-for each row execute procedure public.handle_new_user();
+create table if not exists public.order_items (
+  id uuid primary key default gen_random_uuid(),
+  order_id uuid not null references public.orders(id) on delete cascade,
+  campaign_id uuid not null references public.campaigns(id) on delete cascade,
+  product_id uuid not null references public.products(id) on delete cascade,
+  blind_box_item_id uuid references public.blind_box_items(id) on delete cascade,
+  user_id uuid not null references public.profiles(id) on delete cascade,
+  unit_price integer not null check (unit_price >= 0),
+  qty integer not null check (qty > 0),
+  created_at timestamptz not null default now()
+);
 
 create or replace function public.is_admin(uid uuid)
 returns boolean
@@ -127,45 +202,6 @@ as $$
       and is_admin = true
   );
 $$;
-
-create or replace function public.claim_priority_value(input public.role_tier)
-returns integer
-language sql
-immutable
-as $$
-  select case input
-    when 'FIXED_1' then 1
-    when 'FIXED_2' then 2
-    when 'FIXED_3' then 3
-    else 4
-  end;
-$$;
-
-create or replace function public.before_insert_claim_fill_role()
-returns trigger
-language plpgsql
-as $$
-begin
-  if auth.uid() is distinct from new.user_id then
-    raise exception 'Cannot create claim for another user';
-  end if;
-
-  select role_tier into new.role_tier
-  from public.profiles
-  where id = new.user_id;
-
-  if new.role_tier is null then
-    raise exception 'Profile role tier not found';
-  end if;
-
-  return new;
-end;
-$$;
-
-drop trigger if exists tr_claim_fill_role on public.claims;
-create trigger tr_claim_fill_role
-before insert on public.claims
-for each row execute procedure public.before_insert_claim_fill_role();
 
 create or replace function public.before_insert_payment_guard()
 returns trigger
@@ -195,164 +231,19 @@ create trigger tr_payment_guard
 before insert on public.payments
 for each row execute procedure public.before_insert_payment_guard();
 
-create or replace function public.confirm_claim(p_claim_id uuid)
-returns public.claims
-language plpgsql
-security definer
-set search_path = public
-as $$
-declare
-  v_claim public.claims;
-  v_stock integer;
-  v_rank integer;
-begin
-  if not public.is_admin(auth.uid()) then
-    raise exception 'Only admin can confirm claims';
-  end if;
+grant usage on schema public to anon, authenticated, service_role;
+grant select, insert, update, delete on all tables in schema public to anon, authenticated, service_role;
+grant usage, select on all sequences in schema public to anon, authenticated, service_role;
 
-  select * into v_claim
-  from public.claims
-  where id = p_claim_id
-  for update;
-
-  if not found then
-    raise exception 'Claim not found';
-  end if;
-
-  if v_claim.status = 'CANCELLED_BY_ADMIN' then
-    raise exception 'Claim is canceled';
-  end if;
-
-  select stock into v_stock
-  from public.products
-  where id = v_claim.product_id;
-
-  with ranked as (
-    select c.id,
-           row_number() over (
-             order by public.claim_priority_value(c.role_tier), c.created_at
-           ) as rn
-    from public.claims c
-    where c.product_id = v_claim.product_id
-      and c.campaign_id = v_claim.campaign_id
-      and c.status <> 'CANCELLED_BY_ADMIN'
-  )
-  select rn into v_rank from ranked where id = p_claim_id;
-
-  if v_rank is null or v_rank > v_stock then
-    raise exception 'Claim is waitlist now and cannot be confirmed';
-  end if;
-
-  update public.claims
-  set status = 'CONFIRMED'
-  where id = p_claim_id
-  returning * into v_claim;
-
-  return v_claim;
-end;
-$$;
-
-alter table public.profiles enable row level security;
-alter table public.campaigns enable row level security;
-alter table public.products enable row level security;
-alter table public.claims enable row level security;
-alter table public.bindings enable row level security;
-alter table public.payments enable row level security;
-alter table public.shipments enable row level security;
-
--- profiles
-create policy "profiles_select_self_or_admin"
-on public.profiles
-for select
-using (id = auth.uid() or public.is_admin(auth.uid()));
-
-create policy "profiles_update_self"
-on public.profiles
-for update
-using (id = auth.uid())
-with check (id = auth.uid());
-
--- campaigns/products are readable by authenticated members, mutable by admin
-create policy "campaigns_read_all"
-on public.campaigns
-for select
-using (auth.uid() is not null);
-
-create policy "campaigns_admin_write"
-on public.campaigns
-for all
-using (public.is_admin(auth.uid()))
-with check (public.is_admin(auth.uid()));
-
-create policy "products_read_all"
-on public.products
-for select
-using (auth.uid() is not null);
-
-create policy "products_admin_write"
-on public.products
-for all
-using (public.is_admin(auth.uid()))
-with check (public.is_admin(auth.uid()));
-
--- claims: users can insert/select own claim, only admin can update status
-create policy "claims_insert_self"
-on public.claims
-for insert
-with check (auth.uid() = user_id);
-
-create policy "claims_select_self_or_admin"
-on public.claims
-for select
-using (auth.uid() = user_id or public.is_admin(auth.uid()));
-
-create policy "claims_admin_update"
-on public.claims
-for update
-using (public.is_admin(auth.uid()))
-with check (public.is_admin(auth.uid()));
-
--- payments
-create policy "payments_insert_self"
-on public.payments
-for insert
-with check (auth.uid() = user_id);
-
-create policy "payments_select_self_or_admin"
-on public.payments
-for select
-using (auth.uid() = user_id or public.is_admin(auth.uid()));
-
-create policy "payments_admin_update"
-on public.payments
-for update
-using (public.is_admin(auth.uid()))
-with check (public.is_admin(auth.uid()));
-
--- bindings / shipments
-create policy "bindings_read_self_or_admin"
-on public.bindings
-for select
-using (auth.uid() = buyer_user_id or public.is_admin(auth.uid()));
-
-create policy "bindings_admin_write"
-on public.bindings
-for all
-using (public.is_admin(auth.uid()))
-with check (public.is_admin(auth.uid()));
-
-create policy "shipments_insert_self"
-on public.shipments
-for insert
-with check (auth.uid() = user_id);
-
-create policy "shipments_select_self_or_admin"
-on public.shipments
-for select
-using (auth.uid() = user_id or public.is_admin(auth.uid()));
-
-create policy "shipments_admin_update"
-on public.shipments
-for update
-using (public.is_admin(auth.uid()))
-with check (public.is_admin(auth.uid()));
+alter table public.profiles disable row level security;
+alter table public.admin_overrides disable row level security;
+alter table public.campaigns disable row level security;
+alter table public.products disable row level security;
+alter table public.blind_box_items disable row level security;
+alter table public.character_slots disable row level security;
+alter table public.claims disable row level security;
+alter table public.payments disable row level security;
+alter table public.shipments disable row level security;
+alter table public.cart_items disable row level security;
+alter table public.orders disable row level security;
+alter table public.order_items disable row level security;

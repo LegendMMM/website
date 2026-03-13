@@ -1,5 +1,5 @@
--- Upgrade for series + slot-restriction + blind box model
--- Run this after supabase/schema.sql
+-- Legacy migration kept for compatibility with older databases only.
+-- Fresh installs should use supabase/schema.sql instead of replaying this file.
 
 create type public.product_type as enum ('NORMAL', 'BLIND_BOX');
 create type public.product_required_tier as enum ('FIXED_1', 'FIXED_2', 'FIXED_3', 'LEAK_PICK');
