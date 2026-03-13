@@ -80,8 +80,9 @@ function normalizeState(raw: unknown): OrderSystemState {
         series: normalizeProductSeries(product.series),
         type: normalizeProductType(product.type),
         character: typeof legacyCharacter === "string" ? legacyCharacter : null,
-        slotRestrictionEnabled,
-        slotRestrictedCharacter: slotRestrictionEnabled ? slotRestrictedCharacter : null,
+        slotRestrictionEnabled: normalizeProductType(product.type) === "BLIND_BOX" ? slotRestrictionEnabled : false,
+        slotRestrictedCharacter:
+          normalizeProductType(product.type) === "BLIND_BOX" && slotRestrictionEnabled ? slotRestrictedCharacter : null,
         requiredTier: normalizeRequiredTier(product.requiredTier),
         imageUrl: typeof product.imageUrl === "string" ? product.imageUrl : null,
         stock: typeof product.stock === "number" ? product.stock : null,

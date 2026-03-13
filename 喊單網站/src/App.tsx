@@ -330,10 +330,6 @@ function CampaignView(props: {
           const normalAccess = product.type === "NORMAL"
             ? system.getProductAccessForCurrentUser(campaign.id, product.id)
             : null;
-          const slotCharacter = product.slotRestrictionEnabled ? product.slotRestrictedCharacter : null;
-          const myTier = system.currentUser && slotCharacter
-            ? system.getUserCharacterTier(system.currentUser.id, slotCharacter)
-            : null;
           const price = campaign.pricingMode === "DYNAMIC"
             ? (product.isPopular ? product.hotPrice : product.coldPrice)
             : product.averagePrice;
@@ -353,20 +349,18 @@ function CampaignView(props: {
 
               <div className="mt-3 space-y-1 text-sm text-slate-600">
                 <p>單價：{twd(price)}</p>
-                <p>固位限制：{product.slotRestrictionEnabled ? "啟用（依角色固位時段開放）" : "關閉（全員可喊）"}</p>
 
                 {product.type === "NORMAL" && (
                   <>
+                    <p>購買方式：一般代購，全員可喊</p>
                     <p>商品角色：{product.character ?? "-"}</p>
-                    {product.slotRestrictionEnabled && (
-                      <p>限制角色：{slotCharacter ?? "-"} / 你的固位：{myTier ? fixedTierLabel(myTier) : "未分配"}</p>
-                    )}
                     <p>上限：{product.maxPerUser ?? "不限"} / 已加入：{myQty}</p>
                   </>
                 )}
 
                 {product.type === "BLIND_BOX" && (
                   <>
+                    <p>購買方式：盲盒拆分，依子項角色判斷固位</p>
                     <p>盲盒子項：{blindItemsCount} 項（進入拆分頁挑角色）</p>
                   </>
                 )}
@@ -798,6 +792,16 @@ function AdminSettingsPanel(props: { system: UseOrderSystemReturn }): JSX.Elemen
   }, [productSeries, system.state.productCategories]);
 
   useEffect(() => {
+    if (productType === "NORMAL") {
+      setProductSlotRestrictionEnabled(false);
+      setProductSlotRestrictedCharacter("");
+      return;
+    }
+
+    setProductSlotRestrictionEnabled(true);
+  }, [productType]);
+
+  useEffect(() => {
     if (blindProducts.length === 0) {
       setBlindProductId("");
       return;
@@ -844,8 +848,9 @@ function AdminSettingsPanel(props: { system: UseOrderSystemReturn }): JSX.Elemen
       series: row.series,
       type: row.type,
       character_name: row.type === "NORMAL" ? row.character : null,
-      slot_restriction_enabled: row.slotRestrictionEnabled,
-      slot_restricted_character: row.slotRestrictionEnabled ? row.slotRestrictedCharacter : null,
+      slot_restriction_enabled: row.type === "BLIND_BOX" ? row.slotRestrictionEnabled : false,
+      slot_restricted_character:
+        row.type === "BLIND_BOX" && row.slotRestrictionEnabled ? row.slotRestrictedCharacter : null,
       required_tier: row.requiredTier,
       image_url: row.imageUrl,
       is_popular: row.isPopular,
@@ -941,8 +946,9 @@ function AdminSettingsPanel(props: { system: UseOrderSystemReturn }): JSX.Elemen
           series: row.series,
           type: row.type,
           character: row.type === "NORMAL" ? row.character : null,
-          slotRestrictionEnabled: row.slotRestrictionEnabled,
-          slotRestrictedCharacter: row.slotRestrictionEnabled ? row.slotRestrictedCharacter : null,
+          slotRestrictionEnabled: row.type === "BLIND_BOX" ? row.slotRestrictionEnabled : false,
+          slotRestrictedCharacter:
+            row.type === "BLIND_BOX" && row.slotRestrictionEnabled ? row.slotRestrictedCharacter : null,
           imageUrl: row.imageUrl,
           isPopular: row.isPopular,
           hotPrice: row.hotPrice,
@@ -1026,7 +1032,7 @@ function AdminSettingsPanel(props: { system: UseOrderSystemReturn }): JSX.Elemen
     <section className="space-y-5">
       <div className="glass-card p-5">
         <h2 className="text-2xl font-extrabold text-slate-900">活動設定（管理員）</h2>
-        <p className="mt-2 text-sm text-slate-600">可新增活動、分類、商品、盲盒子項，並直接控制每件商品是否啟用固位限制。</p>
+        <p className="mt-2 text-sm text-slate-600">一般商品固定全員可喊，只有盲盒拆分商品才使用固位限制。</p>
         {feedback && <p className="mt-2 text-sm font-semibold text-slate-800">{feedback}</p>}
       </div>
 
@@ -1330,33 +1336,39 @@ function AdminSettingsPanel(props: { system: UseOrderSystemReturn }): JSX.Elemen
               </label>
             )}
 
-            <div className="rounded-2xl border border-slate-200 bg-white/60 p-3 text-sm">
-              <label className="flex items-center gap-2 text-sm text-slate-700">
-                <input
-                  type="checkbox"
-                  checked={productSlotRestrictionEnabled}
-                  onChange={(event) => setProductSlotRestrictionEnabled(event.target.checked)}
-                />
-                啟用固位限制
-              </label>
-              <p className="mt-1 text-xs text-slate-500">關閉後此商品全員可喊，不看角色固位。</p>
-
-              {productSlotRestrictionEnabled && (
-                <label className="mt-3 block">
-                  限制角色
-                  <select
-                    className="mt-1 w-full rounded-xl border border-slate-200 px-3 py-2"
-                    value={productSlotRestrictedCharacter}
-                    onChange={(event) => setProductSlotRestrictedCharacter(event.target.value as CharacterName | "")}
-                  >
-                    {productType === "BLIND_BOX" && <option value="">依子項角色自動判斷</option>}
-                    {CHARACTER_OPTIONS.map((character) => (
-                      <option key={character} value={character}>{character}</option>
-                    ))}
-                  </select>
+            {productType === "BLIND_BOX" ? (
+              <div className="rounded-2xl border border-slate-200 bg-white/60 p-3 text-sm">
+                <label className="flex items-center gap-2 text-sm text-slate-700">
+                  <input
+                    type="checkbox"
+                    checked={productSlotRestrictionEnabled}
+                    onChange={(event) => setProductSlotRestrictionEnabled(event.target.checked)}
+                  />
+                  啟用固位限制
                 </label>
-              )}
-            </div>
+                <p className="mt-1 text-xs text-slate-500">盲盒拆分商品可依子項角色判斷固位，留空時自動使用子項角色。</p>
+
+                {productSlotRestrictionEnabled && (
+                  <label className="mt-3 block">
+                    限制角色
+                    <select
+                      className="mt-1 w-full rounded-xl border border-slate-200 px-3 py-2"
+                      value={productSlotRestrictedCharacter}
+                      onChange={(event) => setProductSlotRestrictedCharacter(event.target.value as CharacterName | "")}
+                    >
+                      <option value="">依子項角色自動判斷</option>
+                      {CHARACTER_OPTIONS.map((character) => (
+                        <option key={character} value={character}>{character}</option>
+                      ))}
+                    </select>
+                  </label>
+                )}
+              </div>
+            ) : (
+              <div className="rounded-2xl border border-slate-200 bg-white/60 p-3 text-sm text-slate-600">
+                一般商品屬於代購模式，固定全員可喊，不使用固位限制。
+              </div>
+            )}
 
             <input
               className="w-full rounded-xl border border-slate-200 px-3 py-2"
@@ -1423,8 +1435,9 @@ function AdminSettingsPanel(props: { system: UseOrderSystemReturn }): JSX.Elemen
                   series: productSeries,
                   type: productType,
                   character: productType === "NORMAL" ? productCharacter : null,
-                  slotRestrictionEnabled: productSlotRestrictionEnabled,
-                  slotRestrictedCharacter: productSlotRestrictionEnabled && productSlotRestrictedCharacter
+                  slotRestrictionEnabled: productType === "BLIND_BOX" ? productSlotRestrictionEnabled : false,
+                  slotRestrictedCharacter:
+                    productType === "BLIND_BOX" && productSlotRestrictionEnabled && productSlotRestrictedCharacter
                     ? productSlotRestrictedCharacter
                     : null,
                   imageUrl: productImageUrl || null,
@@ -1603,53 +1616,57 @@ function AdminSettingsPanel(props: { system: UseOrderSystemReturn }): JSX.Elemen
                   <p className="text-[11px] text-slate-500">類型：{productTypeLabel(product.type)}</p>
                   <p className="text-[11px] text-slate-500">上限：{product.maxPerUser ?? "不限"}</p>
                   <p className="text-[11px] text-slate-500">
-                    固位限制：{product.slotRestrictionEnabled
-                      ? `啟用（${product.slotRestrictedCharacter ?? (product.type === "BLIND_BOX" ? "依子項角色" : "未設定")}）`
-                      : "關閉（全員）"}
+                    {product.type === "BLIND_BOX"
+                      ? `固位限制：${product.slotRestrictionEnabled
+                        ? `啟用（${product.slotRestrictedCharacter ?? "依子項角色"}）`
+                        : "關閉（全員）"}`
+                      : "一般代購：全員可喊"}
                   </p>
                   {product.type === "NORMAL" && <p className="text-[11px] text-slate-500">庫存：{product.stock ?? "不限"}</p>}
 
                   <div className="mt-1 flex flex-wrap gap-1">
-                    <button
-                      type="button"
-                      className="rounded border px-2 py-0.5 text-[11px]"
-                      onClick={() => {
-                        const result = system.adminUpdateProductRule({
-                          productId: product.id,
-                          slotRestrictionEnabled: !product.slotRestrictionEnabled,
-                          slotRestrictedCharacter: product.slotRestrictedCharacter ?? product.character,
-                        });
-                        setFeedback(result.message);
-                      }}
-                    >
-                      {product.slotRestrictionEnabled ? "關固位限制" : "開固位限制"}
-                    </button>
+                    {product.type === "BLIND_BOX" && (
+                      <>
+                        <button
+                          type="button"
+                          className="rounded border px-2 py-0.5 text-[11px]"
+                          onClick={() => {
+                            const result = system.adminUpdateProductRule({
+                              productId: product.id,
+                              slotRestrictionEnabled: !product.slotRestrictionEnabled,
+                              slotRestrictedCharacter: product.slotRestrictedCharacter,
+                            });
+                            setFeedback(result.message);
+                          }}
+                        >
+                          {product.slotRestrictionEnabled ? "關固位限制" : "開固位限制"}
+                        </button>
 
-                    <button
-                      type="button"
-                      className="rounded border px-2 py-0.5 text-[11px]"
-                      onClick={() => {
-                        const value = window.prompt(
-                          product.type === "BLIND_BOX"
-                            ? "設定限制角色（留空代表依子項角色判斷）"
-                            : "設定限制角色（八千代/彩葉/輝耀姬/帝/乃依/雷/真實/蘆花）",
-                          product.slotRestrictedCharacter ?? product.character ?? "",
-                        );
-                        if (value === null) return;
-                        if (value.trim() !== "" && !CHARACTER_OPTIONS.includes(value as CharacterName)) {
-                          setFeedback("角色名稱無效。");
-                          return;
-                        }
-                        const result = system.adminUpdateProductRule({
-                          productId: product.id,
-                          slotRestrictionEnabled: true,
-                          slotRestrictedCharacter: value.trim() === "" ? null : value as CharacterName,
-                        });
-                        setFeedback(result.message);
-                      }}
-                    >
-                      設限制角色
-                    </button>
+                        <button
+                          type="button"
+                          className="rounded border px-2 py-0.5 text-[11px]"
+                          onClick={() => {
+                            const value = window.prompt(
+                              "設定限制角色（留空代表依子項角色判斷）",
+                              product.slotRestrictedCharacter ?? "",
+                            );
+                            if (value === null) return;
+                            if (value.trim() !== "" && !CHARACTER_OPTIONS.includes(value as CharacterName)) {
+                              setFeedback("角色名稱無效。");
+                              return;
+                            }
+                            const result = system.adminUpdateProductRule({
+                              productId: product.id,
+                              slotRestrictionEnabled: true,
+                              slotRestrictedCharacter: value.trim() === "" ? null : value as CharacterName,
+                            });
+                            setFeedback(result.message);
+                          }}
+                        >
+                          設限制角色
+                        </button>
+                      </>
+                    )}
 
                     <button
                       type="button"

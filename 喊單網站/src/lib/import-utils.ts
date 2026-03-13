@@ -122,12 +122,6 @@ function toRequiredTier(value: string | undefined): ProductRequiredTier {
 function assertProductRow(row: ProductImportRow, index: number): string[] {
   const errors: string[] = [];
   if (!row.name) errors.push(`第 ${index} 筆：缺少 name`);
-  if (row.type === "NORMAL" && row.slotRestrictionEnabled && !row.character && !row.slotRestrictedCharacter) {
-    errors.push(`第 ${index} 筆：一般商品啟用固位限制時缺少 character`);
-  }
-  if (row.slotRestrictionEnabled && !row.slotRestrictedCharacter) {
-    errors.push(`第 ${index} 筆：啟用固位限制時缺少 slotRestrictedCharacter`);
-  }
   return errors;
 }
 
@@ -137,14 +131,15 @@ export function parseProductImportCsv(text: string): { rows: ProductImportRow[];
   const errors: string[] = [];
 
   rawRows.forEach((raw, idx) => {
+    const type = toProductType(raw.type);
     const row: ProductImportRow = {
       sku: (raw.sku ?? "").trim(),
       name: (raw.name ?? "").trim(),
       series: toProductSeries(raw.series),
-      type: toProductType(raw.type),
+      type,
       character: toCharacter(raw.character),
-      slotRestrictionEnabled: parseBoolean(raw.slotRestrictionEnabled, false),
-      slotRestrictedCharacter: toCharacter(raw.slotRestrictedCharacter),
+      slotRestrictionEnabled: type === "BLIND_BOX" ? parseBoolean(raw.slotRestrictionEnabled, true) : false,
+      slotRestrictedCharacter: type === "BLIND_BOX" ? toCharacter(raw.slotRestrictedCharacter) : null,
       requiredTier: toRequiredTier(raw.requiredTier),
       imageUrl: raw.imageUrl?.trim() ? raw.imageUrl.trim() : null,
       isPopular: parseBoolean(raw.isPopular),
@@ -184,8 +179,14 @@ export function parseProductImportJson(text: string): { rows: ProductImportRow[]
         series: toProductSeries(String(item.series ?? "")),
         type: toProductType(String(item.type ?? "")),
         character: toCharacter(typeof item.character === "string" ? item.character : undefined),
-        slotRestrictionEnabled: typeof item.slotRestrictionEnabled === "boolean" ? item.slotRestrictionEnabled : false,
-        slotRestrictedCharacter: toCharacter(typeof item.slotRestrictedCharacter === "string" ? item.slotRestrictedCharacter : undefined),
+        slotRestrictionEnabled:
+          toProductType(String(item.type ?? "")) === "BLIND_BOX"
+            ? (typeof item.slotRestrictionEnabled === "boolean" ? item.slotRestrictionEnabled : true)
+            : false,
+        slotRestrictedCharacter:
+          toProductType(String(item.type ?? "")) === "BLIND_BOX"
+            ? toCharacter(typeof item.slotRestrictedCharacter === "string" ? item.slotRestrictedCharacter : undefined)
+            : null,
         requiredTier: toRequiredTier(typeof item.requiredTier === "string" ? item.requiredTier : undefined),
         imageUrl: typeof item.imageUrl === "string" && item.imageUrl.trim() ? item.imageUrl.trim() : null,
         isPopular: Boolean(item.isPopular),
@@ -281,6 +282,6 @@ export function parseBlindItemImportJson(text: string): { rows: BlindBoxItemImpo
   }
 }
 
-export const PRODUCT_IMPORT_CSV_TEMPLATE = `sku,name,series,type,character,slotRestrictionEnabled,slotRestrictedCharacter,requiredTier,imageUrl,isPopular,hotPrice,coldPrice,averagePrice,stock,maxPerUser\n,夏祭立牌A,Q版系列,NORMAL,八千代,true,八千代,FIXED_1,https://example.com/a.jpg,true,160,120,140,8,2`;
+export const PRODUCT_IMPORT_CSV_TEMPLATE = `sku,name,series,type,character,slotRestrictionEnabled,slotRestrictedCharacter,requiredTier,imageUrl,isPopular,hotPrice,coldPrice,averagePrice,stock,maxPerUser\n,夏祭立牌A,Q版系列,NORMAL,八千代,false,,FIXED_1,https://example.com/a.jpg,false,160,120,140,8,2`;
 
 export const BLIND_ITEM_IMPORT_CSV_TEMPLATE = `parentSku,sku,name,character,imageUrl,stock,maxPerUser\nSUM-B01,,盲盒-八千代,八千代,https://example.com/y.jpg,3,1`;

@@ -320,6 +320,7 @@ export function useOrderSystem(): UseOrderSystemReturn {
   };
 
   const resolveSlotGateCharacter = (product: Product, target: TargetDescriptor): CharacterName | null => {
+    if (product.type !== "BLIND_BOX") return null;
     if (!product.slotRestrictionEnabled) return null;
     if (product.slotRestrictedCharacter) return product.slotRestrictedCharacter;
     return target.character;
@@ -1235,13 +1236,19 @@ export function useOrderSystem(): UseOrderSystemReturn {
       return { ok: false, message: "庫存不可為負數。" };
     }
 
-    const nextSlotRestrictionEnabled = slotRestrictionEnabled ?? target.slotRestrictionEnabled;
-    const nextSlotRestrictedCharacter = slotRestrictedCharacter === undefined
-      ? target.slotRestrictedCharacter
-      : slotRestrictedCharacter;
+    if (target.type === "NORMAL" && slotRestrictionEnabled === true) {
+      return { ok: false, message: "一般商品不支援固位限制，固定為全員可喊。" };
+    }
 
-    if (nextSlotRestrictionEnabled && target.type === "NORMAL" && !nextSlotRestrictedCharacter && !target.character) {
-      return { ok: false, message: "啟用固位限制時必須指定限制角色。" };
+    const nextSlotRestrictionEnabled = target.type === "BLIND_BOX"
+      ? (slotRestrictionEnabled ?? target.slotRestrictionEnabled)
+      : false;
+    const nextSlotRestrictedCharacter = target.type === "BLIND_BOX"
+      ? (slotRestrictedCharacter === undefined ? target.slotRestrictedCharacter : slotRestrictedCharacter)
+      : null;
+
+    if (nextSlotRestrictionEnabled && target.type === "BLIND_BOX" && nextSlotRestrictedCharacter === undefined) {
+      return { ok: false, message: "盲盒固位設定異常。" };
     }
 
     setState((prev) => ({
@@ -1489,16 +1496,9 @@ export function useOrderSystem(): UseOrderSystemReturn {
     }
 
     if (input.type === "NORMAL") {
-      if (input.slotRestrictionEnabled && !input.character && !input.slotRestrictedCharacter) {
-        return { ok: false, message: "一般商品必須指定角色。" };
-      }
       if (input.stock !== null && input.stock < 0) {
         return { ok: false, message: "一般商品庫存必須 >= 0。" };
       }
-    }
-
-    if (input.slotRestrictionEnabled && input.type === "NORMAL" && !input.slotRestrictedCharacter && !input.character) {
-      return { ok: false, message: "啟用固位限制時，必須指定限制角色。" };
     }
 
     if (input.maxPerUser !== null && input.maxPerUser < 1) {
@@ -1507,6 +1507,10 @@ export function useOrderSystem(): UseOrderSystemReturn {
 
     const sku = input.sku?.trim() || generateNextSku("PRD", state.products.map((product) => product.sku));
     const normalizedSeries = normalizeCategoryName(input.series);
+    const resolvedSlotRestrictionEnabled = input.type === "BLIND_BOX" ? input.slotRestrictionEnabled : false;
+    const resolvedSlotRestrictedCharacter = input.type === "BLIND_BOX" && resolvedSlotRestrictionEnabled
+      ? input.slotRestrictedCharacter
+      : null;
 
     const product: Product = {
       id: crypto.randomUUID(),
@@ -1516,8 +1520,8 @@ export function useOrderSystem(): UseOrderSystemReturn {
       series: normalizedSeries,
       type: input.type,
       character: input.type === "NORMAL" ? input.character : null,
-      slotRestrictionEnabled: input.slotRestrictionEnabled,
-      slotRestrictedCharacter: input.slotRestrictionEnabled ? input.slotRestrictedCharacter : null,
+      slotRestrictionEnabled: resolvedSlotRestrictionEnabled,
+      slotRestrictedCharacter: resolvedSlotRestrictedCharacter,
       requiredTier: "FIXED_1",
       imageUrl: input.imageUrl && input.imageUrl.trim() ? input.imageUrl.trim() : null,
       isPopular: input.isPopular,
