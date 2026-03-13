@@ -40,11 +40,12 @@ export const PRODUCT_TYPE_LABEL: Record<ProductType, string> = {
   BLIND_BOX: "盲盒拆分",
 };
 
-export const PRODUCT_SERIES_OPTIONS: ProductSeries[] = [
+export const DEFAULT_PRODUCT_CATEGORIES: ProductSeries[] = [
   "Q版系列",
   "HOBBY系列",
   "徽章系列",
   "其他系列",
+  "未分類",
 ];
 
 export const CHARACTER_OPTIONS: CharacterName[] = [

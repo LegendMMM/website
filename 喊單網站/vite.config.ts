@@ -13,6 +13,7 @@ export default defineConfig({
     port: 4173,
   },
   build: {
-    sourcemap: true,
+    sourcemap: false,
+    reportCompressedSize: false,
   },
 });

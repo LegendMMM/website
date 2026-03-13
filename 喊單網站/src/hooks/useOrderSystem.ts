@@ -23,13 +23,12 @@ import type {
   PaymentMethod,
   PricingMode,
   Product,
-  ProductRequiredTier,
   ProductSeries,
   ProductType,
   ReleaseStage,
+  RoleTier,
   UserProfile,
 } from "../types/domain";
-
 interface ActionResult {
   ok: boolean;
   message: string;
@@ -59,11 +58,12 @@ interface ProductAccessInfo {
   reason: string;
   currentQty: number;
   remaining: number | null;
+  effectiveTier: RoleTier | null;
 }
 
 interface TargetDescriptor {
   character: CharacterName | null;
-  stock: number;
+  stock: number | null;
   maxPerUser: number | null;
   label: string;
 }
@@ -78,14 +78,13 @@ interface CreateCampaignInput {
 
 interface CreateProductInput {
   campaignId: string;
-  sku: string;
+  sku?: string;
   name: string;
   series: ProductSeries;
   type: ProductType;
   character: CharacterName | null;
   slotRestrictionEnabled: boolean;
   slotRestrictedCharacter: CharacterName | null;
-  requiredTier: ProductRequiredTier;
   imageUrl: string | null;
   isPopular: boolean;
   hotPrice: number;
@@ -97,19 +96,18 @@ interface CreateProductInput {
 
 interface CreateBlindBoxItemInput {
   productId: string;
-  sku: string;
+  sku?: string;
   name: string;
   character: CharacterName;
   imageUrl: string | null;
-  stock: number;
+  stock: number | null;
   maxPerUser: number | null;
 }
 
 interface ProductRuleUpdateInput {
   productId: string;
-  requiredTier?: ProductRequiredTier;
   maxPerUser?: number | null;
-  stock?: number;
+  stock?: number | null;
   slotRestrictionEnabled?: boolean;
   slotRestrictedCharacter?: CharacterName | null;
 }
@@ -151,6 +149,8 @@ export interface UseOrderSystemReturn {
   adminUpdateCampaignReleaseStage: (campaignId: string, stage: ReleaseStage) => ActionResult;
   adminUpdateCampaignMaxClaims: (campaignId: string, maxClaims: number | null) => ActionResult;
   adminUpdateProductRule: (args: ProductRuleUpdateInput) => ActionResult;
+  adminCreateCategory: (name: string) => ActionResult;
+  adminDeleteCategory: (name: string) => ActionResult;
   adminAssignCharacterSlot: (args: {
     userId: string;
     character: CharacterName;
@@ -169,13 +169,6 @@ export interface UseOrderSystemReturn {
 }
 
 const lastFivePattern = /^\d{5}$/;
-
-const STAGE_TO_ALLOWED_ROLE: Record<ReleaseStage, Set<string>> = {
-  FIXED_1_ONLY: new Set(["FIXED_1"]),
-  FIXED_1_2: new Set(["FIXED_1", "FIXED_2"]),
-  FIXED_1_2_3: new Set(["FIXED_1", "FIXED_2", "FIXED_3"]),
-  ALL_OPEN: new Set(["FIXED_1", "FIXED_2", "FIXED_3", "LEAK_PICK"]),
-};
 
 function campaignOpen(campaign: Campaign): boolean {
   return campaign.status === "OPEN" && new Date(campaign.deadlineAt).getTime() > Date.now();
@@ -197,6 +190,21 @@ function normalizeEmail(value: string): string {
 
 function normalizeNickname(value: string): string {
   return value.trim().toLowerCase();
+}
+
+function normalizeCategoryName(value: string): string {
+  return value.trim() || "未分類";
+}
+
+function generateNextSku(prefix: string, existingSkus: string[]): string {
+  const normalizedPrefix = prefix.toUpperCase();
+  const nextNumber = existingSkus.reduce((max, sku) => {
+    const match = sku.toUpperCase().match(new RegExp(`^${normalizedPrefix}-(\\d+)$`));
+    if (!match) return max;
+    return Math.max(max, Number(match[1]));
+  }, 0) + 1;
+
+  return `${normalizedPrefix}-${String(nextNumber).padStart(4, "0")}`;
 }
 
 export function useOrderSystem(): UseOrderSystemReturn {
@@ -291,7 +299,6 @@ export function useOrderSystem(): UseOrderSystemReturn {
 
   const resolveTargetDescriptor = (product: Product, blindBoxItemId?: string): TargetDescriptor | null => {
     if (product.type === "NORMAL") {
-      if (product.stock === null) return null;
       return {
         character: product.character,
         stock: product.stock,
@@ -317,6 +324,73 @@ export function useOrderSystem(): UseOrderSystemReturn {
     if (product.slotRestrictedCharacter) return product.slotRestrictedCharacter;
     return target.character;
   };
+
+  const resolveEffectiveTier = (args: {
+    campaign: Campaign;
+    product: Product;
+    user: UserProfile;
+    blindBoxItemId?: string;
+    target?: TargetDescriptor | null;
+  }): { ok: boolean; reason: string; effectiveTier: RoleTier; gateCharacter: CharacterName | null } => {
+    const { campaign, product, user, blindBoxItemId } = args;
+    const target = args.target === undefined ? resolveTargetDescriptor(product, blindBoxItemId) : args.target;
+    const gateCharacter = target ? resolveSlotGateCharacter(product, target) : null;
+
+    if (!gateCharacter) {
+      return { ok: true, reason: "", effectiveTier: "LEAK_PICK", gateCharacter: null };
+    }
+
+    const userCharacterTier = getUserCharacterTier(user.id, gateCharacter);
+    const gate = canBuyByCharacterSlot({
+      releaseStage: campaign.releaseStage,
+      character: gateCharacter,
+      userCharacterTier,
+    });
+
+    return {
+      ok: gate.ok,
+      reason: gate.reason,
+      effectiveTier: gate.effectiveTier,
+      gateCharacter,
+    };
+  };
+
+  const resolveClaimRoleTier = (claim: Claim): RoleTier => {
+    const campaign = getCampaignById(claim.campaignId);
+    const product = getProductById(claim.productId);
+    const user = state.users.find((item) => item.id === claim.userId);
+    if (!campaign || !product || !user) {
+      return claim.roleTier;
+    }
+
+    const target = resolveTargetDescriptor(product, claim.blindBoxItemId ?? undefined);
+    if (!target) {
+      return claim.roleTier;
+    }
+
+    return resolveEffectiveTier({
+      campaign,
+      product,
+      user,
+      blindBoxItemId: claim.blindBoxItemId ?? undefined,
+      target,
+    }).effectiveTier;
+  };
+
+  useEffect(() => {
+    if (state.claims.length === 0) return;
+
+    const nextClaims = state.claims.map((claim) => {
+      const nextRoleTier = resolveClaimRoleTier(claim);
+      return nextRoleTier === claim.roleTier ? claim : { ...claim, roleTier: nextRoleTier };
+    });
+
+    const changed = nextClaims.some((claim, index) => claim !== state.claims[index]);
+    if (!changed) return;
+
+    setState((prev) => ({ ...prev, claims: nextClaims }));
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [state.claims, state.products, state.blindBoxItems, state.users, state.characterSlots, state.campaigns]);
 
   const getCurrentCommittedQty = (
     campaignId: string,
@@ -380,44 +454,41 @@ export function useOrderSystem(): UseOrderSystemReturn {
     const { campaign, product, user, blindBoxItemId } = args;
 
     if (!campaignOpen(campaign)) {
-      return { ok: false, reason: "活動已截止。", currentQty: 0, remaining: 0 };
-    }
-
-    const roleAllowed = STAGE_TO_ALLOWED_ROLE[campaign.releaseStage].has(user.roleTier);
-    if (!roleAllowed) {
-      return { ok: false, reason: "目前活動釋出階段尚未開放你的身分。", currentQty: 0, remaining: 0 };
+      return { ok: false, reason: "活動已截止。", currentQty: 0, remaining: 0, effectiveTier: null };
     }
 
     const target = resolveTargetDescriptor(product, blindBoxItemId);
     if (!target) {
-      return { ok: false, reason: "此商品需要先選擇盲盒角色子項。", currentQty: 0, remaining: 0 };
+      return { ok: false, reason: "此商品需要先選擇盲盒角色子項。", currentQty: 0, remaining: 0, effectiveTier: null };
     }
 
     const targetId = product.type === "NORMAL" ? null : blindBoxItemId ?? null;
     const currentQty = getCurrentCommittedQty(campaign.id, product.id, targetId, user.id);
 
-    const gateCharacter = resolveSlotGateCharacter(product, target);
-    if (gateCharacter) {
-      const userCharacterTier = getUserCharacterTier(user.id, gateCharacter);
-      const gate = canBuyByCharacterSlot({
-        releaseStage: campaign.releaseStage,
-        requiredTier: product.requiredTier,
-        character: gateCharacter,
-        userCharacterTier,
-      });
-
-      if (!gate.ok) {
-        return { ok: false, reason: gate.reason, currentQty, remaining: 0 };
-      }
+    const effectiveTierState = resolveEffectiveTier({ campaign, product, user, blindBoxItemId, target });
+    if (!effectiveTierState.ok) {
+      return { ok: false, reason: effectiveTierState.reason, currentQty, remaining: 0, effectiveTier: effectiveTierState.effectiveTier };
     }
 
     if (target.maxPerUser !== null && currentQty >= target.maxPerUser) {
-      return { ok: false, reason: "已達此子項個人上限。", currentQty, remaining: 0 };
+      return {
+        ok: false,
+        reason: "已達此子項個人上限。",
+        currentQty,
+        remaining: 0,
+        effectiveTier: effectiveTierState.effectiveTier,
+      };
     }
 
     const reserved = getReservedQtyForTarget(campaign.id, product.id, targetId);
-    if (reserved >= target.stock) {
-      return { ok: false, reason: `${target.label} 已無可用庫存。`, currentQty, remaining: 0 };
+    if (target.stock !== null && reserved >= target.stock) {
+      return {
+        ok: false,
+        reason: `${target.label} 已無可用庫存。`,
+        currentQty,
+        remaining: 0,
+        effectiveTier: effectiveTierState.effectiveTier,
+      };
     }
 
     return {
@@ -425,6 +496,7 @@ export function useOrderSystem(): UseOrderSystemReturn {
       reason: "",
       currentQty,
       remaining: target.maxPerUser === null ? null : Math.max(0, target.maxPerUser - currentQty),
+      effectiveTier: effectiveTierState.effectiveTier,
     };
   };
 
@@ -434,13 +506,13 @@ export function useOrderSystem(): UseOrderSystemReturn {
     blindBoxItemId?: string,
   ): ProductAccessInfo => {
     if (!currentUser) {
-      return { ok: false, reason: "請先登入。", currentQty: 0, remaining: 0 };
+      return { ok: false, reason: "請先登入。", currentQty: 0, remaining: 0, effectiveTier: null };
     }
 
     const campaign = getCampaignById(campaignId);
     const product = getProductById(productId);
     if (!campaign || !product) {
-      return { ok: false, reason: "找不到活動或商品。", currentQty: 0, remaining: 0 };
+      return { ok: false, reason: "找不到活動或商品。", currentQty: 0, remaining: 0, effectiveTier: null };
     }
 
     return getProductAccess({ campaign, product, user: currentUser, blindBoxItemId });
@@ -488,7 +560,15 @@ export function useOrderSystem(): UseOrderSystemReturn {
     if (!currentUser) return false;
     const campaign = getCampaignById(campaignId);
     if (!campaign) return false;
-    return STAGE_TO_ALLOWED_ROLE[campaign.releaseStage].has(currentUser.roleTier);
+    return campaignOpen(campaign) && state.products.some((product) => {
+      if (product.campaignId !== campaignId) return false;
+      if (product.type === "BLIND_BOX") {
+        return getBlindBoxItemsByProduct(product.id).some((item) => (
+          getProductAccess({ campaign, product, user: currentUser, blindBoxItemId: item.id }).ok
+        ));
+      }
+      return getProductAccess({ campaign, product, user: currentUser }).ok;
+    });
   };
 
   const getUserCampaignTotal = (campaignId: string, userId: string): number => {
@@ -707,7 +787,7 @@ export function useOrderSystem(): UseOrderSystemReturn {
     const reservedWithoutThis =
       getReservedQtyForTarget(targetItem.campaignId, targetItem.productId, targetItem.blindBoxItemId) - targetItem.qty;
 
-    if (reservedWithoutThis + nextQty > resolved.stock) {
+    if (resolved.stock !== null && reservedWithoutThis + nextQty > resolved.stock) {
       return { ok: false, message: "可用庫存不足。" };
     }
 
@@ -791,16 +871,28 @@ export function useOrderSystem(): UseOrderSystemReturn {
     };
 
     const claims: Claim[] = cartItems.flatMap((item) =>
-      Array.from({ length: item.qty }).map(() => ({
-        id: crypto.randomUUID(),
-        campaignId,
-        productId: item.productId,
-        blindBoxItemId: item.blindBoxItemId,
-        userId: currentUser.id,
-        roleTier: currentUser.roleTier,
-        createdAt: now,
-        status: "LOCKED" as const,
-      })),
+      Array.from({ length: item.qty }).map(() => {
+        const product = productsById.get(item.productId);
+        const effectiveTier = product
+          ? getProductAccess({
+            campaign,
+            product,
+            user: currentUser,
+            blindBoxItemId: item.blindBoxItemId ?? undefined,
+          }).effectiveTier
+          : "LEAK_PICK";
+
+        return {
+          id: crypto.randomUUID(),
+          campaignId,
+          productId: item.productId,
+          blindBoxItemId: item.blindBoxItemId,
+          userId: currentUser.id,
+          roleTier: effectiveTier ?? "LEAK_PICK",
+          createdAt: now,
+          status: "LOCKED" as const,
+        };
+      }),
     );
 
     setState((prev) => ({
@@ -862,7 +954,7 @@ export function useOrderSystem(): UseOrderSystemReturn {
       productId,
       blindBoxItemId: blindBoxItemId ?? null,
       userId: currentUser.id,
-      roleTier: currentUser.roleTier,
+      roleTier: access.effectiveTier ?? "LEAK_PICK",
       status: "LOCKED",
       createdAt: new Date().toISOString(),
     };
@@ -908,9 +1000,9 @@ export function useOrderSystem(): UseOrderSystemReturn {
     if (queueIndex < 0) return { ok: false, message: "此單不在有效排隊清單。" };
 
     const resolved = resolveTargetDescriptor(product, target.blindBoxItemId ?? undefined);
-    const stock = resolved?.stock ?? 0;
+    const stock = resolved?.stock ?? null;
 
-    if (queueIndex >= stock) {
+    if (stock !== null && queueIndex >= stock) {
       return { ok: false, message: "此會員目前排在候補，尚未進入可分配名額。" };
     }
 
@@ -1131,7 +1223,7 @@ export function useOrderSystem(): UseOrderSystemReturn {
       return { ok: false, message: "只有團主可以調整商品規則。" };
     }
 
-    const { productId, requiredTier, maxPerUser, stock, slotRestrictionEnabled, slotRestrictedCharacter } = args;
+    const { productId, maxPerUser, stock, slotRestrictionEnabled, slotRestrictedCharacter } = args;
     const target = getProductById(productId);
     if (!target) return { ok: false, message: "找不到商品。" };
 
@@ -1139,7 +1231,7 @@ export function useOrderSystem(): UseOrderSystemReturn {
       return { ok: false, message: "商品上限至少為 1，或設定為不限。" };
     }
 
-    if (stock !== undefined && stock < 0) {
+    if (stock !== undefined && stock !== null && stock < 0) {
       return { ok: false, message: "庫存不可為負數。" };
     }
 
@@ -1148,12 +1240,8 @@ export function useOrderSystem(): UseOrderSystemReturn {
       ? target.slotRestrictedCharacter
       : slotRestrictedCharacter;
 
-    if (nextSlotRestrictionEnabled && !nextSlotRestrictedCharacter) {
+    if (nextSlotRestrictionEnabled && target.type === "NORMAL" && !nextSlotRestrictedCharacter && !target.character) {
       return { ok: false, message: "啟用固位限制時必須指定限制角色。" };
-    }
-
-    if (requiredTier === undefined && target.requiredTier === undefined) {
-      return { ok: false, message: "商品固位必填。" };
     }
 
     setState((prev) => ({
@@ -1162,7 +1250,6 @@ export function useOrderSystem(): UseOrderSystemReturn {
         product.id === productId
           ? {
             ...product,
-            requiredTier: requiredTier ?? product.requiredTier,
             maxPerUser: maxPerUser === undefined ? product.maxPerUser : maxPerUser,
             stock: stock === undefined ? product.stock : (product.type === "NORMAL" ? stock : product.stock),
             slotRestrictionEnabled: nextSlotRestrictionEnabled,
@@ -1173,6 +1260,53 @@ export function useOrderSystem(): UseOrderSystemReturn {
     }));
 
     return { ok: true, message: "已更新商品規則。" };
+  };
+
+  const adminCreateCategory = (name: string): ActionResult => {
+    if (!currentUser?.isAdmin) {
+      return { ok: false, message: "只有團主可以新增分類。" };
+    }
+
+    const normalized = normalizeCategoryName(name);
+    if (!normalized) {
+      return { ok: false, message: "分類名稱不可為空。" };
+    }
+
+    if (state.productCategories.includes(normalized)) {
+      return { ok: false, message: "此分類已存在。" };
+    }
+
+    setState((prev) => ({
+      ...prev,
+      productCategories: [...prev.productCategories, normalized],
+    }));
+
+    return { ok: true, message: `已新增分類「${normalized}」。` };
+  };
+
+  const adminDeleteCategory = (name: string): ActionResult => {
+    if (!currentUser?.isAdmin) {
+      return { ok: false, message: "只有團主可以刪除分類。" };
+    }
+
+    const normalized = normalizeCategoryName(name);
+    if (normalized === "未分類") {
+      return { ok: false, message: "不可刪除預設分類「未分類」。" };
+    }
+
+    if (!state.productCategories.includes(normalized)) {
+      return { ok: false, message: "找不到指定分類。" };
+    }
+
+    setState((prev) => ({
+      ...prev,
+      productCategories: prev.productCategories.filter((item) => item !== normalized),
+      products: prev.products.map((product) =>
+        product.series === normalized ? { ...product, series: "未分類" } : product,
+      ),
+    }));
+
+    return { ok: true, message: `已刪除分類「${normalized}」，原商品已歸入未分類。` };
   };
 
   const adminAssignCharacterSlot = (args: {
@@ -1350,38 +1484,41 @@ export function useOrderSystem(): UseOrderSystemReturn {
     const campaign = getCampaignById(input.campaignId);
     if (!campaign) return { ok: false, message: "找不到活動。" };
 
-    if (!input.sku.trim() || !input.name.trim()) {
-      return { ok: false, message: "商品 SKU 與名稱必填。" };
-    }
-
-    if (!input.requiredTier) {
-      return { ok: false, message: "商品級固位必填。" };
+    if (!input.name.trim()) {
+      return { ok: false, message: "商品名稱必填。" };
     }
 
     if (input.type === "NORMAL") {
-      if (!input.character) {
+      if (input.slotRestrictionEnabled && !input.character && !input.slotRestrictedCharacter) {
         return { ok: false, message: "一般商品必須指定角色。" };
       }
-      if (input.stock === null || input.stock < 0) {
+      if (input.stock !== null && input.stock < 0) {
         return { ok: false, message: "一般商品庫存必須 >= 0。" };
       }
     }
 
-    if (input.slotRestrictionEnabled && !input.slotRestrictedCharacter) {
+    if (input.slotRestrictionEnabled && input.type === "NORMAL" && !input.slotRestrictedCharacter && !input.character) {
       return { ok: false, message: "啟用固位限制時，必須指定限制角色。" };
     }
+
+    if (input.maxPerUser !== null && input.maxPerUser < 1) {
+      return { ok: false, message: "單人上限至少為 1，或留空為不限。" };
+    }
+
+    const sku = input.sku?.trim() || generateNextSku("PRD", state.products.map((product) => product.sku));
+    const normalizedSeries = normalizeCategoryName(input.series);
 
     const product: Product = {
       id: crypto.randomUUID(),
       campaignId: input.campaignId,
-      sku: input.sku.trim(),
+      sku,
       name: input.name.trim(),
-      series: input.series,
+      series: normalizedSeries,
       type: input.type,
       character: input.type === "NORMAL" ? input.character : null,
       slotRestrictionEnabled: input.slotRestrictionEnabled,
       slotRestrictedCharacter: input.slotRestrictionEnabled ? input.slotRestrictedCharacter : null,
-      requiredTier: input.requiredTier,
+      requiredTier: "FIXED_1",
       imageUrl: input.imageUrl && input.imageUrl.trim() ? input.imageUrl.trim() : null,
       isPopular: input.isPopular,
       hotPrice: input.hotPrice,
@@ -1393,10 +1530,13 @@ export function useOrderSystem(): UseOrderSystemReturn {
 
     setState((prev) => ({
       ...prev,
+      productCategories: prev.productCategories.includes(normalizedSeries)
+        ? prev.productCategories
+        : [...prev.productCategories, normalizedSeries],
       products: [product, ...prev.products],
     }));
 
-    return { ok: true, message: `已建立商品「${product.name}」。` };
+    return { ok: true, message: `已建立商品「${product.name}」（SKU：${sku}）。` };
   };
 
   const adminCreateBlindBoxItem = (input: CreateBlindBoxItemInput): ActionResult => {
@@ -1409,11 +1549,11 @@ export function useOrderSystem(): UseOrderSystemReturn {
       return { ok: false, message: "找不到盲盒商品。" };
     }
 
-    if (!input.sku.trim() || !input.name.trim()) {
-      return { ok: false, message: "子項 SKU 與名稱必填。" };
+    if (!input.name.trim()) {
+      return { ok: false, message: "子項名稱必填。" };
     }
 
-    if (input.stock < 0) {
+    if (input.stock !== null && input.stock < 0) {
       return { ok: false, message: "子項庫存不可小於 0。" };
     }
 
@@ -1421,10 +1561,11 @@ export function useOrderSystem(): UseOrderSystemReturn {
       return { ok: false, message: "子項上限至少為 1，或設為不限。" };
     }
 
+    const sku = input.sku?.trim() || generateNextSku("BLI", state.blindBoxItems.map((item) => item.sku));
     const blindBoxItem: BlindBoxItem = {
       id: crypto.randomUUID(),
       productId: input.productId,
-      sku: input.sku.trim(),
+      sku,
       name: input.name.trim(),
       character: input.character,
       imageUrl: input.imageUrl && input.imageUrl.trim() ? input.imageUrl.trim() : null,
@@ -1437,7 +1578,7 @@ export function useOrderSystem(): UseOrderSystemReturn {
       blindBoxItems: [blindBoxItem, ...prev.blindBoxItems],
     }));
 
-    return { ok: true, message: `已新增子項「${blindBoxItem.name}」。` };
+    return { ok: true, message: `已新增子項「${blindBoxItem.name}」（SKU：${sku}）。` };
   };
 
   const adminSetUserAdmin = async (userId: string, isAdmin: boolean): Promise<ActionResult> => {
@@ -1616,6 +1757,8 @@ export function useOrderSystem(): UseOrderSystemReturn {
     adminUpdateCampaignReleaseStage,
     adminUpdateCampaignMaxClaims,
     adminUpdateProductRule,
+    adminCreateCategory,
+    adminDeleteCategory,
     adminAssignCharacterSlot,
     adminAutoAssignCharacterSlots,
     adminCreateCampaign,

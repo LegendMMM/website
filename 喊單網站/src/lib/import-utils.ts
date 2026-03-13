@@ -1,4 +1,3 @@
-import { PRODUCT_SERIES_OPTIONS } from "./constants";
 import type { CharacterName, ProductRequiredTier, ProductSeries, ProductType } from "../types/domain";
 
 export interface ProductImportRow {
@@ -25,7 +24,7 @@ export interface BlindBoxItemImportRow {
   name: string;
   character: CharacterName;
   imageUrl: string | null;
-  stock: number;
+  stock: number | null;
   maxPerUser: number | null;
 }
 
@@ -98,10 +97,10 @@ function parseCsv(text: string): Array<Record<string, string>> {
 }
 
 function toProductSeries(value: string | undefined): ProductSeries {
-  if (value && PRODUCT_SERIES_OPTIONS.includes(value as ProductSeries)) {
-    return value as ProductSeries;
+  if (value?.trim()) {
+    return value.trim();
   }
-  return "其他系列";
+  return "未分類";
 }
 
 function toProductType(value: string | undefined): ProductType {
@@ -122,14 +121,12 @@ function toRequiredTier(value: string | undefined): ProductRequiredTier {
 
 function assertProductRow(row: ProductImportRow, index: number): string[] {
   const errors: string[] = [];
-  if (!row.sku) errors.push(`第 ${index} 筆：缺少 sku`);
   if (!row.name) errors.push(`第 ${index} 筆：缺少 name`);
-  if (row.type === "NORMAL" && !row.character) errors.push(`第 ${index} 筆：一般商品缺少 character`);
+  if (row.type === "NORMAL" && row.slotRestrictionEnabled && !row.character && !row.slotRestrictedCharacter) {
+    errors.push(`第 ${index} 筆：一般商品啟用固位限制時缺少 character`);
+  }
   if (row.slotRestrictionEnabled && !row.slotRestrictedCharacter) {
     errors.push(`第 ${index} 筆：啟用固位限制時缺少 slotRestrictedCharacter`);
-  }
-  if (row.type === "NORMAL" && row.stock === null) {
-    errors.push(`第 ${index} 筆：一般商品缺少 stock`);
   }
   return errors;
 }
@@ -146,7 +143,7 @@ export function parseProductImportCsv(text: string): { rows: ProductImportRow[];
       series: toProductSeries(raw.series),
       type: toProductType(raw.type),
       character: toCharacter(raw.character),
-      slotRestrictionEnabled: parseBoolean(raw.slotRestrictionEnabled, true),
+      slotRestrictionEnabled: parseBoolean(raw.slotRestrictionEnabled, false),
       slotRestrictedCharacter: toCharacter(raw.slotRestrictedCharacter),
       requiredTier: toRequiredTier(raw.requiredTier),
       imageUrl: raw.imageUrl?.trim() ? raw.imageUrl.trim() : null,
@@ -187,7 +184,7 @@ export function parseProductImportJson(text: string): { rows: ProductImportRow[]
         series: toProductSeries(String(item.series ?? "")),
         type: toProductType(String(item.type ?? "")),
         character: toCharacter(typeof item.character === "string" ? item.character : undefined),
-        slotRestrictionEnabled: typeof item.slotRestrictionEnabled === "boolean" ? item.slotRestrictionEnabled : true,
+        slotRestrictionEnabled: typeof item.slotRestrictionEnabled === "boolean" ? item.slotRestrictionEnabled : false,
         slotRestrictedCharacter: toCharacter(typeof item.slotRestrictedCharacter === "string" ? item.slotRestrictedCharacter : undefined),
         requiredTier: toRequiredTier(typeof item.requiredTier === "string" ? item.requiredTier : undefined),
         imageUrl: typeof item.imageUrl === "string" && item.imageUrl.trim() ? item.imageUrl.trim() : null,
@@ -220,19 +217,19 @@ export function parseBlindItemImportCsv(text: string): { rows: BlindBoxItemImpor
 
   rawRows.forEach((raw, idx) => {
     const character = toCharacter(raw.character);
-    const stock = Number(raw.stock ?? 0);
+    const stock = parseNullableNumber(raw.stock);
     const row: BlindBoxItemImportRow = {
       parentSku: (raw.parentSku ?? "").trim(),
       sku: (raw.sku ?? "").trim(),
       name: (raw.name ?? "").trim(),
       character: (character ?? "八千代") as CharacterName,
       imageUrl: raw.imageUrl?.trim() ? raw.imageUrl.trim() : null,
-      stock: Number.isFinite(stock) ? stock : 0,
+      stock,
       maxPerUser: parseNullableNumber(raw.maxPerUser),
     };
 
-    if (!row.parentSku || !row.sku || !row.name || !character) {
-      errors.push(`第 ${idx + 1} 筆：parentSku/sku/name/character 必填`);
+    if (!row.parentSku || !row.name || !character) {
+      errors.push(`第 ${idx + 1} 筆：parentSku/name/character 必填`);
       return;
     }
 
@@ -266,12 +263,12 @@ export function parseBlindItemImportJson(text: string): { rows: BlindBoxItemImpo
         name: String(item.name ?? "").trim(),
         character,
         imageUrl: typeof item.imageUrl === "string" && item.imageUrl.trim() ? item.imageUrl.trim() : null,
-        stock: Number(item.stock ?? 0),
+        stock: item.stock === null || item.stock === undefined ? null : Number(item.stock),
         maxPerUser: item.maxPerUser === null || item.maxPerUser === undefined ? null : Number(item.maxPerUser),
       };
 
-      if (!row.parentSku || !row.sku || !row.name) {
-        errors.push(`第 ${idx + 1} 筆：parentSku/sku/name 必填`);
+      if (!row.parentSku || !row.name) {
+        errors.push(`第 ${idx + 1} 筆：parentSku/name 必填`);
         return;
       }
 
@@ -284,6 +281,6 @@ export function parseBlindItemImportJson(text: string): { rows: BlindBoxItemImpo
   }
 }
 
-export const PRODUCT_IMPORT_CSV_TEMPLATE = `sku,name,series,type,character,slotRestrictionEnabled,slotRestrictedCharacter,requiredTier,imageUrl,isPopular,hotPrice,coldPrice,averagePrice,stock,maxPerUser\nSUM-100,夏祭立牌A,Q版系列,NORMAL,八千代,true,八千代,FIXED_1,https://example.com/a.jpg,true,160,120,140,8,2`;
+export const PRODUCT_IMPORT_CSV_TEMPLATE = `sku,name,series,type,character,slotRestrictionEnabled,slotRestrictedCharacter,requiredTier,imageUrl,isPopular,hotPrice,coldPrice,averagePrice,stock,maxPerUser\n,夏祭立牌A,Q版系列,NORMAL,八千代,true,八千代,FIXED_1,https://example.com/a.jpg,true,160,120,140,8,2`;
 
-export const BLIND_ITEM_IMPORT_CSV_TEMPLATE = `parentSku,sku,name,character,imageUrl,stock,maxPerUser\nSUM-B01,SUM-B01-10,盲盒-八千代,八千代,https://example.com/y.jpg,3,1`;
+export const BLIND_ITEM_IMPORT_CSV_TEMPLATE = `parentSku,sku,name,character,imageUrl,stock,maxPerUser\nSUM-B01,,盲盒-八千代,八千代,https://example.com/y.jpg,3,1`;

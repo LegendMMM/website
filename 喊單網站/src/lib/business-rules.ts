@@ -7,7 +7,6 @@ import type {
   Claim,
   PaymentMethod,
   Product,
-  ProductRequiredTier,
   ReleaseStage,
   RoleTier,
   ShipmentDraft,
@@ -156,37 +155,32 @@ export function roleCanAccessReleaseStage(roleTier: RoleTier, releaseStage: Rele
 
 export function releaseStageAllowsTier(
   releaseStage: ReleaseStage,
-  requiredTier: ProductRequiredTier,
+  effectiveTier: CharacterTier,
 ): boolean {
-  if (releaseStage === "ALL_OPEN") return true;
-  if (releaseStage === "FIXED_1_ONLY") return requiredTier === "FIXED_1";
-  if (releaseStage === "FIXED_1_2") return requiredTier === "FIXED_1" || requiredTier === "FIXED_2";
-  return requiredTier === "FIXED_1" || requiredTier === "FIXED_2" || requiredTier === "FIXED_3";
+  return roleCanAccessReleaseStage(effectiveTier, releaseStage);
 }
 
 export function canBuyByCharacterSlot(params: {
   releaseStage: ReleaseStage;
-  requiredTier: ProductRequiredTier;
   character: CharacterName;
   userCharacterTier: CharacterTier | null;
-}): { ok: boolean; reason: string } {
-  const { releaseStage, requiredTier, character, userCharacterTier } = params;
-
-  if (!releaseStageAllowsTier(releaseStage, requiredTier)) {
-    return { ok: false, reason: "此商品尚未開放到目前釋出階段。" };
-  }
-
-  if (releaseStage === "ALL_OPEN") {
-    return { ok: true, reason: "" };
-  }
+}): { ok: boolean; reason: string; effectiveTier: RoleTier } {
+  const { releaseStage, character, userCharacterTier } = params;
 
   if (!userCharacterTier) {
-    return { ok: false, reason: `${character} 尚未分配固位，暫不可填單。` };
+    if (releaseStage === "ALL_OPEN") {
+      return { ok: true, reason: "", effectiveTier: "LEAK_PICK" };
+    }
+    return { ok: false, reason: `${character} 尚未分配固位，暫不可填單。`, effectiveTier: "LEAK_PICK" };
   }
 
-  if (userCharacterTier !== requiredTier) {
-    return { ok: false, reason: `${character} 你的固位是 ${ROLE_LABEL[userCharacterTier]}，不符合此商品要求。` };
+  if (!releaseStageAllowsTier(releaseStage, userCharacterTier)) {
+    return {
+      ok: false,
+      reason: `${character} 你的固位是 ${ROLE_LABEL[userCharacterTier]}，目前釋出階段尚未開放。`,
+      effectiveTier: userCharacterTier,
+    };
   }
 
-  return { ok: true, reason: "" };
+  return { ok: true, reason: "", effectiveTier: userCharacterTier };
 }

@@ -87,6 +87,7 @@ export const seedState: OrderSystemState = {
       createdBy: "u-admin-001",
     },
   ],
+  productCategories: ["Q版系列", "HOBBY系列", "徽章系列", "其他系列", "未分類"],
   products: [
     {
       id: "p-summer-01",

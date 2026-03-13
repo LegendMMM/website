@@ -1,4 +1,5 @@
 import { seedState } from "../data/seed";
+import { DEFAULT_PRODUCT_CATEGORIES } from "./constants";
 import { SESSION_KEY, STORAGE_KEY } from "./constants";
 import type { CharacterTier, OrderSystemState, ProductRequiredTier, ProductSeries, ProductType } from "../types/domain";
 
@@ -25,10 +26,10 @@ function normalizeProductType(value: unknown): ProductType {
 }
 
 function normalizeProductSeries(value: unknown): ProductSeries {
-  if (value === "Q版系列" || value === "HOBBY系列" || value === "徽章系列" || value === "其他系列") {
-    return value;
+  if (typeof value === "string" && value.trim()) {
+    return value.trim();
   }
-  return "其他系列";
+  return "未分類";
 }
 
 function normalizeEmail(value: unknown): string {
@@ -89,11 +90,21 @@ function normalizeState(raw: unknown): OrderSystemState {
     })
     : fallback.products;
 
+  const normalizedProductCategories = Array.isArray((candidate as { productCategories?: unknown[] }).productCategories)
+    ? (candidate as { productCategories?: unknown[] }).productCategories
+      ?.map((value) => normalizeProductSeries(value))
+      .filter((value, index, arr) => value && arr.indexOf(value) === index)
+    : null;
+
+  const derivedCategories = Array.from(
+    new Set([...DEFAULT_PRODUCT_CATEGORIES, ...normalizedProducts.map((product) => normalizeProductSeries(product.series))]),
+  );
+
   const normalizedBlindBoxItems = Array.isArray(candidate.blindBoxItems)
     ? candidate.blindBoxItems.map((item) => ({
       ...item,
       imageUrl: typeof item.imageUrl === "string" ? item.imageUrl : null,
-      stock: typeof item.stock === "number" ? item.stock : 0,
+      stock: typeof item.stock === "number" ? item.stock : null,
       maxPerUser: typeof item.maxPerUser === "number" ? item.maxPerUser : null,
     }))
     : fallback.blindBoxItems;
@@ -139,6 +150,9 @@ function normalizeState(raw: unknown): OrderSystemState {
       }))
       : fallback.users,
     campaigns: normalizedCampaigns as OrderSystemState["campaigns"],
+    productCategories: (normalizedProductCategories && normalizedProductCategories.length > 0
+      ? Array.from(new Set([...normalizedProductCategories, ...derivedCategories]))
+      : derivedCategories) as OrderSystemState["productCategories"],
     products: normalizedProducts as OrderSystemState["products"],
     blindBoxItems: normalizedBlindBoxItems as OrderSystemState["blindBoxItems"],
     characterSlots: normalizedCharacterSlots as OrderSystemState["characterSlots"],

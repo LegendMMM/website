@@ -3,7 +3,7 @@ import { motion } from "framer-motion";
 import { AuthCard } from "./components/AuthCard";
 import type { UseOrderSystemReturn } from "./hooks/useOrderSystem";
 import { useOrderSystem } from "./hooks/useOrderSystem";
-import { CHARACTER_OPTIONS, PRODUCT_SERIES_OPTIONS } from "./lib/constants";
+import { CHARACTER_OPTIONS, DEFAULT_PRODUCT_CATEGORIES } from "./lib/constants";
 import {
   BLIND_ITEM_IMPORT_CSV_TEMPLATE,
   type BlindBoxItemImportRow,
@@ -19,7 +19,6 @@ import {
   formatDate,
   orderStatusLabel,
   paymentLabel,
-  productRequiredTierLabel,
   productTypeLabel,
   releaseStageLabel,
   roleLabel,
@@ -34,7 +33,6 @@ import type {
   OrderStatus,
   PricingMode,
   Product,
-  ProductRequiredTier,
   ProductSeries,
   ProductType,
   ReleaseStage,
@@ -46,7 +44,6 @@ type AdminTab = "dashboard" | "members" | "claims" | "orders" | "shipping" | "se
 type ClaimStatusFilter = "ALL" | "LOCKED" | "CONFIRMED" | "CANCELLED_BY_ADMIN";
 
 const stageOptions: ReleaseStage[] = ["FIXED_1_ONLY", "FIXED_1_2", "FIXED_1_2_3", "ALL_OPEN"];
-const requiredTierOptions: ProductRequiredTier[] = ["FIXED_1", "FIXED_2", "FIXED_3", "LEAK_PICK"];
 const characterTierOptions: CharacterTier[] = ["FIXED_1", "FIXED_2", "FIXED_3", "LEAK_PICK"];
 const productTypeOptions: ProductType[] = ["NORMAL", "BLIND_BOX"];
 const pricingModeOptions: PricingMode[] = ["DYNAMIC", "AVERAGE_WITH_BINDING"];
@@ -165,7 +162,7 @@ function CampaignView(props: {
 }): JSX.Element {
   const { system, campaign, onGoCart, onBack, onOpenBlindBox } = props;
   const [feedback, setFeedback] = useState("");
-  const [selectedSeries, setSelectedSeries] = useState<ProductSeries>(PRODUCT_SERIES_OPTIONS[0]);
+  const [selectedSeries, setSelectedSeries] = useState<ProductSeries>("");
   const [keyword, setKeyword] = useState("");
   const [onlyAvailable, setOnlyAvailable] = useState(false);
   const [sortBy, setSortBy] = useState<"name" | "priceAsc" | "priceDesc">("name");
@@ -173,11 +170,21 @@ function CampaignView(props: {
   const cartItems = system.getMyCartItems(campaign.id);
   const cartMap = new Map(cartItems.map((item) => [`${item.productId}::${item.blindBoxItemId ?? "none"}`, item]));
   const seriesGroups = useMemo(() => {
-    return PRODUCT_SERIES_OPTIONS.map((series) => ({
-      series,
-      products: products.filter((item) => item.series === series),
-    })).filter((group) => group.products.length > 0);
-  }, [products]);
+    const availableCategories = Array.from(
+      new Set([
+        ...system.state.productCategories,
+        ...DEFAULT_PRODUCT_CATEGORIES,
+        ...products.map((item) => item.series || "未分類"),
+      ]),
+    );
+
+    return availableCategories
+      .map((series) => ({
+        series,
+        products: products.filter((item) => (item.series || "未分類") === series),
+      }))
+      .filter((group) => group.products.length > 0);
+  }, [products, system.state.productCategories]);
 
   useEffect(() => {
     if (seriesGroups.length === 0) return;
@@ -346,8 +353,7 @@ function CampaignView(props: {
 
               <div className="mt-3 space-y-1 text-sm text-slate-600">
                 <p>單價：{twd(price)}</p>
-                <p>固位：{productRequiredTierLabel(product.requiredTier)}</p>
-                <p>固位限制：{product.slotRestrictionEnabled ? "啟用" : "關閉（全員可喊）"}</p>
+                <p>固位限制：{product.slotRestrictionEnabled ? "啟用（依角色固位時段開放）" : "關閉（全員可喊）"}</p>
 
                 {product.type === "NORMAL" && (
                   <>
@@ -434,7 +440,9 @@ function BlindBoxView(props: {
         <h2 className="mt-3 text-2xl font-extrabold text-slate-900">{product.name}</h2>
         <p className="mt-2 text-sm text-slate-600">盲盒子項拆分填單：依角色固位與活動釋出階段判定可否加入。</p>
         <div className="mt-3 flex flex-wrap gap-2 text-xs">
-          <span className="state-pill bg-slate-100 text-slate-700">商品固位：{productRequiredTierLabel(product.requiredTier)}</span>
+          <span className="state-pill bg-slate-100 text-slate-700">
+            {product.slotRestrictionEnabled ? "依子項角色固位排單" : "全員可喊"}
+          </span>
           <span className="state-pill bg-slate-100 text-slate-700">活動釋出：{releaseStageLabel(campaign.releaseStage)}</span>
         </div>
         {feedback && <p className="mt-3 text-sm font-semibold text-slate-800">{feedback}</p>}
@@ -459,7 +467,7 @@ function BlindBoxView(props: {
 
               <div className="mt-3 space-y-1 text-sm text-slate-600">
                 <p>你的角色固位：{myTier ? fixedTierLabel(myTier) : "未分配"}</p>
-                <p>子項庫存：{item.stock}</p>
+                <p>子項庫存：{item.stock ?? "不限"}</p>
                 <p>子項上限：{item.maxPerUser ?? "不限"}</p>
                 <p>你已加入：{inCartQty}</p>
               </div>
@@ -749,19 +757,18 @@ function AdminSettingsPanel(props: { system: UseOrderSystemReturn }): JSX.Elemen
 
   const [productCampaignId, setProductCampaignId] = useState(system.state.campaigns[0]?.id ?? "");
   const [productType, setProductType] = useState<ProductType>("NORMAL");
-  const [productSeries, setProductSeries] = useState<ProductSeries>("Q版系列");
-  const [productSku, setProductSku] = useState("");
+  const [productSeries, setProductSeries] = useState<ProductSeries>(system.state.productCategories[0] ?? "未分類");
+  const [newCategoryName, setNewCategoryName] = useState("");
   const [productName, setProductName] = useState("");
   const [productCharacter, setProductCharacter] = useState<CharacterName>("八千代");
   const [productSlotRestrictionEnabled, setProductSlotRestrictionEnabled] = useState(true);
-  const [productSlotRestrictedCharacter, setProductSlotRestrictedCharacter] = useState<CharacterName>("八千代");
-  const [productRequiredTier, setProductRequiredTier] = useState<ProductRequiredTier>("FIXED_1");
+  const [productSlotRestrictedCharacter, setProductSlotRestrictedCharacter] = useState<CharacterName | "">("八千代");
   const [productImageUrl, setProductImageUrl] = useState("");
   const [productHotPrice, setProductHotPrice] = useState("120");
   const [productColdPrice, setProductColdPrice] = useState("80");
   const [productAveragePrice, setProductAveragePrice] = useState("95");
-  const [productStock, setProductStock] = useState("10");
-  const [productMaxPerUser, setProductMaxPerUser] = useState("1");
+  const [productStock, setProductStock] = useState("");
+  const [productMaxPerUser, setProductMaxPerUser] = useState("");
 
   const blindProducts = useMemo(
     () => system.state.products.filter((product) => product.type === "BLIND_BOX"),
@@ -769,12 +776,11 @@ function AdminSettingsPanel(props: { system: UseOrderSystemReturn }): JSX.Elemen
   );
 
   const [blindProductId, setBlindProductId] = useState("");
-  const [blindSku, setBlindSku] = useState("");
   const [blindName, setBlindName] = useState("");
   const [blindCharacter, setBlindCharacter] = useState<CharacterName>("八千代");
   const [blindImageUrl, setBlindImageUrl] = useState("");
-  const [blindStock, setBlindStock] = useState("1");
-  const [blindMaxPerUser, setBlindMaxPerUser] = useState("1");
+  const [blindStock, setBlindStock] = useState("");
+  const [blindMaxPerUser, setBlindMaxPerUser] = useState("");
   const [importMode, setImportMode] = useState<"PRODUCT_CSV" | "PRODUCT_JSON" | "BLIND_CSV" | "BLIND_JSON">("PRODUCT_CSV");
   const [importText, setImportText] = useState("");
 
@@ -783,6 +789,13 @@ function AdminSettingsPanel(props: { system: UseOrderSystemReturn }): JSX.Elemen
       setProductCampaignId(system.state.campaigns[0].id);
     }
   }, [productCampaignId, system.state.campaigns]);
+
+  useEffect(() => {
+    if (!system.state.productCategories.length) return;
+    if (!system.state.productCategories.includes(productSeries)) {
+      setProductSeries(system.state.productCategories[0]);
+    }
+  }, [productSeries, system.state.productCategories]);
 
   useEffect(() => {
     if (blindProducts.length === 0) {
@@ -801,6 +814,23 @@ function AdminSettingsPanel(props: { system: UseOrderSystemReturn }): JSX.Elemen
   const selectedBlindItems = blindProductId
     ? system.getBlindBoxItemsByProduct(blindProductId)
     : [];
+
+  const assignGeneratedSkus = <T extends { sku: string }>(prefix: string, rows: T[], existingSkus: string[]): T[] => {
+    let sequence = existingSkus.reduce((max, sku) => {
+      const match = sku.toUpperCase().match(new RegExp(`^${prefix}-(\\d+)$`));
+      if (!match) return max;
+      return Math.max(max, Number(match[1]));
+    }, 0);
+
+    return rows.map((row) => {
+      if (row.sku.trim()) return row;
+      sequence += 1;
+      return {
+        ...row,
+        sku: `${prefix}-${String(sequence).padStart(4, "0")}`,
+      };
+    });
+  };
 
   const syncProductsToSupabase = async (rows: ProductImportRow[]): Promise<{ ok: boolean; message: string }> => {
     if (!isSupabaseEnabled || !supabase) {
@@ -899,9 +929,11 @@ function AdminSettingsPanel(props: { system: UseOrderSystemReturn }): JSX.Elemen
         return;
       }
 
+      const resolvedRows = assignGeneratedSkus("PRD", parsed.rows, system.state.products.map((item) => item.sku));
+
       let successCount = 0;
       let firstError = "";
-      parsed.rows.forEach((row) => {
+      resolvedRows.forEach((row) => {
         const result = system.adminCreateProduct({
           campaignId: productCampaignId,
           sku: row.sku,
@@ -911,7 +943,6 @@ function AdminSettingsPanel(props: { system: UseOrderSystemReturn }): JSX.Elemen
           character: row.type === "NORMAL" ? row.character : null,
           slotRestrictionEnabled: row.slotRestrictionEnabled,
           slotRestrictedCharacter: row.slotRestrictionEnabled ? row.slotRestrictedCharacter : null,
-          requiredTier: row.requiredTier,
           imageUrl: row.imageUrl,
           isPopular: row.isPopular,
           hotPrice: row.hotPrice,
@@ -932,7 +963,7 @@ function AdminSettingsPanel(props: { system: UseOrderSystemReturn }): JSX.Elemen
           ? `已匯入 ${successCount} 筆，失敗原因：${firstError}`
           : `商品匯入成功，共 ${successCount} 筆。`;
 
-      const syncResult = await syncProductsToSupabase(parsed.rows);
+      const syncResult = await syncProductsToSupabase(resolvedRows);
       setFeedback(`${localFeedback} ${syncResult.message}`);
       return;
     }
@@ -951,13 +982,15 @@ function AdminSettingsPanel(props: { system: UseOrderSystemReturn }): JSX.Elemen
       return;
     }
 
+    const resolvedRows = assignGeneratedSkus("BLI", parsed.rows, system.state.blindBoxItems.map((item) => item.sku));
+
     const productsInCampaign = system.getProductsByCampaign(productCampaignId);
     const bySku = new Map(productsInCampaign.map((item) => [item.sku, item]));
 
     let successCount = 0;
     let firstError = "";
 
-    parsed.rows.forEach((row) => {
+    resolvedRows.forEach((row) => {
       const parent = bySku.get(row.parentSku);
       if (!parent || parent.type !== "BLIND_BOX") {
         if (!firstError) firstError = `找不到盲盒母商品 SKU：${row.parentSku}`;
@@ -985,7 +1018,7 @@ function AdminSettingsPanel(props: { system: UseOrderSystemReturn }): JSX.Elemen
         ? `已匯入 ${successCount} 筆，失敗原因：${firstError}`
         : `盲盒子項匯入成功，共 ${successCount} 筆。`;
 
-    const syncResult = await syncBlindItemsToSupabase(parsed.rows);
+    const syncResult = await syncBlindItemsToSupabase(resolvedRows);
     setFeedback(`${localFeedback} ${syncResult.message}`);
   };
 
@@ -993,9 +1026,59 @@ function AdminSettingsPanel(props: { system: UseOrderSystemReturn }): JSX.Elemen
     <section className="space-y-5">
       <div className="glass-card p-5">
         <h2 className="text-2xl font-extrabold text-slate-900">活動設定（管理員）</h2>
-        <p className="mt-2 text-sm text-slate-600">可新增活動、商品、盲盒子項，並維持每個商品必填商品級固位。</p>
+        <p className="mt-2 text-sm text-slate-600">可新增活動、分類、商品、盲盒子項，並直接控制每件商品是否啟用固位限制。</p>
         {feedback && <p className="mt-2 text-sm font-semibold text-slate-800">{feedback}</p>}
       </div>
+
+      <section className="glass-card p-5">
+        <div className="flex flex-wrap items-center justify-between gap-3">
+          <div>
+            <h3 className="text-lg font-bold text-slate-900">商品分類管理</h3>
+            <p className="mt-1 text-sm text-slate-600">分類由管理員自行維護，刪除分類後商品會自動改放到未分類。</p>
+          </div>
+          <div className="flex flex-wrap gap-2">
+            <input
+              className="rounded-xl border border-slate-200 px-3 py-2 text-sm"
+              placeholder="新增分類名稱"
+              value={newCategoryName}
+              onChange={(event) => setNewCategoryName(event.target.value)}
+            />
+            <button
+              type="button"
+              className="rounded-xl bg-slate-900 px-4 py-2 text-sm font-semibold text-white hover:bg-slate-700"
+              onClick={() => {
+                const result = system.adminCreateCategory(newCategoryName);
+                setFeedback(result.message);
+                if (result.ok) setNewCategoryName("");
+              }}
+            >
+              新增分類
+            </button>
+          </div>
+        </div>
+
+        <div className="mt-4 flex flex-wrap gap-2">
+          {system.state.productCategories.map((category) => (
+            <div key={category} className="flex items-center gap-2 rounded-full border border-slate-200 bg-white/70 px-3 py-2 text-sm">
+              <span>{category}</span>
+              {category !== "未分類" && (
+                <button
+                  type="button"
+                  className="text-xs font-semibold text-rose-700"
+                  onClick={() => {
+                    const ok = window.confirm(`刪除分類「${category}」後，商品會移到未分類。確定執行？`);
+                    if (!ok) return;
+                    const result = system.adminDeleteCategory(category);
+                    setFeedback(result.message);
+                  }}
+                >
+                  刪除
+                </button>
+              )}
+            </div>
+          ))}
+        </div>
+      </section>
 
       <section className="grid gap-5 xl:grid-cols-2">
         <div className="glass-card p-5">
@@ -1200,39 +1283,24 @@ function AdminSettingsPanel(props: { system: UseOrderSystemReturn }): JSX.Elemen
               </label>
 
               <label className="block">
-                商品系列
+                商品分類
                 <select
                   className="mt-1 w-full rounded-xl border border-slate-200 px-3 py-2"
                   value={productSeries}
                   onChange={(event) => setProductSeries(event.target.value as ProductSeries)}
                 >
-                  {PRODUCT_SERIES_OPTIONS.map((series) => (
+                  {system.state.productCategories.map((series) => (
                     <option key={series} value={series}>{series}</option>
                   ))}
                 </select>
               </label>
 
-              <label className="block">
-                商品固位（必填）
-                <select
-                  className="mt-1 w-full rounded-xl border border-slate-200 px-3 py-2"
-                  value={productRequiredTier}
-                  onChange={(event) => setProductRequiredTier(event.target.value as ProductRequiredTier)}
-                >
-                  {requiredTierOptions.map((tier) => (
-                    <option key={tier} value={tier}>{productRequiredTierLabel(tier)}</option>
-                  ))}
-                </select>
-              </label>
+              <div className="rounded-xl border border-dashed border-slate-300 px-3 py-2 text-xs text-slate-500">
+                SKU 由系統自動產生
+              </div>
             </div>
 
-            <div className="grid gap-3 sm:grid-cols-2">
-              <input
-                className="w-full rounded-xl border border-slate-200 px-3 py-2"
-                placeholder="SKU"
-                value={productSku}
-                onChange={(event) => setProductSku(event.target.value)}
-              />
+            <div className="grid gap-3 sm:grid-cols-1">
               <input
                 className="w-full rounded-xl border border-slate-200 px-3 py-2"
                 placeholder="商品名稱"
@@ -1279,8 +1347,9 @@ function AdminSettingsPanel(props: { system: UseOrderSystemReturn }): JSX.Elemen
                   <select
                     className="mt-1 w-full rounded-xl border border-slate-200 px-3 py-2"
                     value={productSlotRestrictedCharacter}
-                    onChange={(event) => setProductSlotRestrictedCharacter(event.target.value as CharacterName)}
+                    onChange={(event) => setProductSlotRestrictedCharacter(event.target.value as CharacterName | "")}
                   >
+                    {productType === "BLIND_BOX" && <option value="">依子項角色自動判斷</option>}
                     {CHARACTER_OPTIONS.map((character) => (
                       <option key={character} value={character}>{character}</option>
                     ))}
@@ -1329,7 +1398,7 @@ function AdminSettingsPanel(props: { system: UseOrderSystemReturn }): JSX.Elemen
                   className="w-full rounded-xl border border-slate-200 px-3 py-2"
                   type="number"
                   min={0}
-                  placeholder="庫存"
+                  placeholder="庫存（留空 = 不限量）"
                   value={productStock}
                   onChange={(event) => setProductStock(event.target.value)}
                 />
@@ -1350,27 +1419,28 @@ function AdminSettingsPanel(props: { system: UseOrderSystemReturn }): JSX.Elemen
               onClick={() => {
                 const result = system.adminCreateProduct({
                   campaignId: productCampaignId,
-                  sku: productSku,
                   name: productName,
                   series: productSeries,
                   type: productType,
                   character: productType === "NORMAL" ? productCharacter : null,
                   slotRestrictionEnabled: productSlotRestrictionEnabled,
-                  slotRestrictedCharacter: productSlotRestrictionEnabled ? productSlotRestrictedCharacter : null,
-                  requiredTier: productRequiredTier,
+                  slotRestrictedCharacter: productSlotRestrictionEnabled && productSlotRestrictedCharacter
+                    ? productSlotRestrictedCharacter
+                    : null,
                   imageUrl: productImageUrl || null,
                   isPopular: false,
                   hotPrice: Number(productHotPrice),
                   coldPrice: Number(productColdPrice),
                   averagePrice: Number(productAveragePrice),
-                  stock: productType === "NORMAL" ? Number(productStock) : null,
+                  stock: productType === "NORMAL" && productStock.trim() ? Number(productStock) : null,
                   maxPerUser: productMaxPerUser.trim() ? Number(productMaxPerUser) : null,
                 });
                 setFeedback(result.message);
                 if (result.ok) {
-                  setProductSku("");
                   setProductName("");
                   setProductImageUrl("");
+                  setProductStock("");
+                  setProductMaxPerUser("");
                 }
               }}
             >
@@ -1398,12 +1468,9 @@ function AdminSettingsPanel(props: { system: UseOrderSystemReturn }): JSX.Elemen
             </select>
           </label>
 
-          <input
-            className="w-full rounded-xl border border-slate-200 px-3 py-2"
-            placeholder="子項 SKU"
-            value={blindSku}
-            onChange={(event) => setBlindSku(event.target.value)}
-          />
+          <div className="flex items-center rounded-xl border border-dashed border-slate-300 px-3 py-2 text-xs text-slate-500">
+            子項 SKU 由系統自動產生
+          </div>
           <input
             className="w-full rounded-xl border border-slate-200 px-3 py-2"
             placeholder="子項名稱"
@@ -1435,7 +1502,7 @@ function AdminSettingsPanel(props: { system: UseOrderSystemReturn }): JSX.Elemen
             className="w-full rounded-xl border border-slate-200 px-3 py-2"
             type="number"
             min={0}
-            placeholder="子項庫存"
+            placeholder="子項庫存（留空 = 不限量）"
             value={blindStock}
             onChange={(event) => setBlindStock(event.target.value)}
           />
@@ -1455,18 +1522,18 @@ function AdminSettingsPanel(props: { system: UseOrderSystemReturn }): JSX.Elemen
             onClick={() => {
               const result = system.adminCreateBlindBoxItem({
                 productId: blindProductId,
-                sku: blindSku,
                 name: blindName,
                 character: blindCharacter,
                 imageUrl: blindImageUrl || null,
-                stock: Number(blindStock),
+                stock: blindStock.trim() ? Number(blindStock) : null,
                 maxPerUser: blindMaxPerUser.trim() ? Number(blindMaxPerUser) : null,
               });
               setFeedback(result.message);
               if (result.ok) {
-                setBlindSku("");
                 setBlindName("");
                 setBlindImageUrl("");
+                setBlindStock("");
+                setBlindMaxPerUser("");
               }
             }}
           >
@@ -1481,7 +1548,7 @@ function AdminSettingsPanel(props: { system: UseOrderSystemReturn }): JSX.Elemen
             {selectedBlindItems.map((item) => (
               <div key={item.id} className="rounded-xl border border-slate-200 px-3 py-2">
                 <p className="font-semibold text-slate-900">{item.name}</p>
-                <p className="text-xs text-slate-500">{item.sku} / {item.character} / 庫存 {item.stock} / 上限 {item.maxPerUser ?? "不限"}</p>
+                <p className="text-xs text-slate-500">{item.sku} / {item.character} / 庫存 {item.stock ?? "不限"} / 上限 {item.maxPerUser ?? "不限"}</p>
               </div>
             ))}
           </div>
@@ -1534,29 +1601,15 @@ function AdminSettingsPanel(props: { system: UseOrderSystemReturn }): JSX.Elemen
                   <p className="text-xs font-semibold text-slate-900">{product.name}</p>
                   <p className="text-[11px] text-slate-500">系列：{product.series}</p>
                   <p className="text-[11px] text-slate-500">類型：{productTypeLabel(product.type)}</p>
-                  <p className="text-[11px] text-slate-500">需求：{productRequiredTierLabel(product.requiredTier)} / 上限：{product.maxPerUser ?? "不限"}</p>
+                  <p className="text-[11px] text-slate-500">上限：{product.maxPerUser ?? "不限"}</p>
                   <p className="text-[11px] text-slate-500">
-                    固位限制：{product.slotRestrictionEnabled ? `啟用（${product.slotRestrictedCharacter ?? "未設定"}）` : "關閉（全員）"}
+                    固位限制：{product.slotRestrictionEnabled
+                      ? `啟用（${product.slotRestrictedCharacter ?? (product.type === "BLIND_BOX" ? "依子項角色" : "未設定")}）`
+                      : "關閉（全員）"}
                   </p>
-                  {product.type === "NORMAL" && <p className="text-[11px] text-slate-500">庫存：{product.stock ?? 0}</p>}
+                  {product.type === "NORMAL" && <p className="text-[11px] text-slate-500">庫存：{product.stock ?? "不限"}</p>}
 
                   <div className="mt-1 flex flex-wrap gap-1">
-                    {requiredTierOptions.map((tier) => (
-                      <button
-                        key={tier}
-                        type="button"
-                        className={`rounded border px-2 py-0.5 text-[11px] ${
-                          product.requiredTier === tier ? "border-slate-900 bg-slate-900 text-white" : "border-slate-200"
-                        }`}
-                        onClick={() => {
-                          const result = system.adminUpdateProductRule({ productId: product.id, requiredTier: tier });
-                          setFeedback(result.message);
-                        }}
-                      >
-                        {productRequiredTierLabel(tier)}
-                      </button>
-                    ))}
-
                     <button
                       type="button"
                       className="rounded border px-2 py-0.5 text-[11px]"
@@ -1577,18 +1630,20 @@ function AdminSettingsPanel(props: { system: UseOrderSystemReturn }): JSX.Elemen
                       className="rounded border px-2 py-0.5 text-[11px]"
                       onClick={() => {
                         const value = window.prompt(
-                          "設定限制角色（八千代/彩葉/輝耀姬/帝/乃依/雷/真實/蘆花）",
-                          product.slotRestrictedCharacter ?? product.character ?? "八千代",
+                          product.type === "BLIND_BOX"
+                            ? "設定限制角色（留空代表依子項角色判斷）"
+                            : "設定限制角色（八千代/彩葉/輝耀姬/帝/乃依/雷/真實/蘆花）",
+                          product.slotRestrictedCharacter ?? product.character ?? "",
                         );
                         if (value === null) return;
-                        if (!CHARACTER_OPTIONS.includes(value as CharacterName)) {
+                        if (value.trim() !== "" && !CHARACTER_OPTIONS.includes(value as CharacterName)) {
                           setFeedback("角色名稱無效。");
                           return;
                         }
                         const result = system.adminUpdateProductRule({
                           productId: product.id,
                           slotRestrictionEnabled: true,
-                          slotRestrictedCharacter: value as CharacterName,
+                          slotRestrictedCharacter: value.trim() === "" ? null : value as CharacterName,
                         });
                         setFeedback(result.message);
                       }}
@@ -1616,9 +1671,11 @@ function AdminSettingsPanel(props: { system: UseOrderSystemReturn }): JSX.Elemen
                         type="button"
                         className="rounded border px-2 py-0.5 text-[11px]"
                         onClick={() => {
-                          const value = window.prompt("此商品庫存", String(product.stock ?? 0));
+                          const value = window.prompt("此商品庫存（留空為不限量）", product.stock === null ? "" : String(product.stock));
                           if (value === null) return;
-                          const result = system.adminUpdateProductRule({ productId: product.id, stock: Number(value) });
+                          const result = value.trim() === ""
+                            ? system.adminUpdateProductRule({ productId: product.id, stock: null })
+                            : system.adminUpdateProductRule({ productId: product.id, stock: Number(value) });
                           setFeedback(result.message);
                         }}
                       >
@@ -2049,7 +2106,7 @@ function AdminConsoleView(props: {
                 : product?.name ?? "未知商品";
               const queue = system.getClaimQueue(claim.campaignId, claim.productId, claim.blindBoxItemId ?? undefined);
               const rank = queue.findIndex((item) => item.id === claim.id) + 1;
-              const stock = claim.blindBoxItemId ? (blindItem?.stock ?? 0) : (product?.stock ?? 0);
+              const stock = claim.blindBoxItemId ? (blindItem?.stock ?? null) : (product?.stock ?? null);
 
               return (
                 <article key={claim.id} className="rounded-xl border border-slate-200 p-4">
@@ -2060,7 +2117,7 @@ function AdminConsoleView(props: {
                         {campaign?.title ?? "未知活動"} / {user?.fbNickname ?? "未知會員"} / {formatDate(claim.createdAt)}
                       </p>
                       <p className="text-xs text-slate-500">
-                        狀態：{claim.status} / 順位：{rank > 0 ? rank : "-"} / 名額：{stock}
+                        狀態：{claim.status} / 順位：{rank > 0 ? rank : "-"} / 名額：{stock ?? "不限"}
                       </p>
                     </div>
                     <div className="flex flex-wrap gap-2">
