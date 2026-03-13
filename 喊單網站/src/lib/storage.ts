@@ -35,9 +35,15 @@ function normalizeState(raw: unknown): OrderSystemState {
   const fallback = deepClone(seedState);
   if (!raw || typeof raw !== "object") return fallback;
 
+  type LegacyProductRecord = Record<string, unknown> & {
+    averagePrice?: unknown;
+    hotPrice?: unknown;
+    coldPrice?: unknown;
+  };
+
   const candidate = raw as Partial<OrderSystemState> & {
     campaigns?: Array<Record<string, unknown>>;
-    products?: Array<Record<string, unknown>>;
+    products?: Array<LegacyProductRecord>;
     blindBoxItems?: Array<Record<string, unknown>>;
     characterSlots?: Array<Record<string, unknown>>;
     claims?: Array<Record<string, unknown>>;
@@ -54,8 +60,12 @@ function normalizeState(raw: unknown): OrderSystemState {
     }))
     : fallback.campaigns;
 
-  const normalizedProducts = Array.isArray(candidate.products)
-    ? candidate.products.map((product) => {
+  const rawProducts = Array.isArray((candidate as { products?: unknown[] }).products)
+    ? (candidate as { products: LegacyProductRecord[] }).products
+    : null;
+
+  const normalizedProducts = Array.isArray(rawProducts)
+    ? rawProducts.map((product) => {
       const legacyCharacter = product.character;
       const slotRestrictionEnabled =
         typeof product.slotRestrictionEnabled === "boolean"
@@ -146,9 +156,13 @@ function normalizeState(raw: unknown): OrderSystemState {
   return {
     users: Array.isArray(candidate.users)
       ? candidate.users.map((user) => ({
-        ...user,
+        id: typeof user.id === "string" ? user.id : crypto.randomUUID(),
         email: normalizeEmail(user.email),
         fbNickname: normalizeNickname(user.fbNickname),
+        roleTier: normalizeCharacterTier(user.roleTier) ?? "LEAK_PICK",
+        pickupRate: typeof user.pickupRate === "number" ? user.pickupRate : 100,
+        isAdmin: Boolean(user.isAdmin),
+        createdAt: typeof user.createdAt === "string" ? user.createdAt : new Date().toISOString(),
       }))
       : fallback.users,
     campaigns: normalizedCampaigns as OrderSystemState["campaigns"],

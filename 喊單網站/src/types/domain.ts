@@ -28,7 +28,6 @@ export type ProductSeries = string;
 export interface UserProfile {
   id: string;
   email: string;
-  password: string;
   fbNickname: string;
   roleTier: RoleTier;
   pickupRate: number;

@@ -25,7 +25,6 @@ export const seedState: OrderSystemState = {
     {
       id: "u-admin-001",
       email: "admin@example.com",
-      password: "Admin1234",
       fbNickname: "團主Momo",
       roleTier: "FIXED_1",
       pickupRate: 100,
@@ -35,7 +34,6 @@ export const seedState: OrderSystemState = {
     {
       id: "u-member-001",
       email: "yachiyo@example.com",
-      password: "User1234",
       fbNickname: "八千代派",
       roleTier: "FIXED_1",
       pickupRate: 98,
@@ -45,7 +43,6 @@ export const seedState: OrderSystemState = {
     {
       id: "u-member-002",
       email: "noi@example.com",
-      password: "User1234",
       fbNickname: "乃依一生推",
       roleTier: "FIXED_2",
       pickupRate: 92,
@@ -55,7 +52,6 @@ export const seedState: OrderSystemState = {
     {
       id: "u-member-003",
       email: "newbie@example.com",
-      password: "User1234",
       fbNickname: "新手小葵",
       roleTier: "LEAK_PICK",
       pickupRate: 86,

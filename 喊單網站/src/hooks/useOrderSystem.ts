@@ -636,13 +636,17 @@ export function useOrderSystem(): UseOrderSystemReturn {
 
   const register = (input: RegisterInput): ActionResult => {
     const normalizedEmail = normalizeEmail(input.email);
-    const normalizedNickname = input.fbNickname.trim();
+    const normalizedNickname = normalizeNickname(input.fbNickname);
     if (!normalizedEmail || !normalizedNickname) {
       return { ok: false, message: "請完整填寫 Email 與 FB 暱稱。" };
     }
-    const exists = state.users.some((user) => normalizeEmail(user.email) === normalizedEmail);
-    if (exists) {
+    const emailExists = state.users.some((user) => normalizeEmail(user.email) === normalizedEmail);
+    if (emailExists) {
       return { ok: false, message: "此 Email 已註冊。" };
+    }
+    const nicknameExists = state.users.some((user) => normalizeNickname(user.fbNickname) === normalizedNickname);
+    if (nicknameExists) {
+      return { ok: false, message: "此 FB 暱稱已被使用，請換一個可識別的名稱。" };
     }
 
     const userId = crypto.randomUUID();
@@ -650,8 +654,7 @@ export function useOrderSystem(): UseOrderSystemReturn {
     const nextUser: UserProfile = {
       id: userId,
       email: normalizedEmail,
-      password: "",
-      fbNickname: normalizedNickname,
+      fbNickname: input.fbNickname.trim(),
       roleTier: "LEAK_PICK",
       pickupRate: 100,
       isAdmin: false,
