@@ -1984,12 +1984,6 @@ function AdminConsoleView(props: {
       .sort((a, b) => Number(b.user.isAdmin) - Number(a.user.isAdmin) || a.user.fbNickname.localeCompare(b.user.fbNickname));
   }, [system.state.characterSlots, system.state.claims, system.state.orders, system.state.users]);
 
-  const currentUserSlotSummary = useMemo(() => {
-    const userId = system.currentUser?.id;
-    if (!userId) return "未分配";
-    return formatCharacterSlotSummary(system.state.characterSlots.filter((slot) => slot.userId === userId));
-  }, [system.currentUser?.id, system.state.characterSlots]);
-
   const dashboardStats = useMemo(() => {
     const totalOrderAmount = system.state.orders.reduce((sum, order) => sum + order.totalAmount, 0);
     return {
@@ -2419,6 +2413,12 @@ export default function App(): JSX.Element {
     () => system.state.products.find((product) => product.id === selectedBlindProductId) ?? null,
     [selectedBlindProductId, system.state.products],
   );
+
+  const currentUserSlotSummary = useMemo(() => {
+    const userId = system.currentUser?.id;
+    if (!userId) return "未分配";
+    return formatCharacterSlotSummary(system.state.characterSlots.filter((slot) => slot.userId === userId));
+  }, [system.currentUser?.id, system.state.characterSlots]);
 
   const navigateRoot = (route: RootRoute): void => {
     window.location.hash = route === "admin" ? "/admin" : "/";
