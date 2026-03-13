@@ -24,6 +24,7 @@ import {
   roleLabel,
   twd,
 } from "./lib/format";
+import { calculateUnitPrice } from "./lib/business-rules";
 import { downloadTextFile } from "./lib/download";
 import { isSupabaseEnabled, supabase, testSupabaseConnection } from "./lib/supabase";
 import type {
@@ -31,7 +32,6 @@ import type {
   CharacterName,
   CharacterTier,
   OrderStatus,
-  PricingMode,
   Product,
   ProductSeries,
   ProductType,
@@ -46,7 +46,6 @@ type ClaimStatusFilter = "ALL" | "LOCKED" | "CONFIRMED" | "CANCELLED_BY_ADMIN";
 const stageOptions: ReleaseStage[] = ["FIXED_1_ONLY", "FIXED_1_2", "FIXED_1_2_3", "ALL_OPEN"];
 const characterTierOptions: CharacterTier[] = ["FIXED_1", "FIXED_2", "FIXED_3", "LEAK_PICK"];
 const productTypeOptions: ProductType[] = ["NORMAL", "BLIND_BOX"];
-const pricingModeOptions: PricingMode[] = ["DYNAMIC", "AVERAGE_WITH_BINDING"];
 const orderStatusOptions: OrderStatus[] = ["PLACED", "PAID", "CANCELLED"];
 const adminTabs: Array<{ id: AdminTab; label: string }> = [
   { id: "dashboard", label: "總覽" },
@@ -203,9 +202,7 @@ function CampaignView(props: {
 
     const withPrice = selectedSeriesProducts.map((product) => ({
       product,
-      price: campaign.pricingMode === "DYNAMIC"
-        ? (product.isPopular ? product.hotPrice : product.coldPrice)
-        : product.averagePrice,
+      price: product.price,
     }));
 
     const filtered = withPrice.filter(({ product }) => {
@@ -234,7 +231,7 @@ function CampaignView(props: {
     });
 
     return sorted.map((item) => item.product);
-  }, [campaign.id, campaign.pricingMode, keyword, onlyAvailable, selectedSeriesProducts, sortBy, system]);
+  }, [campaign.id, keyword, onlyAvailable, selectedSeriesProducts, sortBy, system]);
 
   return (
     <section className="space-y-5">
@@ -330,9 +327,6 @@ function CampaignView(props: {
           const normalAccess = product.type === "NORMAL"
             ? system.getProductAccessForCurrentUser(campaign.id, product.id)
             : null;
-          const price = campaign.pricingMode === "DYNAMIC"
-            ? (product.isPopular ? product.hotPrice : product.coldPrice)
-            : product.averagePrice;
           const blindItemsCount = system.getBlindBoxItemsByProduct(product.id).length;
 
           return (
@@ -348,7 +342,7 @@ function CampaignView(props: {
               </div>
 
               <div className="mt-3 space-y-1 text-sm text-slate-600">
-                <p>單價：{twd(price)}</p>
+                <p>單價：{twd(product.price)}</p>
 
                 {product.type === "NORMAL" && (
                   <>
@@ -460,6 +454,7 @@ function BlindBoxView(props: {
               </div>
 
               <div className="mt-3 space-y-1 text-sm text-slate-600">
+                <p>單價：{twd(calculateUnitPrice(product, item))}</p>
                 <p>你的角色固位：{myTier ? fixedTierLabel(myTier) : "未分配"}</p>
                 <p>子項庫存：{item.stock ?? "不限"}</p>
                 <p>子項上限：{item.maxPerUser ?? "不限"}</p>
@@ -541,11 +536,9 @@ function CartView(props: {
         const campaign = campaignById.get(campaignId);
         const estimatedTotal = items.reduce((sum, item) => {
           const product = productById.get(item.productId);
+          const blindItem = item.blindBoxItemId ? blindItemById.get(item.blindBoxItemId) ?? null : null;
           if (!campaign || !product) return sum;
-          const price = campaign.pricingMode === "DYNAMIC"
-            ? (product.isPopular ? product.hotPrice : product.coldPrice)
-            : product.averagePrice;
-          return sum + price * item.qty;
+          return sum + calculateUnitPrice(product, blindItem) * item.qty;
         }, 0);
 
         return (
@@ -746,7 +739,6 @@ function AdminSettingsPanel(props: { system: UseOrderSystemReturn }): JSX.Elemen
   const [campaignTitle, setCampaignTitle] = useState("");
   const [campaignDescription, setCampaignDescription] = useState("");
   const [campaignDeadlineAt, setCampaignDeadlineAt] = useState("");
-  const [campaignPricingMode, setCampaignPricingMode] = useState<PricingMode>("DYNAMIC");
   const [campaignReleaseStage, setCampaignReleaseStage] = useState<ReleaseStage>("FIXED_1_ONLY");
 
   const [productCampaignId, setProductCampaignId] = useState(system.state.campaigns[0]?.id ?? "");
@@ -758,9 +750,7 @@ function AdminSettingsPanel(props: { system: UseOrderSystemReturn }): JSX.Elemen
   const [productSlotRestrictionEnabled, setProductSlotRestrictionEnabled] = useState(true);
   const [productSlotRestrictedCharacter, setProductSlotRestrictedCharacter] = useState<CharacterName | "">("八千代");
   const [productImageUrl, setProductImageUrl] = useState("");
-  const [productHotPrice, setProductHotPrice] = useState("120");
-  const [productColdPrice, setProductColdPrice] = useState("80");
-  const [productAveragePrice, setProductAveragePrice] = useState("95");
+  const [productPrice, setProductPrice] = useState("120");
   const [productStock, setProductStock] = useState("");
   const [productMaxPerUser, setProductMaxPerUser] = useState("");
 
@@ -773,6 +763,7 @@ function AdminSettingsPanel(props: { system: UseOrderSystemReturn }): JSX.Elemen
   const [blindName, setBlindName] = useState("");
   const [blindCharacter, setBlindCharacter] = useState<CharacterName>("八千代");
   const [blindImageUrl, setBlindImageUrl] = useState("");
+  const [blindPrice, setBlindPrice] = useState("");
   const [blindStock, setBlindStock] = useState("");
   const [blindMaxPerUser, setBlindMaxPerUser] = useState("");
   const [importMode, setImportMode] = useState<"PRODUCT_CSV" | "PRODUCT_JSON" | "BLIND_CSV" | "BLIND_JSON">("PRODUCT_CSV");
@@ -818,6 +809,9 @@ function AdminSettingsPanel(props: { system: UseOrderSystemReturn }): JSX.Elemen
   const selectedBlindItems = blindProductId
     ? system.getBlindBoxItemsByProduct(blindProductId)
     : [];
+  const selectedBlindProduct = blindProductId
+    ? blindProducts.find((product) => product.id === blindProductId) ?? null
+    : null;
 
   const assignGeneratedSkus = <T extends { sku: string }>(prefix: string, rows: T[], existingSkus: string[]): T[] => {
     let sequence = existingSkus.reduce((max, sku) => {
@@ -851,12 +845,11 @@ function AdminSettingsPanel(props: { system: UseOrderSystemReturn }): JSX.Elemen
       slot_restriction_enabled: row.type === "BLIND_BOX" ? row.slotRestrictionEnabled : false,
       slot_restricted_character:
         row.type === "BLIND_BOX" && row.slotRestrictionEnabled ? row.slotRestrictedCharacter : null,
-      required_tier: row.requiredTier,
       image_url: row.imageUrl,
-      is_popular: row.isPopular,
-      hot_price: row.hotPrice,
-      cold_price: row.coldPrice,
-      average_price: row.averagePrice,
+      price: row.price,
+      hot_price: row.price,
+      cold_price: row.price,
+      average_price: row.price,
       stock: row.type === "NORMAL" ? row.stock : null,
       max_per_user: row.maxPerUser,
     }));
@@ -900,6 +893,7 @@ function AdminSettingsPanel(props: { system: UseOrderSystemReturn }): JSX.Elemen
         name: row.name,
         character_name: row.character,
         image_url: row.imageUrl,
+        price: row.price,
         stock: row.stock,
         max_per_user: row.maxPerUser,
       });
@@ -950,10 +944,7 @@ function AdminSettingsPanel(props: { system: UseOrderSystemReturn }): JSX.Elemen
           slotRestrictedCharacter:
             row.type === "BLIND_BOX" && row.slotRestrictionEnabled ? row.slotRestrictedCharacter : null,
           imageUrl: row.imageUrl,
-          isPopular: row.isPopular,
-          hotPrice: row.hotPrice,
-          coldPrice: row.coldPrice,
-          averagePrice: row.averagePrice,
+          price: row.price,
           stock: row.type === "NORMAL" ? row.stock : null,
           maxPerUser: row.maxPerUser,
         });
@@ -1009,6 +1000,7 @@ function AdminSettingsPanel(props: { system: UseOrderSystemReturn }): JSX.Elemen
         name: row.name,
         character: row.character,
         imageUrl: row.imageUrl,
+        price: row.price,
         stock: row.stock,
         maxPerUser: row.maxPerUser,
       });
@@ -1032,7 +1024,7 @@ function AdminSettingsPanel(props: { system: UseOrderSystemReturn }): JSX.Elemen
     <section className="space-y-5">
       <div className="glass-card p-5">
         <h2 className="text-2xl font-extrabold text-slate-900">活動設定（管理員）</h2>
-        <p className="mt-2 text-sm text-slate-600">一般商品固定全員可喊，只有盲盒拆分商品才使用固位限制。</p>
+        <p className="mt-2 text-sm text-slate-600">一般商品固定全員可喊，只有盲盒拆分商品才使用固位限制。價格全面改為手動設定。</p>
         {feedback && <p className="mt-2 text-sm font-semibold text-slate-800">{feedback}</p>}
       </div>
 
@@ -1108,7 +1100,7 @@ function AdminSettingsPanel(props: { system: UseOrderSystemReturn }): JSX.Elemen
             </button>
           </div>
           <p className="mt-2 text-xs text-slate-500">
-            你要先在 `.env` 設定 `VITE_SUPABASE_URL` 與 `VITE_SUPABASE_ANON_KEY`，再到 Supabase SQL Editor 執行 `supabase/schema.sql`。
+            你要先在 `.env` 設定 `VITE_SUPABASE_URL` 與 `VITE_SUPABASE_ANON_KEY`，再到 Supabase SQL Editor 執行 `supabase/schema.sql` 與最新 migration。
           </p>
           {supabaseFeedback && <p className="mt-2 text-sm font-semibold text-slate-800">{supabaseFeedback}</p>}
         </div>
@@ -1211,18 +1203,6 @@ function AdminSettingsPanel(props: { system: UseOrderSystemReturn }): JSX.Elemen
               />
             </label>
             <label className="block">
-              定價模式
-              <select
-                className="mt-1 w-full rounded-xl border border-slate-200 px-3 py-2"
-                value={campaignPricingMode}
-                onChange={(event) => setCampaignPricingMode(event.target.value as PricingMode)}
-              >
-                {pricingModeOptions.map((mode) => (
-                  <option key={mode} value={mode}>{mode}</option>
-                ))}
-              </select>
-            </label>
-            <label className="block">
               初始釋出階段
               <select
                 className="mt-1 w-full rounded-xl border border-slate-200 px-3 py-2"
@@ -1242,7 +1222,6 @@ function AdminSettingsPanel(props: { system: UseOrderSystemReturn }): JSX.Elemen
                   title: campaignTitle,
                   description: campaignDescription,
                   deadlineAt: campaignDeadlineAt,
-                  pricingMode: campaignPricingMode,
                   releaseStage: campaignReleaseStage,
                 });
                 setFeedback(result.message);
@@ -1377,31 +1356,18 @@ function AdminSettingsPanel(props: { system: UseOrderSystemReturn }): JSX.Elemen
               onChange={(event) => setProductImageUrl(event.target.value)}
             />
 
-            <div className="grid gap-3 sm:grid-cols-3">
+            <div className="grid gap-3 sm:grid-cols-2">
               <input
                 className="w-full rounded-xl border border-slate-200 px-3 py-2"
                 type="number"
                 min={0}
-                placeholder="動態高價"
-                value={productHotPrice}
-                onChange={(event) => setProductHotPrice(event.target.value)}
+                placeholder="商品價格"
+                value={productPrice}
+                onChange={(event) => setProductPrice(event.target.value)}
               />
-              <input
-                className="w-full rounded-xl border border-slate-200 px-3 py-2"
-                type="number"
-                min={0}
-                placeholder="動態低價"
-                value={productColdPrice}
-                onChange={(event) => setProductColdPrice(event.target.value)}
-              />
-              <input
-                className="w-full rounded-xl border border-slate-200 px-3 py-2"
-                type="number"
-                min={0}
-                placeholder="均價"
-                value={productAveragePrice}
-                onChange={(event) => setProductAveragePrice(event.target.value)}
-              />
+              <div className="rounded-xl border border-dashed border-slate-300 px-3 py-2 text-xs text-slate-500">
+                價格改為手動設定，不再區分熱門/冷門/均價模式。
+              </div>
             </div>
 
             <div className="grid gap-3 sm:grid-cols-2">
@@ -1441,10 +1407,7 @@ function AdminSettingsPanel(props: { system: UseOrderSystemReturn }): JSX.Elemen
                     ? productSlotRestrictedCharacter
                     : null,
                   imageUrl: productImageUrl || null,
-                  isPopular: false,
-                  hotPrice: Number(productHotPrice),
-                  coldPrice: Number(productColdPrice),
-                  averagePrice: Number(productAveragePrice),
+                  price: Number(productPrice),
                   stock: productType === "NORMAL" && productStock.trim() ? Number(productStock) : null,
                   maxPerUser: productMaxPerUser.trim() ? Number(productMaxPerUser) : null,
                 });
@@ -1452,6 +1415,7 @@ function AdminSettingsPanel(props: { system: UseOrderSystemReturn }): JSX.Elemen
                 if (result.ok) {
                   setProductName("");
                   setProductImageUrl("");
+                  setProductPrice("120");
                   setProductStock("");
                   setProductMaxPerUser("");
                 }
@@ -1515,6 +1479,15 @@ function AdminSettingsPanel(props: { system: UseOrderSystemReturn }): JSX.Elemen
             className="w-full rounded-xl border border-slate-200 px-3 py-2"
             type="number"
             min={0}
+            placeholder="子項價格（留空 = 跟母商品相同）"
+            value={blindPrice}
+            onChange={(event) => setBlindPrice(event.target.value)}
+          />
+
+          <input
+            className="w-full rounded-xl border border-slate-200 px-3 py-2"
+            type="number"
+            min={0}
             placeholder="子項庫存（留空 = 不限量）"
             value={blindStock}
             onChange={(event) => setBlindStock(event.target.value)}
@@ -1538,6 +1511,7 @@ function AdminSettingsPanel(props: { system: UseOrderSystemReturn }): JSX.Elemen
                 name: blindName,
                 character: blindCharacter,
                 imageUrl: blindImageUrl || null,
+                price: blindPrice.trim() ? Number(blindPrice) : null,
                 stock: blindStock.trim() ? Number(blindStock) : null,
                 maxPerUser: blindMaxPerUser.trim() ? Number(blindMaxPerUser) : null,
               });
@@ -1545,6 +1519,7 @@ function AdminSettingsPanel(props: { system: UseOrderSystemReturn }): JSX.Elemen
               if (result.ok) {
                 setBlindName("");
                 setBlindImageUrl("");
+                setBlindPrice("");
                 setBlindStock("");
                 setBlindMaxPerUser("");
               }
@@ -1561,7 +1536,53 @@ function AdminSettingsPanel(props: { system: UseOrderSystemReturn }): JSX.Elemen
             {selectedBlindItems.map((item) => (
               <div key={item.id} className="rounded-xl border border-slate-200 px-3 py-2">
                 <p className="font-semibold text-slate-900">{item.name}</p>
-                <p className="text-xs text-slate-500">{item.sku} / {item.character} / 庫存 {item.stock ?? "不限"} / 上限 {item.maxPerUser ?? "不限"}</p>
+                <p className="text-xs text-slate-500">
+                  {item.sku} / {item.character} / 價格 {twd(selectedBlindProduct ? calculateUnitPrice(selectedBlindProduct, item) : 0)} / 庫存 {item.stock ?? "不限"} / 上限 {item.maxPerUser ?? "不限"}
+                </p>
+                <div className="mt-2 flex flex-wrap gap-2">
+                  <button
+                    type="button"
+                    className="rounded border px-2 py-0.5 text-[11px]"
+                    onClick={() => {
+                      const value = window.prompt("子項價格（留空 = 跟母商品相同）", item.price === null ? "" : String(item.price));
+                      if (value === null) return;
+                      const result = value.trim() === ""
+                        ? system.adminUpdateBlindBoxItemRule({ blindBoxItemId: item.id, price: null })
+                        : system.adminUpdateBlindBoxItemRule({ blindBoxItemId: item.id, price: Number(value) });
+                      setFeedback(result.message);
+                    }}
+                  >
+                    設子項價格
+                  </button>
+                  <button
+                    type="button"
+                    className="rounded border px-2 py-0.5 text-[11px]"
+                    onClick={() => {
+                      const value = window.prompt("子項庫存（留空 = 不限量）", item.stock === null ? "" : String(item.stock));
+                      if (value === null) return;
+                      const result = value.trim() === ""
+                        ? system.adminUpdateBlindBoxItemRule({ blindBoxItemId: item.id, stock: null })
+                        : system.adminUpdateBlindBoxItemRule({ blindBoxItemId: item.id, stock: Number(value) });
+                      setFeedback(result.message);
+                    }}
+                  >
+                    設子項庫存
+                  </button>
+                  <button
+                    type="button"
+                    className="rounded border px-2 py-0.5 text-[11px]"
+                    onClick={() => {
+                      const value = window.prompt("子項每人上限（留空 = 不限）", item.maxPerUser === null ? "" : String(item.maxPerUser));
+                      if (value === null) return;
+                      const result = value.trim() === ""
+                        ? system.adminUpdateBlindBoxItemRule({ blindBoxItemId: item.id, maxPerUser: null })
+                        : system.adminUpdateBlindBoxItemRule({ blindBoxItemId: item.id, maxPerUser: Number(value) });
+                      setFeedback(result.message);
+                    }}
+                  >
+                    設子項上限
+                  </button>
+                </div>
               </div>
             ))}
           </div>
@@ -1614,6 +1635,7 @@ function AdminSettingsPanel(props: { system: UseOrderSystemReturn }): JSX.Elemen
                   <p className="text-xs font-semibold text-slate-900">{product.name}</p>
                   <p className="text-[11px] text-slate-500">系列：{product.series}</p>
                   <p className="text-[11px] text-slate-500">類型：{productTypeLabel(product.type)}</p>
+                  <p className="text-[11px] text-slate-500">價格：{twd(product.price)}</p>
                   <p className="text-[11px] text-slate-500">上限：{product.maxPerUser ?? "不限"}</p>
                   <p className="text-[11px] text-slate-500">
                     {product.type === "BLIND_BOX"
@@ -1667,6 +1689,24 @@ function AdminSettingsPanel(props: { system: UseOrderSystemReturn }): JSX.Elemen
                         </button>
                       </>
                     )}
+
+                    <button
+                      type="button"
+                      className="rounded border px-2 py-0.5 text-[11px]"
+                      onClick={() => {
+                        const value = window.prompt("此商品價格", String(product.price));
+                        if (value === null) return;
+                        const nextPrice = Number(value);
+                        if (!Number.isFinite(nextPrice) || nextPrice < 0) {
+                          setFeedback("價格必須是大於等於 0 的數字。");
+                          return;
+                        }
+                        const result = system.adminUpdateProductRule({ productId: product.id, price: nextPrice });
+                        setFeedback(result.message);
+                      }}
+                    >
+                      設價格
+                    </button>
 
                     <button
                       type="button"

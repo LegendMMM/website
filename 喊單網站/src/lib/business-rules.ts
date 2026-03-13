@@ -1,7 +1,6 @@
-import { BINDING_WEIGHT, BINDING_WEIGHT_FALLBACK, ROLE_LABEL, ROLE_PRIORITY } from "./constants";
+import { ROLE_LABEL, ROLE_PRIORITY } from "./constants";
 import type {
-  BindingAssignment,
-  Campaign,
+  BlindBoxItem,
   CharacterName,
   CharacterTier,
   Claim,
@@ -33,86 +32,8 @@ export function availablePaymentMethods(pickupRate: number, totalAmount: number)
   return methods;
 }
 
-export function calculateUnitPrice(product: Product, campaign: Campaign): number {
-  if (campaign.pricingMode === "AVERAGE_WITH_BINDING") {
-    return product.averagePrice;
-  }
-  return product.isPopular ? product.hotPrice : product.coldPrice;
-}
-
-export function calculateUserWeight(
-  userId: string,
-  confirmedClaims: Claim[],
-  productsById: Map<string, Product>,
-): number {
-  const userClaims = confirmedClaims.filter((claim) => claim.userId === userId);
-  if (userClaims.length === 0) return 0;
-
-  return userClaims.reduce((maxWeight, claim) => {
-    const product = productsById.get(claim.productId);
-    if (!product || !product.character) return maxWeight;
-    const weight = BINDING_WEIGHT[product.character] ?? BINDING_WEIGHT_FALLBACK;
-    return Math.max(maxWeight, weight);
-  }, 0);
-}
-
-export function buildBindingAssignments(params: {
-  campaign: Campaign;
-  products: Product[];
-  confirmedClaims: Claim[];
-  existingBindings: BindingAssignment[];
-}): BindingAssignment[] {
-  const { campaign, products, confirmedClaims, existingBindings } = params;
-  if (campaign.pricingMode !== "AVERAGE_WITH_BINDING") return [];
-
-  const productsById = new Map(products.map((product) => [product.id, product]));
-
-  const popularBuyerIds = new Set(
-    confirmedClaims
-      .filter((claim) => {
-        const product = productsById.get(claim.productId);
-        return product?.isPopular;
-      })
-      .map((claim) => claim.userId),
-  );
-
-  const alreadyBoundBuyer = new Set(existingBindings.map((binding) => binding.buyerUserId));
-
-  const bindPool = products
-    .filter((product) => product.type === "NORMAL" && !product.isPopular)
-    .flatMap((product) => {
-      const usedCount = confirmedClaims.filter((claim) => claim.productId === product.id).length;
-      const remain = Math.max(0, (product.stock ?? 0) - usedCount);
-      return Array.from({ length: remain }, () => product.id);
-    });
-
-  if (bindPool.length === 0) return [];
-
-  const weightedBuyers = Array.from(popularBuyerIds)
-    .filter((buyerUserId) => !alreadyBoundBuyer.has(buyerUserId))
-    .map((buyerUserId) => ({
-      buyerUserId,
-      weight: calculateUserWeight(buyerUserId, confirmedClaims, productsById),
-    }))
-    .sort((a, b) => b.weight - a.weight);
-
-  const newAssignments: BindingAssignment[] = [];
-  weightedBuyers.forEach((buyer, index) => {
-    const bindProductId = bindPool[index];
-    if (!bindProductId) return;
-    const bindProduct = productsById.get(bindProductId);
-    if (!bindProduct) return;
-    newAssignments.push({
-      id: crypto.randomUUID(),
-      campaignId: campaign.id,
-      buyerUserId: buyer.buyerUserId,
-      bindProductId,
-      reason: `平均價模式：熱門角觸發綁物（權重 ${buyer.weight}）`,
-      createdAt: new Date().toISOString(),
-    });
-  });
-
-  return newAssignments;
+export function calculateUnitPrice(product: Product, blindBoxItem?: BlindBoxItem | null): number {
+  return blindBoxItem?.price ?? product.price;
 }
 
 export function buildShipmentDraft(args: {

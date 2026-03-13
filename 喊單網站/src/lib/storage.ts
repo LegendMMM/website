@@ -1,18 +1,9 @@
 import { seedState } from "../data/seed";
 import { DEFAULT_PRODUCT_CATEGORIES } from "./constants";
 import { SESSION_KEY, STORAGE_KEY } from "./constants";
-import type { CharacterTier, OrderSystemState, ProductRequiredTier, ProductSeries, ProductType } from "../types/domain";
+import type { CharacterTier, OrderSystemState, ProductSeries, ProductType } from "../types/domain";
 
 const deepClone = <T>(value: T): T => JSON.parse(JSON.stringify(value));
-
-const tierFallback: ProductRequiredTier = "FIXED_1";
-
-function normalizeRequiredTier(value: unknown): ProductRequiredTier {
-  if (value === "FIXED_1" || value === "FIXED_2" || value === "FIXED_3" || value === "LEAK_PICK") {
-    return value;
-  }
-  return tierFallback;
-}
 
 function normalizeCharacterTier(value: unknown): CharacterTier | null {
   if (value === "FIXED_1" || value === "FIXED_2" || value === "FIXED_3" || value === "LEAK_PICK") {
@@ -83,8 +74,17 @@ function normalizeState(raw: unknown): OrderSystemState {
         slotRestrictionEnabled: normalizeProductType(product.type) === "BLIND_BOX" ? slotRestrictionEnabled : false,
         slotRestrictedCharacter:
           normalizeProductType(product.type) === "BLIND_BOX" && slotRestrictionEnabled ? slotRestrictedCharacter : null,
-        requiredTier: normalizeRequiredTier(product.requiredTier),
         imageUrl: typeof product.imageUrl === "string" ? product.imageUrl : null,
+        price:
+          typeof product.price === "number"
+            ? product.price
+            : typeof product.averagePrice === "number"
+              ? product.averagePrice
+              : typeof product.hotPrice === "number"
+                ? product.hotPrice
+                : typeof product.coldPrice === "number"
+                  ? product.coldPrice
+                  : 0,
         stock: typeof product.stock === "number" ? product.stock : null,
         maxPerUser: typeof product.maxPerUser === "number" ? product.maxPerUser : null,
       };
@@ -105,6 +105,7 @@ function normalizeState(raw: unknown): OrderSystemState {
     ? candidate.blindBoxItems.map((item) => ({
       ...item,
       imageUrl: typeof item.imageUrl === "string" ? item.imageUrl : null,
+      price: typeof item.price === "number" ? item.price : null,
       stock: typeof item.stock === "number" ? item.stock : null,
       maxPerUser: typeof item.maxPerUser === "number" ? item.maxPerUser : null,
     }))
@@ -159,7 +160,6 @@ function normalizeState(raw: unknown): OrderSystemState {
     characterSlots: normalizedCharacterSlots as OrderSystemState["characterSlots"],
     claims: normalizedClaims as OrderSystemState["claims"],
     payments: Array.isArray(candidate.payments) ? candidate.payments : fallback.payments,
-    bindings: Array.isArray(candidate.bindings) ? candidate.bindings : fallback.bindings,
     shipments: Array.isArray(candidate.shipments) ? candidate.shipments : fallback.shipments,
     cartItems: normalizedCartItems as OrderSystemState["cartItems"],
     orders: Array.isArray(candidate.orders) ? candidate.orders : fallback.orders,

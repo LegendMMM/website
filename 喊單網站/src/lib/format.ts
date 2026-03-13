@@ -1,5 +1,4 @@
 import {
-  PRODUCT_REQUIRED_TIER_LABEL,
   PRODUCT_TYPE_LABEL,
   RELEASE_STAGE_LABEL,
   ROLE_LABEL,
@@ -8,7 +7,6 @@ import type {
   CharacterTier,
   OrderStatus,
   PaymentMethod,
-  ProductRequiredTier,
   ProductType,
   ReleaseStage,
   RoleTier,
@@ -31,10 +29,6 @@ export function releaseStageLabel(stage: ReleaseStage): string {
 
 export function fixedTierLabel(tier: CharacterTier): string {
   return ROLE_LABEL[tier];
-}
-
-export function productRequiredTierLabel(tier: ProductRequiredTier): string {
-  return PRODUCT_REQUIRED_TIER_LABEL[tier];
 }
 
 export function productTypeLabel(type: ProductType): string {

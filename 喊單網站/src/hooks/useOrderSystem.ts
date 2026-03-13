@@ -1,7 +1,6 @@
 import { useEffect, useMemo, useState } from "react";
 import {
   availablePaymentMethods,
-  buildBindingAssignments,
   buildShipmentDraft,
   calculateUnitPrice,
   canBuyByCharacterSlot,
@@ -21,7 +20,6 @@ import type {
   OrderStatus,
   OrderSystemState,
   PaymentMethod,
-  PricingMode,
   Product,
   ProductSeries,
   ProductType,
@@ -72,7 +70,6 @@ interface CreateCampaignInput {
   title: string;
   description: string;
   deadlineAt: string;
-  pricingMode: PricingMode;
   releaseStage: ReleaseStage;
 }
 
@@ -86,10 +83,7 @@ interface CreateProductInput {
   slotRestrictionEnabled: boolean;
   slotRestrictedCharacter: CharacterName | null;
   imageUrl: string | null;
-  isPopular: boolean;
-  hotPrice: number;
-  coldPrice: number;
-  averagePrice: number;
+  price: number;
   stock: number | null;
   maxPerUser: number | null;
 }
@@ -100,16 +94,25 @@ interface CreateBlindBoxItemInput {
   name: string;
   character: CharacterName;
   imageUrl: string | null;
+  price: number | null;
   stock: number | null;
   maxPerUser: number | null;
 }
 
 interface ProductRuleUpdateInput {
   productId: string;
+  price?: number;
   maxPerUser?: number | null;
   stock?: number | null;
   slotRestrictionEnabled?: boolean;
   slotRestrictedCharacter?: CharacterName | null;
+}
+
+interface BlindBoxItemRuleUpdateInput {
+  blindBoxItemId: string;
+  price?: number | null;
+  stock?: number | null;
+  maxPerUser?: number | null;
 }
 
 export interface UseOrderSystemReturn {
@@ -126,7 +129,6 @@ export interface UseOrderSystemReturn {
   reconcilePayment: (paymentId: string) => ActionResult;
   createShipment: (input: ShipmentInput) => ActionResult;
   exportMyShipCsv: (campaignId: string) => string;
-  triggerBinding: (campaignId: string) => ActionResult;
   resetAllData: () => void;
   getProductsByCampaign: (campaignId: string) => Product[];
   getBlindBoxItemsByProduct: (productId: string) => BlindBoxItem[];
@@ -149,6 +151,7 @@ export interface UseOrderSystemReturn {
   adminUpdateCampaignReleaseStage: (campaignId: string, stage: ReleaseStage) => ActionResult;
   adminUpdateCampaignMaxClaims: (campaignId: string, maxClaims: number | null) => ActionResult;
   adminUpdateProductRule: (args: ProductRuleUpdateInput) => ActionResult;
+  adminUpdateBlindBoxItemRule: (args: BlindBoxItemRuleUpdateInput) => ActionResult;
   adminCreateCategory: (name: string) => ActionResult;
   adminDeleteCategory: (name: string) => ActionResult;
   adminAssignCharacterSlot: (args: {
@@ -174,10 +177,15 @@ function campaignOpen(campaign: Campaign): boolean {
   return campaign.status === "OPEN" && new Date(campaign.deadlineAt).getTime() > Date.now();
 }
 
-function getClaimUnitPrice(claim: Claim, campaign: Campaign, productsById: Map<string, Product>): number {
+function getClaimUnitPrice(
+  claim: Claim,
+  productsById: Map<string, Product>,
+  blindBoxItemsById: Map<string, BlindBoxItem>,
+): number {
   const product = productsById.get(claim.productId);
   if (!product) return 0;
-  return calculateUnitPrice(product, campaign);
+  const blindBoxItem = claim.blindBoxItemId ? blindBoxItemsById.get(claim.blindBoxItemId) ?? null : null;
+  return calculateUnitPrice(product, blindBoxItem);
 }
 
 function characterTierCycle(): CharacterTier[] {
@@ -573,28 +581,18 @@ export function useOrderSystem(): UseOrderSystemReturn {
   };
 
   const getUserCampaignTotal = (campaignId: string, userId: string): number => {
-    const campaign = getCampaignById(campaignId);
-    if (!campaign) return 0;
-
     const productsById = new Map(state.products.map((product) => [product.id, product]));
+    const blindBoxItemsById = new Map(state.blindBoxItems.map((item) => [item.id, item]));
 
     const confirmedClaims = state.claims.filter(
       (claim) => claim.campaignId === campaignId && claim.userId === userId && claim.status === "CONFIRMED",
     );
 
     const confirmedTotal = confirmedClaims.reduce((sum, claim) => {
-      return sum + getClaimUnitPrice(claim, campaign, productsById);
+      return sum + getClaimUnitPrice(claim, productsById, blindBoxItemsById);
     }, 0);
 
-    const bindTotal = state.bindings
-      .filter((binding) => binding.campaignId === campaignId && binding.buyerUserId === userId)
-      .reduce((sum, binding) => {
-        const bindProduct = productsById.get(binding.bindProductId);
-        if (!bindProduct) return sum;
-        return sum + calculateUnitPrice(bindProduct, campaign);
-      }, 0);
-
-    return confirmedTotal + bindTotal;
+    return confirmedTotal;
   };
 
   const getPaymentMethodsForUser = (campaignId: string, userId: string): PaymentMethod[] => {
@@ -846,7 +844,8 @@ export function useOrderSystem(): UseOrderSystemReturn {
 
     const orderItems: OrderItem[] = cartItems.map((cartItem) => {
       const product = productsById.get(cartItem.productId);
-      const unitPrice = product ? calculateUnitPrice(product, campaign) : 0;
+      const blindBoxItem = cartItem.blindBoxItemId ? getBlindBoxItemById(cartItem.blindBoxItemId) ?? null : null;
+      const unitPrice = product ? calculateUnitPrice(product, blindBoxItem) : 0;
       return {
         id: crypto.randomUUID(),
         orderId,
@@ -1017,35 +1016,6 @@ export function useOrderSystem(): UseOrderSystemReturn {
     return { ok: true, message: "團主已確認此筆分配。" };
   };
 
-  const triggerBinding = (campaignId: string): ActionResult => {
-    if (!currentUser?.isAdmin) {
-      return { ok: false, message: "只有團主可以執行綁物。" };
-    }
-
-    const campaign = state.campaigns.find((item) => item.id === campaignId);
-    if (!campaign) return { ok: false, message: "找不到檔期。" };
-
-    const campaignProducts = state.products.filter((product) => product.campaignId === campaignId);
-    const confirmedClaims = state.claims.filter(
-      (claim) => claim.campaignId === campaignId && claim.status === "CONFIRMED",
-    );
-    const existingBindings = state.bindings.filter((binding) => binding.campaignId === campaignId);
-
-    const generated = buildBindingAssignments({
-      campaign,
-      products: campaignProducts,
-      confirmedClaims,
-      existingBindings,
-    });
-
-    if (generated.length === 0) {
-      return { ok: false, message: "沒有可新增的綁物分配（可能是餘量不足或已分配完成）。" };
-    }
-
-    setState((prev) => ({ ...prev, bindings: [...prev.bindings, ...generated] }));
-    return { ok: true, message: `已新增 ${generated.length} 筆綁物分配。` };
-  };
-
   const submitPayment = (campaignId: string, method: PaymentMethod, lastFiveCode: string): ActionResult => {
     if (!currentUser) {
       return { ok: false, message: "請先登入。" };
@@ -1200,7 +1170,7 @@ export function useOrderSystem(): UseOrderSystemReturn {
       return { ok: false, message: "只有團主可以調整上限。" };
     }
 
-    if (maxClaims !== null && maxClaims < 1) {
+    if (maxClaims !== null && (!Number.isFinite(maxClaims) || maxClaims < 1)) {
       return { ok: false, message: "上限至少要 1，或設定為不限。" };
     }
 
@@ -1224,15 +1194,18 @@ export function useOrderSystem(): UseOrderSystemReturn {
       return { ok: false, message: "只有團主可以調整商品規則。" };
     }
 
-    const { productId, maxPerUser, stock, slotRestrictionEnabled, slotRestrictedCharacter } = args;
+    const { productId, price, maxPerUser, stock, slotRestrictionEnabled, slotRestrictedCharacter } = args;
     const target = getProductById(productId);
     if (!target) return { ok: false, message: "找不到商品。" };
 
-    if (maxPerUser !== undefined && maxPerUser !== null && maxPerUser < 1) {
+    if (price !== undefined && (!Number.isFinite(price) || price < 0)) {
+      return { ok: false, message: "商品價格不可小於 0。" };
+    }
+    if (maxPerUser !== undefined && maxPerUser !== null && (!Number.isFinite(maxPerUser) || maxPerUser < 1)) {
       return { ok: false, message: "商品上限至少為 1，或設定為不限。" };
     }
 
-    if (stock !== undefined && stock !== null && stock < 0) {
+    if (stock !== undefined && stock !== null && (!Number.isFinite(stock) || stock < 0)) {
       return { ok: false, message: "庫存不可為負數。" };
     }
 
@@ -1247,16 +1220,13 @@ export function useOrderSystem(): UseOrderSystemReturn {
       ? (slotRestrictedCharacter === undefined ? target.slotRestrictedCharacter : slotRestrictedCharacter)
       : null;
 
-    if (nextSlotRestrictionEnabled && target.type === "BLIND_BOX" && nextSlotRestrictedCharacter === undefined) {
-      return { ok: false, message: "盲盒固位設定異常。" };
-    }
-
     setState((prev) => ({
       ...prev,
       products: prev.products.map((product) =>
         product.id === productId
           ? {
             ...product,
+            price: price === undefined ? product.price : price,
             maxPerUser: maxPerUser === undefined ? product.maxPerUser : maxPerUser,
             stock: stock === undefined ? product.stock : (product.type === "NORMAL" ? stock : product.stock),
             slotRestrictionEnabled: nextSlotRestrictionEnabled,
@@ -1435,7 +1405,6 @@ export function useOrderSystem(): UseOrderSystemReturn {
       description: input.description.trim(),
       deadlineAt: new Date(input.deadlineAt).toISOString(),
       status: "OPEN",
-      pricingMode: input.pricingMode,
       releaseStage: input.releaseStage,
       maxClaimsPerUser: null,
       createdBy: currentUser.id,
@@ -1473,7 +1442,6 @@ export function useOrderSystem(): UseOrderSystemReturn {
       blindBoxItems: prev.blindBoxItems.filter((item) => !productIds.has(item.productId)),
       claims: prev.claims.filter((item) => item.campaignId !== campaignId),
       payments: prev.payments.filter((item) => item.campaignId !== campaignId),
-      bindings: prev.bindings.filter((item) => item.campaignId !== campaignId),
       shipments: prev.shipments.filter((item) => item.campaignId !== campaignId),
       cartItems: prev.cartItems.filter((item) => item.campaignId !== campaignId),
       orders: prev.orders.filter((item) => item.campaignId !== campaignId),
@@ -1496,13 +1464,16 @@ export function useOrderSystem(): UseOrderSystemReturn {
     }
 
     if (input.type === "NORMAL") {
-      if (input.stock !== null && input.stock < 0) {
+      if (input.stock !== null && (!Number.isFinite(input.stock) || input.stock < 0)) {
         return { ok: false, message: "一般商品庫存必須 >= 0。" };
       }
     }
 
-    if (input.maxPerUser !== null && input.maxPerUser < 1) {
+    if (input.maxPerUser !== null && (!Number.isFinite(input.maxPerUser) || input.maxPerUser < 1)) {
       return { ok: false, message: "單人上限至少為 1，或留空為不限。" };
+    }
+    if (!Number.isFinite(input.price) || input.price < 0) {
+      return { ok: false, message: "商品價格不可小於 0。" };
     }
 
     const sku = input.sku?.trim() || generateNextSku("PRD", state.products.map((product) => product.sku));
@@ -1522,12 +1493,8 @@ export function useOrderSystem(): UseOrderSystemReturn {
       character: input.type === "NORMAL" ? input.character : null,
       slotRestrictionEnabled: resolvedSlotRestrictionEnabled,
       slotRestrictedCharacter: resolvedSlotRestrictedCharacter,
-      requiredTier: "FIXED_1",
       imageUrl: input.imageUrl && input.imageUrl.trim() ? input.imageUrl.trim() : null,
-      isPopular: input.isPopular,
-      hotPrice: input.hotPrice,
-      coldPrice: input.coldPrice,
-      averagePrice: input.averagePrice,
+      price: input.price,
       stock: input.type === "NORMAL" ? input.stock : null,
       maxPerUser: input.maxPerUser,
     };
@@ -1557,12 +1524,15 @@ export function useOrderSystem(): UseOrderSystemReturn {
       return { ok: false, message: "子項名稱必填。" };
     }
 
-    if (input.stock !== null && input.stock < 0) {
+    if (input.stock !== null && (!Number.isFinite(input.stock) || input.stock < 0)) {
       return { ok: false, message: "子項庫存不可小於 0。" };
     }
 
-    if (input.maxPerUser !== null && input.maxPerUser < 1) {
+    if (input.maxPerUser !== null && (!Number.isFinite(input.maxPerUser) || input.maxPerUser < 1)) {
       return { ok: false, message: "子項上限至少為 1，或設為不限。" };
+    }
+    if (input.price !== null && (!Number.isFinite(input.price) || input.price < 0)) {
+      return { ok: false, message: "子項價格不可小於 0。" };
     }
 
     const sku = input.sku?.trim() || generateNextSku("BLI", state.blindBoxItems.map((item) => item.sku));
@@ -1573,6 +1543,7 @@ export function useOrderSystem(): UseOrderSystemReturn {
       name: input.name.trim(),
       character: input.character,
       imageUrl: input.imageUrl && input.imageUrl.trim() ? input.imageUrl.trim() : null,
+      price: input.price,
       stock: input.stock,
       maxPerUser: input.maxPerUser,
     };
@@ -1583,6 +1554,43 @@ export function useOrderSystem(): UseOrderSystemReturn {
     }));
 
     return { ok: true, message: `已新增子項「${blindBoxItem.name}」（SKU：${sku}）。` };
+  };
+
+  const adminUpdateBlindBoxItemRule = (args: BlindBoxItemRuleUpdateInput): ActionResult => {
+    if (!currentUser?.isAdmin) {
+      return { ok: false, message: "只有團主可以調整盲盒子項。" };
+    }
+
+    const { blindBoxItemId, price, stock, maxPerUser } = args;
+    const target = getBlindBoxItemById(blindBoxItemId);
+    if (!target) {
+      return { ok: false, message: "找不到盲盒子項。" };
+    }
+    if (price !== undefined && price !== null && (!Number.isFinite(price) || price < 0)) {
+      return { ok: false, message: "子項價格不可小於 0。" };
+    }
+    if (stock !== undefined && stock !== null && (!Number.isFinite(stock) || stock < 0)) {
+      return { ok: false, message: "子項庫存不可小於 0。" };
+    }
+    if (maxPerUser !== undefined && maxPerUser !== null && (!Number.isFinite(maxPerUser) || maxPerUser < 1)) {
+      return { ok: false, message: "子項上限至少為 1，或設為不限。" };
+    }
+
+    setState((prev) => ({
+      ...prev,
+      blindBoxItems: prev.blindBoxItems.map((item) =>
+        item.id === blindBoxItemId
+          ? {
+            ...item,
+            price: price === undefined ? item.price : price,
+            stock: stock === undefined ? item.stock : stock,
+            maxPerUser: maxPerUser === undefined ? item.maxPerUser : maxPerUser,
+          }
+          : item,
+      ),
+    }));
+
+    return { ok: true, message: `已更新子項「${target.name}」。` };
   };
 
   const adminSetUserAdmin = async (userId: string, isAdmin: boolean): Promise<ActionResult> => {
@@ -1654,7 +1662,6 @@ export function useOrderSystem(): UseOrderSystemReturn {
       characterSlots: prev.characterSlots.filter((item) => item.userId !== userId),
       claims: prev.claims.filter((item) => item.userId !== userId),
       payments: prev.payments.filter((item) => item.userId !== userId),
-      bindings: prev.bindings.filter((item) => item.buyerUserId !== userId),
       shipments: prev.shipments.filter((item) => item.userId !== userId),
       cartItems: prev.cartItems.filter((item) => item.userId !== userId),
       orders: prev.orders.filter((item) => item.userId !== userId),
@@ -1680,7 +1687,7 @@ export function useOrderSystem(): UseOrderSystemReturn {
       return { ok: false, message: "只有管理員可以調整取貨率。" };
     }
 
-    if (Number.isNaN(pickupRate) || pickupRate < 0 || pickupRate > 100) {
+    if (!Number.isFinite(pickupRate) || pickupRate < 0 || pickupRate > 100) {
       return { ok: false, message: "取貨率需介於 0 到 100 之間。" };
     }
 
@@ -1738,7 +1745,6 @@ export function useOrderSystem(): UseOrderSystemReturn {
     reconcilePayment,
     createShipment,
     exportMyShipCsv,
-    triggerBinding,
     resetAllData,
     getProductsByCampaign,
     getBlindBoxItemsByProduct,
@@ -1761,6 +1767,7 @@ export function useOrderSystem(): UseOrderSystemReturn {
     adminUpdateCampaignReleaseStage,
     adminUpdateCampaignMaxClaims,
     adminUpdateProductRule,
+    adminUpdateBlindBoxItemRule,
     adminCreateCategory,
     adminDeleteCategory,
     adminAssignCharacterSlot,

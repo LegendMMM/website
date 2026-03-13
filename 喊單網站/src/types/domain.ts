@@ -12,8 +12,6 @@ export type CharacterName =
   | "真實"
   | "蘆花";
 
-export type PricingMode = "DYNAMIC" | "AVERAGE_WITH_BINDING";
-
 export type PaymentMethod =
   | "BANK_TRANSFER"
   | "CARDLESS_DEPOSIT"
@@ -24,7 +22,6 @@ export type ClaimStatus = "LOCKED" | "CANCELLED_BY_ADMIN" | "CONFIRMED";
 
 export type CampaignStatus = "OPEN" | "CLOSED";
 export type ReleaseStage = "FIXED_1_ONLY" | "FIXED_1_2" | "FIXED_1_2_3" | "ALL_OPEN";
-export type ProductRequiredTier = CharacterTier;
 export type ProductType = "NORMAL" | "BLIND_BOX";
 export type ProductSeries = string;
 
@@ -45,7 +42,6 @@ export interface Campaign {
   description: string;
   deadlineAt: string;
   status: CampaignStatus;
-  pricingMode: PricingMode;
   releaseStage: ReleaseStage;
   maxClaimsPerUser: number | null;
   createdBy: string;
@@ -61,12 +57,8 @@ export interface Product {
   character: CharacterName | null;
   slotRestrictionEnabled: boolean;
   slotRestrictedCharacter: CharacterName | null;
-  requiredTier: ProductRequiredTier;
   imageUrl: string | null;
-  isPopular: boolean;
-  hotPrice: number;
-  coldPrice: number;
-  averagePrice: number;
+  price: number;
   stock: number | null;
   maxPerUser: number | null;
 }
@@ -78,6 +70,7 @@ export interface BlindBoxItem {
   name: string;
   character: CharacterName;
   imageUrl: string | null;
+  price: number | null;
   stock: number | null;
   maxPerUser: number | null;
 }
@@ -101,15 +94,6 @@ export interface Payment {
   method: PaymentMethod;
   lastFiveCode: string;
   reconciled: boolean;
-  createdAt: string;
-}
-
-export interface BindingAssignment {
-  id: string;
-  campaignId: string;
-  buyerUserId: string;
-  bindProductId: string;
-  reason: string;
   createdAt: string;
 }
 
@@ -176,7 +160,6 @@ export interface OrderSystemState {
   characterSlots: CharacterSlot[];
   claims: Claim[];
   payments: Payment[];
-  bindings: BindingAssignment[];
   shipments: ShipmentDraft[];
   cartItems: CartItem[];
   orders: Order[];

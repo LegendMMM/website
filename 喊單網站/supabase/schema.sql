@@ -36,6 +36,7 @@ create table if not exists public.products (
   sku text not null,
   name text not null,
   character_name text not null,
+  price integer not null default 0 check (price >= 0),
   is_popular boolean not null default false,
   hot_price integer not null check (hot_price >= 0),
   cold_price integer not null check (cold_price >= 0),

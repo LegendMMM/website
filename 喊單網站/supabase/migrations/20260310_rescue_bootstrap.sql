@@ -106,6 +106,7 @@ create table if not exists public.products (
   slot_restricted_character text,
   required_tier public.product_required_tier not null default 'FIXED_1',
   image_url text,
+  price integer not null default 0,
   is_popular boolean not null default false,
   hot_price integer not null default 0,
   cold_price integer not null default 0,
@@ -123,6 +124,7 @@ alter table public.products
   add column if not exists slot_restricted_character text,
   add column if not exists required_tier public.product_required_tier not null default 'FIXED_1',
   add column if not exists image_url text,
+  add column if not exists price integer not null default 0,
   add column if not exists is_popular boolean not null default false,
   add column if not exists hot_price integer not null default 0,
   add column if not exists cold_price integer not null default 0,
@@ -138,6 +140,7 @@ create table if not exists public.blind_box_items (
   name text not null,
   character_name text not null,
   image_url text,
+  price integer,
   stock integer not null check (stock >= 0),
   max_per_user integer,
   created_at timestamptz not null default now()
