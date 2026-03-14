@@ -8,6 +8,7 @@ import {
 } from "../lib/business-rules";
 import {
   deleteCharacterSlots,
+  loadOrderSystemStateFromSupabase,
   upsertBlindBoxItems,
   upsertCampaigns,
   upsertCharacterSlots,
@@ -18,7 +19,7 @@ import {
   upsertProfiles,
 } from "../lib/supabase-sync";
 import { supabase } from "../lib/supabase";
-import { loadSessionUserId, loadState, resetState, saveSessionUserId, saveState } from "../lib/storage";
+import { createEmptyState, loadSessionUserId, loadState, resetState, saveSessionUserId, saveState } from "../lib/storage";
 import type {
   BlindBoxItem,
   Campaign,
@@ -232,16 +233,41 @@ function logSupabaseSyncError(context: string, error: unknown): void {
 }
 
 export function useOrderSystem(): UseOrderSystemReturn {
-  const [state, setState] = useState<OrderSystemState>(() => loadState());
+  const [state, setState] = useState<OrderSystemState>(() => (supabase ? createEmptyState() : loadState()));
   const [sessionUserId, setSessionUserId] = useState<string | null>(() => loadSessionUserId());
+  const [stateHydrated, setStateHydrated] = useState<boolean>(() => !supabase);
 
   useEffect(() => {
+    if (!stateHydrated) return;
     saveState(state);
-  }, [state]);
+  }, [state, stateHydrated]);
 
   useEffect(() => {
     saveSessionUserId(sessionUserId);
   }, [sessionUserId]);
+
+  useEffect(() => {
+    if (!supabase) return;
+
+    let cancelled = false;
+
+    void loadOrderSystemStateFromSupabase(supabase)
+      .then((remoteState) => {
+        if (cancelled) return;
+        setState(remoteState);
+        setStateHydrated(true);
+      })
+      .catch((error) => {
+        logSupabaseSyncError("load initial state", error);
+        if (cancelled) return;
+        setState(createEmptyState());
+        setStateHydrated(true);
+      });
+
+    return () => {
+      cancelled = true;
+    };
+  }, []);
 
   const currentUser = useMemo(
     () => state.users.find((user) => user.id === sessionUserId) ?? null,
@@ -1993,6 +2019,15 @@ export function useOrderSystem(): UseOrderSystemReturn {
   };
 
   const resetAllData = (): void => {
+    if (supabase) {
+      const next = createEmptyState();
+      setState(next);
+      setStateHydrated(true);
+      setSessionUserId(null);
+      saveState(next);
+      return;
+    }
+
     setState(resetState());
     setSessionUserId("u-admin-001");
   };

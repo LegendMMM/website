@@ -195,6 +195,23 @@ export function saveState(state: OrderSystemState): void {
   localStorage.setItem(STORAGE_KEY, JSON.stringify(state));
 }
 
+export function createEmptyState(): OrderSystemState {
+  return {
+    users: [],
+    campaigns: [],
+    productCategories: [...DEFAULT_PRODUCT_CATEGORIES],
+    products: [],
+    blindBoxItems: [],
+    characterSlots: [],
+    claims: [],
+    payments: [],
+    shipments: [],
+    cartItems: [],
+    orders: [],
+    orderItems: [],
+  };
+}
+
 export function loadSessionUserId(): string | null {
   return localStorage.getItem(SESSION_KEY);
 }

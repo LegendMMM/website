@@ -2562,7 +2562,7 @@ export default function App(): JSX.Element {
                 <p className="text-xs font-semibold uppercase tracking-[0.2em] text-slate-500">Tsukuyomi Admin Cosmos</p>
                 <h1 className="mt-1 text-3xl font-extrabold text-slate-900">超時空輝耀姬・管理後台</h1>
                 <p className="mt-2 text-sm text-slate-600">登入帳號：{system.currentUser.fbNickname}（{system.currentUser.email}）</p>
-                <p className="text-xs text-slate-500">資料模式：{isSupabaseEnabled ? "Supabase 已連線" : "Demo Local 模式"}</p>
+                <p className="text-xs text-slate-500">資料模式：{isSupabaseEnabled ? "Supabase 遠端資料模式" : "Demo Local 模式"}</p>
               </div>
               <div className="flex flex-wrap items-center gap-2">
                 <button
@@ -2638,7 +2638,7 @@ export default function App(): JSX.Element {
                 {system.currentUser.pickupRate}%
               </p>
               <p className="text-xs text-slate-500">
-                資料模式：{isSupabaseEnabled ? "Supabase 已連線（可接正式資料）" : "Demo Local 模式（未設定 Supabase）"}
+                資料模式：{isSupabaseEnabled ? "Supabase 遠端資料模式" : "Demo Local 模式（未設定 Supabase）"}
               </p>
               {!system.currentUser.isAdmin && isSupabaseEnabled && (
                 <div className="mt-2 flex flex-wrap items-center gap-2">
