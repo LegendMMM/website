@@ -34,7 +34,7 @@ DO $$ BEGIN
 END $$;
 
 create table if not exists public.profiles (
-  id uuid primary key default gen_random_uuid(),
+  id text primary key,
   email text not null default '' unique,
   fb_nickname text not null default '未填寫',
   pickup_rate numeric(5,2) not null default 100,
@@ -73,14 +73,14 @@ end;
 $$;
 
 create table if not exists public.campaigns (
-  id uuid primary key default gen_random_uuid(),
+  id text primary key,
   title text not null,
   description text not null default '',
   deadline_at timestamptz not null,
   status public.campaign_status not null default 'OPEN',
   release_stage text not null default 'ALL_OPEN',
   max_claims_per_user integer,
-  created_by uuid,
+  created_by text,
   created_at timestamptz not null default now()
 );
 
@@ -90,12 +90,12 @@ alter table public.campaigns
   add column if not exists status public.campaign_status not null default 'OPEN',
   add column if not exists release_stage text not null default 'ALL_OPEN',
   add column if not exists max_claims_per_user integer,
-  add column if not exists created_by uuid,
+  add column if not exists created_by text,
   add column if not exists created_at timestamptz not null default now();
 
 create table if not exists public.products (
-  id uuid primary key default gen_random_uuid(),
-  campaign_id uuid not null references public.campaigns(id) on delete cascade,
+  id text primary key,
+  campaign_id text not null references public.campaigns(id) on delete cascade,
   sku text not null,
   name text not null,
   series text not null default '未分類',
@@ -123,8 +123,8 @@ alter table public.products
   add column if not exists created_at timestamptz not null default now();
 
 create table if not exists public.blind_box_items (
-  id uuid primary key default gen_random_uuid(),
-  product_id uuid not null references public.products(id) on delete cascade,
+  id text primary key,
+  product_id text not null references public.products(id) on delete cascade,
   sku text not null,
   name text not null,
   character_name text not null,
@@ -143,8 +143,8 @@ alter table public.blind_box_items
   add column if not exists created_at timestamptz not null default now();
 
 create table if not exists public.character_slots (
-  id uuid primary key default gen_random_uuid(),
-  user_id uuid not null references public.profiles(id) on delete cascade,
+  id text primary key,
+  user_id text not null references public.profiles(id) on delete cascade,
   character_name text not null,
   tier public.role_tier not null,
   created_at timestamptz not null default now(),
@@ -153,26 +153,26 @@ create table if not exists public.character_slots (
 );
 
 create table if not exists public.claims (
-  id uuid primary key default gen_random_uuid(),
-  campaign_id uuid not null references public.campaigns(id) on delete cascade,
-  product_id uuid not null references public.products(id) on delete cascade,
-  blind_box_item_id uuid references public.blind_box_items(id) on delete cascade,
-  user_id uuid not null references public.profiles(id),
+  id text primary key,
+  campaign_id text not null references public.campaigns(id) on delete cascade,
+  product_id text not null references public.products(id) on delete cascade,
+  blind_box_item_id text references public.blind_box_items(id) on delete cascade,
+  user_id text not null references public.profiles(id),
   role_tier public.role_tier not null default 'LEAK_PICK',
   status public.claim_status not null default 'LOCKED',
   created_at timestamptz not null default now()
 );
 
 alter table public.claims
-  add column if not exists blind_box_item_id uuid references public.blind_box_items(id) on delete cascade,
+  add column if not exists blind_box_item_id text references public.blind_box_items(id) on delete cascade,
   add column if not exists role_tier public.role_tier not null default 'LEAK_PICK',
   add column if not exists status public.claim_status not null default 'LOCKED',
   add column if not exists created_at timestamptz not null default now();
 
 create table if not exists public.payments (
-  id uuid primary key default gen_random_uuid(),
-  campaign_id uuid not null references public.campaigns(id) on delete cascade,
-  user_id uuid not null references public.profiles(id),
+  id text primary key,
+  campaign_id text not null references public.campaigns(id) on delete cascade,
+  user_id text not null references public.profiles(id),
   amount integer not null check (amount >= 0),
   method public.payment_method not null,
   last_five_code text not null default '-----',
@@ -181,9 +181,9 @@ create table if not exists public.payments (
 );
 
 create table if not exists public.shipments (
-  id uuid primary key default gen_random_uuid(),
-  campaign_id uuid not null references public.campaigns(id) on delete cascade,
-  user_id uuid not null references public.profiles(id),
+  id text primary key,
+  campaign_id text not null references public.campaigns(id) on delete cascade,
+  user_id text not null references public.profiles(id),
   order_amount integer not null,
   payment_method public.payment_method not null,
   can_use_cod boolean not null default false,
@@ -194,37 +194,37 @@ create table if not exists public.shipments (
 );
 
 create table if not exists public.cart_items (
-  id uuid primary key default gen_random_uuid(),
-  campaign_id uuid not null references public.campaigns(id) on delete cascade,
-  product_id uuid not null references public.products(id) on delete cascade,
-  blind_box_item_id uuid references public.blind_box_items(id) on delete cascade,
-  user_id uuid not null references public.profiles(id) on delete cascade,
+  id text primary key,
+  campaign_id text not null references public.campaigns(id) on delete cascade,
+  product_id text not null references public.products(id) on delete cascade,
+  blind_box_item_id text references public.blind_box_items(id) on delete cascade,
+  user_id text not null references public.profiles(id) on delete cascade,
   qty integer not null check (qty > 0),
   created_at timestamptz not null default now()
 );
 
 create table if not exists public.orders (
-  id uuid primary key default gen_random_uuid(),
-  campaign_id uuid not null references public.campaigns(id) on delete cascade,
-  user_id uuid not null references public.profiles(id) on delete cascade,
+  id text primary key,
+  campaign_id text not null references public.campaigns(id) on delete cascade,
+  user_id text not null references public.profiles(id) on delete cascade,
   status text not null default 'PLACED',
   total_amount integer not null check (total_amount >= 0),
   created_at timestamptz not null default now()
 );
 
 create table if not exists public.order_items (
-  id uuid primary key default gen_random_uuid(),
-  order_id uuid not null references public.orders(id) on delete cascade,
-  campaign_id uuid not null references public.campaigns(id) on delete cascade,
-  product_id uuid not null references public.products(id) on delete cascade,
-  blind_box_item_id uuid references public.blind_box_items(id) on delete cascade,
-  user_id uuid not null references public.profiles(id) on delete cascade,
+  id text primary key,
+  order_id text not null references public.orders(id) on delete cascade,
+  campaign_id text not null references public.campaigns(id) on delete cascade,
+  product_id text not null references public.products(id) on delete cascade,
+  blind_box_item_id text references public.blind_box_items(id) on delete cascade,
+  user_id text not null references public.profiles(id) on delete cascade,
   unit_price integer not null check (unit_price >= 0),
   qty integer not null check (qty > 0),
   created_at timestamptz not null default now()
 );
 
-create or replace function public.is_admin(uid uuid)
+create or replace function public.is_admin(uid text)
 returns boolean
 language sql
 stable

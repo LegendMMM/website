@@ -6,6 +6,17 @@ import {
   canBuyByCharacterSlot,
   sortClaimsByPriority,
 } from "../lib/business-rules";
+import {
+  deleteCharacterSlots,
+  upsertBlindBoxItems,
+  upsertCampaigns,
+  upsertCharacterSlots,
+  upsertClaims,
+  upsertOrderItems,
+  upsertOrders,
+  upsertProducts,
+  upsertProfiles,
+} from "../lib/supabase-sync";
 import { supabase } from "../lib/supabase";
 import { loadSessionUserId, loadState, resetState, saveSessionUserId, saveState } from "../lib/storage";
 import type {
@@ -215,6 +226,11 @@ function generateNextSku(prefix: string, existingSkus: string[]): string {
   return `${normalizedPrefix}-${String(nextNumber).padStart(4, "0")}`;
 }
 
+function logSupabaseSyncError(context: string, error: unknown): void {
+  const detail = error instanceof Error ? error.message : String(error);
+  console.error(`[supabase sync] ${context}: ${detail}`);
+}
+
 export function useOrderSystem(): UseOrderSystemReturn {
   const [state, setState] = useState<OrderSystemState>(() => loadState());
   const [sessionUserId, setSessionUserId] = useState<string | null>(() => loadSessionUserId());
@@ -231,6 +247,118 @@ export function useOrderSystem(): UseOrderSystemReturn {
     () => state.users.find((user) => user.id === sessionUserId) ?? null,
     [sessionUserId, state.users],
   );
+
+  const runSupabaseWrite = useCallback((context: string, job: () => Promise<void>) => {
+    if (!supabase) return;
+    void job().catch((error) => {
+      logSupabaseSyncError(context, error);
+    });
+  }, []);
+
+  const syncUsersByIds = useCallback(async (userIds: string[]): Promise<void> => {
+    if (!supabase) return;
+
+    const users = Array.from(new Set(userIds))
+      .map((userId) => state.users.find((user) => user.id === userId) ?? null)
+      .filter((user): user is UserProfile => user !== null);
+
+    await upsertProfiles(supabase, users);
+  }, [state.users]);
+
+  const syncCampaignsByIds = useCallback(async (campaignIds: string[]): Promise<void> => {
+    if (!supabase) return;
+
+    const campaigns = Array.from(new Set(campaignIds))
+      .map((campaignId) => state.campaigns.find((campaign) => campaign.id === campaignId) ?? null)
+      .filter((campaign): campaign is Campaign => campaign !== null);
+
+    await syncUsersByIds(campaigns.map((campaign) => campaign.createdBy));
+    await upsertCampaigns(supabase, campaigns);
+  }, [state.campaigns, syncUsersByIds]);
+
+  const syncCampaignRecords = useCallback(async (campaigns: Campaign[]): Promise<void> => {
+    if (!supabase || campaigns.length === 0) return;
+
+    await syncUsersByIds(campaigns.map((campaign) => campaign.createdBy));
+    await upsertCampaigns(supabase, campaigns);
+  }, [syncUsersByIds]);
+
+  const syncProductsByIds = useCallback(async (productIds: string[]): Promise<void> => {
+    if (!supabase) return;
+
+    const products = Array.from(new Set(productIds))
+      .map((productId) => state.products.find((product) => product.id === productId) ?? null)
+      .filter((product): product is Product => product !== null);
+
+    await syncCampaignsByIds(products.map((product) => product.campaignId));
+    await upsertProducts(supabase, products);
+  }, [state.products, syncCampaignsByIds]);
+
+  const syncProductRecords = useCallback(async (products: Product[]): Promise<void> => {
+    if (!supabase || products.length === 0) return;
+
+    await syncCampaignsByIds(products.map((product) => product.campaignId));
+    await upsertProducts(supabase, products);
+  }, [syncCampaignsByIds]);
+
+  const syncBlindBoxItemsByIds = useCallback(async (blindBoxItemIds: string[]): Promise<void> => {
+    if (!supabase) return;
+
+    const blindBoxItems = Array.from(new Set(blindBoxItemIds))
+      .map((blindBoxItemId) => state.blindBoxItems.find((item) => item.id === blindBoxItemId) ?? null)
+      .filter((item): item is BlindBoxItem => item !== null);
+
+    await syncProductsByIds(blindBoxItems.map((item) => item.productId));
+    await upsertBlindBoxItems(supabase, blindBoxItems);
+  }, [state.blindBoxItems, syncProductsByIds]);
+
+  const syncBlindBoxItemRecords = useCallback(async (blindBoxItems: BlindBoxItem[]): Promise<void> => {
+    if (!supabase || blindBoxItems.length === 0) return;
+
+    await syncProductsByIds(blindBoxItems.map((item) => item.productId));
+    await upsertBlindBoxItems(supabase, blindBoxItems);
+  }, [syncProductsByIds]);
+
+  const syncCharacterSlotRows = useCallback(async (slots: CharacterSlot[]): Promise<void> => {
+    if (!supabase || slots.length === 0) return;
+
+    await syncUsersByIds(slots.map((slot) => slot.userId));
+    await upsertCharacterSlots(supabase, slots);
+  }, [syncUsersByIds]);
+
+  const syncClaimRows = useCallback(async (claims: Claim[]): Promise<void> => {
+    if (!supabase || claims.length === 0) return;
+
+    await syncUsersByIds(claims.map((claim) => claim.userId));
+    await syncCampaignsByIds(claims.map((claim) => claim.campaignId));
+    await syncProductsByIds(claims.map((claim) => claim.productId));
+    await syncBlindBoxItemsByIds(
+      claims
+        .map((claim) => claim.blindBoxItemId)
+        .filter((blindBoxItemId): blindBoxItemId is string => Boolean(blindBoxItemId)),
+    );
+    await upsertClaims(supabase, claims);
+  }, [syncBlindBoxItemsByIds, syncCampaignsByIds, syncProductsByIds, syncUsersByIds]);
+
+  const syncOrderBundle = useCallback(async (payload: {
+    order: Order;
+    orderItems: OrderItem[];
+    claims: Claim[];
+  }): Promise<void> => {
+    if (!supabase) return;
+
+    await syncUsersByIds([payload.order.userId]);
+    await syncCampaignsByIds([payload.order.campaignId]);
+    await syncProductsByIds(payload.orderItems.map((item) => item.productId));
+    await syncBlindBoxItemsByIds(
+      payload.orderItems
+        .map((item) => item.blindBoxItemId)
+        .filter((blindBoxItemId): blindBoxItemId is string => Boolean(blindBoxItemId)),
+    );
+    await upsertOrders(supabase, [payload.order]);
+    await upsertOrderItems(supabase, payload.orderItems);
+    await upsertClaims(supabase, payload.claims);
+  }, [syncBlindBoxItemsByIds, syncCampaignsByIds, syncProductsByIds, syncUsersByIds]);
 
   const syncAdminFlagFromSupabase = useCallback(async (user: UserProfile): Promise<void> => {
     if (!supabase) return;
@@ -657,6 +785,9 @@ export function useOrderSystem(): UseOrderSystemReturn {
       return { ok: false, message: "找不到對應帳號（請確認 Email 或 FB 暱稱）。" };
     }
     setSessionUserId(user.id);
+    runSupabaseWrite("sync profile on login", async () => {
+      await upsertProfiles(supabase!, [user]);
+    });
     void syncAdminFlagFromSupabase(user);
     return { ok: true, message: "登入成功。" };
   };
@@ -693,6 +824,9 @@ export function useOrderSystem(): UseOrderSystemReturn {
     }));
 
     setSessionUserId(nextUser.id);
+    runSupabaseWrite("register profile", async () => {
+      await upsertProfiles(supabase!, [nextUser]);
+    });
     void syncAdminFlagFromSupabase(nextUser);
 
     return { ok: true, message: "註冊成功，已自動登入。" };
@@ -934,6 +1068,10 @@ export function useOrderSystem(): UseOrderSystemReturn {
       ),
     }));
 
+    runSupabaseWrite("place order bundle", async () => {
+      await syncOrderBundle({ order, orderItems, claims });
+    });
+
     return { ok: true, message: `下單成功，共 ${claims.length} 件。` };
   };
 
@@ -989,6 +1127,9 @@ export function useOrderSystem(): UseOrderSystemReturn {
     };
 
     setState((prev) => ({ ...prev, claims: [...prev.claims, newClaim] }));
+    runSupabaseWrite("claim product", async () => {
+      await syncClaimRows([newClaim]);
+    });
     return { ok: true, message: "喊單成功，已鎖定。" };
   };
 
@@ -1008,6 +1149,10 @@ export function useOrderSystem(): UseOrderSystemReturn {
         claim.id === claimId ? { ...claim, status: "CANCELLED_BY_ADMIN" } : claim,
       ),
     }));
+
+    runSupabaseWrite("cancel claim", async () => {
+      await upsertClaims(supabase!, [{ ...target, status: "CANCELLED_BY_ADMIN" }]);
+    });
 
     return { ok: true, message: "已由團主手動取消。" };
   };
@@ -1041,6 +1186,10 @@ export function useOrderSystem(): UseOrderSystemReturn {
         claim.id === claimId ? { ...claim, status: "CONFIRMED" } : claim,
       ),
     }));
+
+    runSupabaseWrite("confirm claim", async () => {
+      await upsertClaims(supabase!, [{ ...target, status: "CONFIRMED" }]);
+    });
 
     return { ok: true, message: "團主已確認此筆分配。" };
   };
@@ -1191,6 +1340,13 @@ export function useOrderSystem(): UseOrderSystemReturn {
       ),
     }));
 
+    const nextCampaign = state.campaigns.find((campaign) => campaign.id === campaignId);
+    if (nextCampaign) {
+      runSupabaseWrite("update campaign release stage", async () => {
+        await syncCampaignRecords([{ ...nextCampaign, releaseStage: stage }]);
+      });
+    }
+
     return { ok: true, message: "已更新活動釋出階段。" };
   };
 
@@ -1214,6 +1370,13 @@ export function useOrderSystem(): UseOrderSystemReturn {
         campaign.id === campaignId ? { ...campaign, maxClaimsPerUser: maxClaims } : campaign,
       ),
     }));
+
+    const nextCampaign = state.campaigns.find((campaign) => campaign.id === campaignId);
+    if (nextCampaign) {
+      runSupabaseWrite("update campaign max claims", async () => {
+        await syncCampaignRecords([{ ...nextCampaign, maxClaimsPerUser: maxClaims }]);
+      });
+    }
 
     return { ok: true, message: "已更新活動喊單上限（目前前台以商品上限為主）。" };
   };
@@ -1248,22 +1411,27 @@ export function useOrderSystem(): UseOrderSystemReturn {
     const nextSlotRestrictedCharacter = target.type === "BLIND_BOX"
       ? (slotRestrictedCharacter === undefined ? target.slotRestrictedCharacter : slotRestrictedCharacter)
       : null;
+    const nextProduct: Product = {
+      ...target,
+      price: price === undefined ? target.price : price,
+      maxPerUser: maxPerUser === undefined ? target.maxPerUser : maxPerUser,
+      stock: stock === undefined ? target.stock : (target.type === "NORMAL" ? stock : target.stock),
+      slotRestrictionEnabled: nextSlotRestrictionEnabled,
+      slotRestrictedCharacter: nextSlotRestrictionEnabled ? nextSlotRestrictedCharacter : null,
+    };
 
     setState((prev) => ({
       ...prev,
       products: prev.products.map((product) =>
         product.id === productId
-          ? {
-            ...product,
-            price: price === undefined ? product.price : price,
-            maxPerUser: maxPerUser === undefined ? product.maxPerUser : maxPerUser,
-            stock: stock === undefined ? product.stock : (product.type === "NORMAL" ? stock : product.stock),
-            slotRestrictionEnabled: nextSlotRestrictionEnabled,
-            slotRestrictedCharacter: nextSlotRestrictionEnabled ? nextSlotRestrictedCharacter : null,
-          }
+          ? nextProduct
           : product,
       ),
     }));
+
+    runSupabaseWrite("update product rule", async () => {
+      await syncProductRecords([nextProduct]);
+    });
 
     return { ok: true, message: "已更新商品規則。" };
   };
@@ -1339,15 +1507,29 @@ export function useOrderSystem(): UseOrderSystemReturn {
           ...prev,
           characterSlots: prev.characterSlots.filter((item) => item.id !== exists.id),
         }));
+        runSupabaseWrite("delete character slot", async () => {
+          await deleteCharacterSlots(supabase!, [exists.id]);
+        });
       }
       return { ok: true, message: `${user.fbNickname} 的 ${character} 已設為無。` };
     }
+
+    const nextSlot: CharacterSlot = exists
+      ? { ...exists, tier, updatedAt: now }
+      : {
+        id: crypto.randomUUID(),
+        userId,
+        character,
+        tier,
+        createdAt: now,
+        updatedAt: now,
+      };
 
     if (exists) {
       setState((prev) => ({
         ...prev,
         characterSlots: prev.characterSlots.map((item) =>
-          item.id === exists.id ? { ...item, tier, updatedAt: now } : item,
+          item.id === exists.id ? nextSlot : item,
         ),
       }));
     } else {
@@ -1355,17 +1537,14 @@ export function useOrderSystem(): UseOrderSystemReturn {
         ...prev,
         characterSlots: [
           ...prev.characterSlots,
-          {
-            id: crypto.randomUUID(),
-            userId,
-            character,
-            tier,
-            createdAt: now,
-            updatedAt: now,
-          },
+          nextSlot,
         ],
       }));
     }
+
+    runSupabaseWrite("upsert character slot", async () => {
+      await syncCharacterSlotRows([nextSlot]);
+    });
 
     return { ok: true, message: `${user.fbNickname} 的 ${character} 已設為 ${tier}。` };
   };
@@ -1385,6 +1564,7 @@ export function useOrderSystem(): UseOrderSystemReturn {
 
     const tiers = characterTierCycle();
     const now = new Date().toISOString();
+    const nextSlotsForSync: CharacterSlot[] = [];
 
     setState((prev) => {
       const nextSlots = [...prev.characterSlots];
@@ -1397,19 +1577,26 @@ export function useOrderSystem(): UseOrderSystemReturn {
 
         if (existingIndex >= 0) {
           nextSlots[existingIndex] = { ...nextSlots[existingIndex], tier, updatedAt: now };
+          nextSlotsForSync.push(nextSlots[existingIndex]);
         } else {
-          nextSlots.push({
+          const createdSlot: CharacterSlot = {
             id: crypto.randomUUID(),
             userId: member.id,
             character,
             tier,
             createdAt: now,
             updatedAt: now,
-          });
+          };
+          nextSlots.push(createdSlot);
+          nextSlotsForSync.push(createdSlot);
         }
       });
 
       return { ...prev, characterSlots: nextSlots };
+    });
+
+    runSupabaseWrite("auto assign character slots", async () => {
+      await syncCharacterSlotRows(nextSlotsForSync);
     });
 
     return { ok: true, message: `${character} 已依註冊順序自動分配固位（含撿漏）。` };
@@ -1444,6 +1631,10 @@ export function useOrderSystem(): UseOrderSystemReturn {
       campaigns: [campaign, ...prev.campaigns],
     }));
 
+    runSupabaseWrite("create campaign", async () => {
+      await syncCampaignRecords([campaign]);
+    });
+
     return { ok: true, message: `已建立活動「${campaign.title}」。` };
   };
 
@@ -1476,6 +1667,11 @@ export function useOrderSystem(): UseOrderSystemReturn {
       orders: prev.orders.filter((item) => item.campaignId !== campaignId),
       orderItems: prev.orderItems.filter((item) => !orderIds.has(item.orderId)),
     }));
+
+    runSupabaseWrite("delete campaign", async () => {
+      const { error } = await supabase!.from("campaigns").delete().eq("id", campaignId);
+      if (error) throw error;
+    });
 
     return { ok: true, message: `已刪除活動「${campaign.title}」及其關聯資料。` };
   };
@@ -1536,6 +1732,10 @@ export function useOrderSystem(): UseOrderSystemReturn {
       products: [product, ...prev.products],
     }));
 
+    runSupabaseWrite("create product", async () => {
+      await syncProductRecords([product]);
+    });
+
     return { ok: true, message: `已建立商品「${product.name}」（SKU：${sku}）。` };
   };
 
@@ -1582,6 +1782,10 @@ export function useOrderSystem(): UseOrderSystemReturn {
       blindBoxItems: [blindBoxItem, ...prev.blindBoxItems],
     }));
 
+    runSupabaseWrite("create blind box item", async () => {
+      await syncBlindBoxItemRecords([blindBoxItem]);
+    });
+
     return { ok: true, message: `已新增子項「${blindBoxItem.name}」（SKU：${sku}）。` };
   };
 
@@ -1619,6 +1823,17 @@ export function useOrderSystem(): UseOrderSystemReturn {
       ),
     }));
 
+    const nextBlindBoxItem: BlindBoxItem = {
+      ...target,
+      price: price === undefined ? target.price : price,
+      stock: stock === undefined ? target.stock : stock,
+      maxPerUser: maxPerUser === undefined ? target.maxPerUser : maxPerUser,
+    };
+
+    runSupabaseWrite("update blind box item rule", async () => {
+      await syncBlindBoxItemRecords([nextBlindBoxItem]);
+    });
+
     return { ok: true, message: `已更新子項「${target.name}」。` };
   };
 
@@ -1644,18 +1859,25 @@ export function useOrderSystem(): UseOrderSystemReturn {
     }));
 
     if (supabase) {
-      const { error } = await supabase.from("admin_overrides").upsert(
-        {
-          email: normalizeEmail(target.email),
-          is_admin: isAdmin,
-          note: `set by ${normalizeEmail(currentUser.email)}`,
-          updated_at: new Date().toISOString(),
-        },
-        { onConflict: "email" },
-      );
+      const nextTarget = { ...target, isAdmin };
+      const [overrideResult, profileResult] = await Promise.all([
+        supabase.from("admin_overrides").upsert(
+          {
+            email: normalizeEmail(target.email),
+            is_admin: isAdmin,
+            note: `set by ${normalizeEmail(currentUser.email)}`,
+            updated_at: new Date().toISOString(),
+          },
+          { onConflict: "email" },
+        ),
+        upsertProfiles(supabase, [nextTarget]).then(() => ({ error: null as null | { message: string } })).catch((error: Error) => ({
+          error: { message: error.message },
+        })),
+      ]);
 
-      if (error) {
-        return { ok: false, message: `本地已更新，但 Supabase 同步失敗：${error.message}` };
+      if (overrideResult.error || profileResult.error) {
+        const message = overrideResult.error?.message ?? profileResult.error?.message ?? "未知錯誤";
+        return { ok: false, message: `本地已更新，但 Supabase 同步失敗：${message}` };
       }
     }
 
@@ -1698,13 +1920,20 @@ export function useOrderSystem(): UseOrderSystemReturn {
     }));
 
     if (supabase) {
-      const { error } = await supabase
-        .from("admin_overrides")
-        .delete()
-        .ilike("email", normalizeEmail(target.email));
+      const [overrideResult, profileResult] = await Promise.all([
+        supabase
+          .from("admin_overrides")
+          .delete()
+          .ilike("email", normalizeEmail(target.email)),
+        supabase
+          .from("profiles")
+          .delete()
+          .eq("id", target.id),
+      ]);
 
-      if (error) {
-        return { ok: false, message: `本地已刪除帳號，但 Supabase 權限清理失敗：${error.message}` };
+      if (overrideResult.error || profileResult.error) {
+        const message = overrideResult.error?.message ?? profileResult.error?.message ?? "未知錯誤";
+        return { ok: false, message: `本地已刪除帳號，但 Supabase 同步失敗：${message}` };
       }
     }
 
@@ -1732,6 +1961,10 @@ export function useOrderSystem(): UseOrderSystemReturn {
       ),
     }));
 
+    runSupabaseWrite("update pickup rate", async () => {
+      await upsertProfiles(supabase!, [{ ...target, pickupRate: Math.round(pickupRate) }]);
+    });
+
     return { ok: true, message: `${target.fbNickname} 取貨率已更新為 ${Math.round(pickupRate)}%。` };
   };
 
@@ -1751,6 +1984,10 @@ export function useOrderSystem(): UseOrderSystemReturn {
         item.id === orderId ? { ...item, status } : item,
       ),
     }));
+
+    runSupabaseWrite("update order status", async () => {
+      await upsertOrders(supabase!, [{ ...target, status }]);
+    });
 
     return { ok: true, message: `訂單狀態已更新為 ${status}。` };
   };

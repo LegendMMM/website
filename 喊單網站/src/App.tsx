@@ -33,6 +33,7 @@ import {
 } from "./lib/format";
 import { calculateUnitPrice } from "./lib/business-rules";
 import { downloadTextFile } from "./lib/download";
+import { upsertCampaigns, upsertProfiles } from "./lib/supabase-sync";
 import { isSupabaseEnabled, supabase, testSupabaseConnection } from "./lib/supabase";
 import type {
   Campaign,
@@ -919,6 +920,16 @@ function AdminSettingsPanel(props: { system: UseOrderSystemReturn }): JSX.Elemen
       return { ok: false, message: "未設定 Supabase，僅寫入本地 Demo。" };
     }
 
+    const campaign = system.state.campaigns.find((item) => item.id === productCampaignId) ?? null;
+    const creator = campaign
+      ? system.state.users.find((item) => item.id === campaign.createdBy) ?? null
+      : null;
+
+    if (campaign && creator) {
+      await upsertProfiles(supabase, [creator]);
+      await upsertCampaigns(supabase, [campaign]);
+    }
+
     const payload = rows.map((row) => ({
       campaign_id: productCampaignId,
       sku: row.sku,
@@ -1231,7 +1242,7 @@ function AdminSettingsPanel(props: { system: UseOrderSystemReturn }): JSX.Elemen
           </div>
           <p className="mt-2 text-xs text-slate-500">
             新專案請先在 `.env` 設定 `VITE_SUPABASE_URL` 與 `VITE_SUPABASE_ANON_KEY`，再到 Supabase SQL Editor 執行 `supabase/schema.sql`。
-            若你是從舊版資料升級，再補跑對應 migration。
+            若你是從舊版資料升級，再補跑對應 migration；目前舊專案至少要先執行 `supabase/migrations/20260315_convert_ids_to_text.sql`。
           </p>
           {supabaseFeedback && <p className="mt-2 text-sm font-semibold text-slate-800">{supabaseFeedback}</p>}
         </div>
