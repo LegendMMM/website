@@ -37,7 +37,6 @@ create table if not exists public.profiles (
   id uuid primary key default gen_random_uuid(),
   email text not null default '' unique,
   fb_nickname text not null default '未填寫',
-  role_tier public.role_tier not null default 'LEAK_PICK',
   pickup_rate numeric(5,2) not null default 100,
   is_admin boolean not null default false,
   created_at timestamptz not null default now()
@@ -46,7 +45,6 @@ create table if not exists public.profiles (
 alter table public.profiles
   add column if not exists email text not null default '',
   add column if not exists fb_nickname text not null default '未填寫',
-  add column if not exists role_tier public.role_tier not null default 'LEAK_PICK',
   add column if not exists pickup_rate numeric(5,2) not null default 100,
   add column if not exists is_admin boolean not null default false,
   add column if not exists created_at timestamptz not null default now();

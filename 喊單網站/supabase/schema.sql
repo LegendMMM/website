@@ -38,13 +38,10 @@ create table if not exists public.profiles (
   id uuid primary key default gen_random_uuid(),
   email text not null unique,
   fb_nickname text not null unique,
-  role_tier public.role_tier not null default 'LEAK_PICK',
   pickup_rate numeric(5,2) not null default 100,
   is_admin boolean not null default false,
   created_at timestamptz not null default now()
 );
-
-comment on column public.profiles.role_tier is 'Compatibility field only. Actual slot rules are stored in character_slots.';
 
 create table if not exists public.admin_overrides (
   email text primary key,

@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useState } from "react";
+import { useCallback, useEffect, useMemo, useState } from "react";
 import {
   availablePaymentMethods,
   buildShipmentDraft,
@@ -232,7 +232,7 @@ export function useOrderSystem(): UseOrderSystemReturn {
     [sessionUserId, state.users],
   );
 
-  const syncAdminFlagFromSupabase = async (user: UserProfile): Promise<void> => {
+  const syncAdminFlagFromSupabase = useCallback(async (user: UserProfile): Promise<void> => {
     if (!supabase) return;
     const normalizedEmail = normalizeEmail(user.email);
     if (!normalizedEmail) return;
@@ -267,13 +267,12 @@ export function useOrderSystem(): UseOrderSystemReturn {
     if (!profileResult.error && profileResult.data) {
       applyAdminFlag(Boolean(profileResult.data.is_admin));
     }
-  };
+  }, []);
 
   useEffect(() => {
     if (!currentUser) return;
     void syncAdminFlagFromSupabase(currentUser);
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [currentUser?.id, currentUser?.email]);
+  }, [currentUser, syncAdminFlagFromSupabase]);
 
   const visibleCampaigns = useMemo(
     () => state.campaigns.filter((campaign) => campaign.status === "OPEN"),
@@ -364,33 +363,62 @@ export function useOrderSystem(): UseOrderSystemReturn {
     };
   };
 
-  const resolveClaimRoleTier = (claim: Claim): RoleTier => {
-    const campaign = getCampaignById(claim.campaignId);
-    const product = getProductById(claim.productId);
-    const user = state.users.find((item) => item.id === claim.userId);
-    if (!campaign || !product || !user) {
-      return claim.roleTier;
-    }
-
-    const target = resolveTargetDescriptor(product, claim.blindBoxItemId ?? undefined);
-    if (!target) {
-      return claim.roleTier;
-    }
-
-    return resolveEffectiveTier({
-      campaign,
-      product,
-      user,
-      blindBoxItemId: claim.blindBoxItemId ?? undefined,
-      target,
-    }).effectiveTier;
-  };
-
   useEffect(() => {
     if (state.claims.length === 0) return;
 
+    const campaignsById = new Map(state.campaigns.map((campaign) => [campaign.id, campaign]));
+    const productsById = new Map(state.products.map((product) => [product.id, product]));
+    const blindBoxItemsById = new Map(state.blindBoxItems.map((item) => [item.id, item]));
+    const usersById = new Map(state.users.map((user) => [user.id, user]));
+    const slotByUserCharacter = new Map(
+      state.characterSlots.map((slot) => [`${slot.userId}:${slot.character}`, slot.tier] as const),
+    );
+
     const nextClaims = state.claims.map((claim) => {
-      const nextRoleTier = resolveClaimRoleTier(claim);
+      const campaign = campaignsById.get(claim.campaignId);
+      const product = productsById.get(claim.productId);
+      const user = usersById.get(claim.userId);
+      if (!campaign || !product || !user) {
+        return claim;
+      }
+
+      let target: TargetDescriptor | null = null;
+      if (product.type === "NORMAL") {
+        target = {
+          character: product.character,
+          stock: product.stock,
+          maxPerUser: product.maxPerUser,
+          label: product.name,
+        };
+      } else if (claim.blindBoxItemId) {
+        const blindItem = blindBoxItemsById.get(claim.blindBoxItemId);
+        if (blindItem && blindItem.productId === product.id) {
+          target = {
+            character: blindItem.character,
+            stock: blindItem.stock,
+            maxPerUser: blindItem.maxPerUser,
+            label: `${product.name} / ${blindItem.name}`,
+          };
+        }
+      }
+
+      if (!target) {
+        return claim;
+      }
+
+      const gateCharacter =
+        product.type === "BLIND_BOX" && product.slotRestrictionEnabled
+          ? (product.slotRestrictedCharacter ?? target.character)
+          : null;
+
+      const nextRoleTier = !gateCharacter
+        ? "LEAK_PICK"
+        : canBuyByCharacterSlot({
+          releaseStage: campaign.releaseStage,
+          character: gateCharacter,
+          userCharacterTier: slotByUserCharacter.get(`${user.id}:${gateCharacter}`) ?? null,
+        }).effectiveTier;
+
       return nextRoleTier === claim.roleTier ? claim : { ...claim, roleTier: nextRoleTier };
     });
 
@@ -398,7 +426,6 @@ export function useOrderSystem(): UseOrderSystemReturn {
     if (!changed) return;
 
     setState((prev) => ({ ...prev, claims: nextClaims }));
-    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [state.claims, state.products, state.blindBoxItems, state.users, state.characterSlots, state.campaigns]);
 
   const getCurrentCommittedQty = (
@@ -655,7 +682,6 @@ export function useOrderSystem(): UseOrderSystemReturn {
       id: userId,
       email: normalizedEmail,
       fbNickname: input.fbNickname.trim(),
-      roleTier: "LEAK_PICK",
       pickupRate: 100,
       isAdmin: false,
       createdAt: new Date().toISOString(),

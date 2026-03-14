@@ -159,7 +159,6 @@ function normalizeState(raw: unknown): OrderSystemState {
         id: typeof user.id === "string" ? user.id : crypto.randomUUID(),
         email: normalizeEmail(user.email),
         fbNickname: normalizeNickname(user.fbNickname),
-        roleTier: normalizeCharacterTier(user.roleTier) ?? "LEAK_PICK",
         pickupRate: typeof user.pickupRate === "number" ? user.pickupRate : 100,
         isAdmin: Boolean(user.isAdmin),
         createdAt: typeof user.createdAt === "string" ? user.createdAt : new Date().toISOString(),

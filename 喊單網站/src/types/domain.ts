@@ -29,7 +29,6 @@ export interface UserProfile {
   id: string;
   email: string;
   fbNickname: string;
-  roleTier: RoleTier;
   pickupRate: number;
   isAdmin: boolean;
   createdAt: string;
