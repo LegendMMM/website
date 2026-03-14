@@ -6,13 +6,20 @@ import { useOrderSystem } from "./hooks/useOrderSystem";
 import { CHARACTER_OPTIONS, DEFAULT_PRODUCT_CATEGORIES } from "./lib/constants";
 import {
   BLIND_ITEM_IMPORT_CSV_TEMPLATE,
+  BLIND_ITEM_IMPORT_JSON_TEMPLATE,
+  BLIND_PRODUCT_IMPORT_CSV_TEMPLATE,
+  BLIND_PRODUCT_IMPORT_JSON_TEMPLATE,
+  NORMAL_PRODUCT_IMPORT_CSV_TEMPLATE,
+  NORMAL_PRODUCT_IMPORT_JSON_TEMPLATE,
   type BlindBoxItemImportRow,
-  PRODUCT_IMPORT_CSV_TEMPLATE,
-  type ProductImportRow,
+  type BlindProductImportRow,
+  type NormalProductImportRow,
   parseBlindItemImportCsv,
   parseBlindItemImportJson,
-  parseProductImportCsv,
-  parseProductImportJson,
+  parseBlindProductImportCsv,
+  parseBlindProductImportJson,
+  parseNormalProductImportCsv,
+  parseNormalProductImportJson,
 } from "./lib/import-utils";
 import {
   fixedTierLabel,
@@ -43,6 +50,13 @@ type PageView = "home" | "campaign" | "blindBox" | "cart" | "me";
 type RootRoute = "shop" | "admin";
 type AdminTab = "dashboard" | "members" | "claims" | "orders" | "shipping" | "settings";
 type ClaimStatusFilter = "ALL" | "LOCKED" | "CONFIRMED" | "CANCELLED_BY_ADMIN";
+type ImportMode =
+  | "NORMAL_PRODUCT_CSV"
+  | "NORMAL_PRODUCT_JSON"
+  | "BLIND_PRODUCT_CSV"
+  | "BLIND_PRODUCT_JSON"
+  | "BLIND_ITEM_CSV"
+  | "BLIND_ITEM_JSON";
 
 const stageOptions: ReleaseStage[] = ["FIXED_1_ONLY", "FIXED_1_2", "FIXED_1_2_3", "ALL_OPEN"];
 const characterTierOptions: CharacterTier[] = ["FIXED_1", "FIXED_2", "FIXED_3", "LEAK_PICK"];
@@ -804,7 +818,7 @@ function AdminSettingsPanel(props: { system: UseOrderSystemReturn }): JSX.Elemen
   const [blindPrice, setBlindPrice] = useState("");
   const [blindStock, setBlindStock] = useState("");
   const [blindMaxPerUser, setBlindMaxPerUser] = useState("");
-  const [importMode, setImportMode] = useState<"PRODUCT_CSV" | "PRODUCT_JSON" | "BLIND_CSV" | "BLIND_JSON">("PRODUCT_CSV");
+  const [importMode, setImportMode] = useState<ImportMode>("NORMAL_PRODUCT_CSV");
   const [importText, setImportText] = useState("");
 
   useEffect(() => {
@@ -851,6 +865,24 @@ function AdminSettingsPanel(props: { system: UseOrderSystemReturn }): JSX.Elemen
     ? blindProducts.find((product) => product.id === blindProductId) ?? null
     : null;
 
+  const importModeDescription: Record<ImportMode, string> = {
+    NORMAL_PRODUCT_CSV: "匯入一般代購商品。全員可喊，不帶固位限制。",
+    NORMAL_PRODUCT_JSON: "匯入一般代購商品。全員可喊，不帶固位限制。",
+    BLIND_PRODUCT_CSV: "匯入盲盒母商品。只有這一類會設定固位限制。",
+    BLIND_PRODUCT_JSON: "匯入盲盒母商品。只有這一類會設定固位限制。",
+    BLIND_ITEM_CSV: "匯入盲盒子項，會掛到既有母商品 SKU 底下。",
+    BLIND_ITEM_JSON: "匯入盲盒子項，會掛到既有母商品 SKU 底下。",
+  };
+
+  const importTemplateByMode: Record<ImportMode, string> = {
+    NORMAL_PRODUCT_CSV: NORMAL_PRODUCT_IMPORT_CSV_TEMPLATE,
+    NORMAL_PRODUCT_JSON: NORMAL_PRODUCT_IMPORT_JSON_TEMPLATE,
+    BLIND_PRODUCT_CSV: BLIND_PRODUCT_IMPORT_CSV_TEMPLATE,
+    BLIND_PRODUCT_JSON: BLIND_PRODUCT_IMPORT_JSON_TEMPLATE,
+    BLIND_ITEM_CSV: BLIND_ITEM_IMPORT_CSV_TEMPLATE,
+    BLIND_ITEM_JSON: BLIND_ITEM_IMPORT_JSON_TEMPLATE,
+  };
+
   const assignGeneratedSkus = <T extends { sku: string }>(prefix: string, rows: T[], existingSkus: string[]): T[] => {
     let sequence = existingSkus.reduce((max, sku) => {
       const match = sku.toUpperCase().match(new RegExp(`^${prefix}-(\\d+)$`));
@@ -868,7 +900,21 @@ function AdminSettingsPanel(props: { system: UseOrderSystemReturn }): JSX.Elemen
     });
   };
 
-  const syncProductsToSupabase = async (rows: ProductImportRow[]): Promise<{ ok: boolean; message: string }> => {
+  const syncProductsToSupabase = async (
+    rows: Array<{
+      sku: string;
+      name: string;
+      series: ProductSeries;
+      type: ProductType;
+      character: CharacterName | null;
+      slotRestrictionEnabled: boolean;
+      slotRestrictedCharacter: CharacterName | null;
+      imageUrl: string | null;
+      price: number;
+      stock: number | null;
+      maxPerUser: number | null;
+    }>,
+  ): Promise<{ ok: boolean; message: string }> => {
     if (!isSupabaseEnabled || !supabase) {
       return { ok: false, message: "未設定 Supabase，僅寫入本地 Demo。" };
     }
@@ -948,10 +994,20 @@ function AdminSettingsPanel(props: { system: UseOrderSystemReturn }): JSX.Elemen
       return;
     }
 
-    if (importMode === "PRODUCT_CSV" || importMode === "PRODUCT_JSON") {
-      const parsed = importMode === "PRODUCT_CSV"
-        ? parseProductImportCsv(text)
-        : parseProductImportJson(text);
+    if (
+      importMode === "NORMAL_PRODUCT_CSV" ||
+      importMode === "NORMAL_PRODUCT_JSON" ||
+      importMode === "BLIND_PRODUCT_CSV" ||
+      importMode === "BLIND_PRODUCT_JSON"
+    ) {
+      const parsed =
+        importMode === "NORMAL_PRODUCT_CSV"
+          ? parseNormalProductImportCsv(text)
+          : importMode === "NORMAL_PRODUCT_JSON"
+            ? parseNormalProductImportJson(text)
+            : importMode === "BLIND_PRODUCT_CSV"
+              ? parseBlindProductImportCsv(text)
+              : parseBlindProductImportJson(text);
 
       if (parsed.errors.length > 0) {
         setFeedback(`匯入失敗：${parsed.errors.slice(0, 3).join(" / ")}`);
@@ -964,6 +1020,8 @@ function AdminSettingsPanel(props: { system: UseOrderSystemReturn }): JSX.Elemen
       }
 
       const resolvedRows = assignGeneratedSkus("PRD", parsed.rows, system.state.products.map((item) => item.sku));
+      const isBlindProductImport =
+        importMode === "BLIND_PRODUCT_CSV" || importMode === "BLIND_PRODUCT_JSON";
 
       let successCount = 0;
       let firstError = "";
@@ -973,14 +1031,16 @@ function AdminSettingsPanel(props: { system: UseOrderSystemReturn }): JSX.Elemen
           sku: row.sku,
           name: row.name,
           series: row.series,
-          type: row.type,
-          character: row.type === "NORMAL" ? row.character : null,
-          slotRestrictionEnabled: row.type === "BLIND_BOX" ? row.slotRestrictionEnabled : false,
+          type: isBlindProductImport ? "BLIND_BOX" : "NORMAL",
+          character: isBlindProductImport ? null : (row as NormalProductImportRow).character,
+          slotRestrictionEnabled: isBlindProductImport ? (row as BlindProductImportRow).slotRestrictionEnabled : false,
           slotRestrictedCharacter:
-            row.type === "BLIND_BOX" && row.slotRestrictionEnabled ? row.slotRestrictedCharacter : null,
+            isBlindProductImport && (row as BlindProductImportRow).slotRestrictionEnabled
+              ? (row as BlindProductImportRow).slotRestrictedCharacter
+              : null,
           imageUrl: row.imageUrl,
           price: row.price,
-          stock: row.type === "NORMAL" ? row.stock : null,
+          stock: isBlindProductImport ? null : (row as NormalProductImportRow).stock,
           maxPerUser: row.maxPerUser,
         });
         if (result.ok) {
@@ -993,14 +1053,49 @@ function AdminSettingsPanel(props: { system: UseOrderSystemReturn }): JSX.Elemen
       const localFeedback =
         firstError
           ? `已匯入 ${successCount} 筆，失敗原因：${firstError}`
-          : `商品匯入成功，共 ${successCount} 筆。`;
+          : `${isBlindProductImport ? "盲盒母商品" : "一般商品"}匯入成功，共 ${successCount} 筆。`;
 
-      const syncResult = await syncProductsToSupabase(resolvedRows);
+      const syncRows = isBlindProductImport
+        ? resolvedRows.map((row) => {
+          const blindRow = row as BlindProductImportRow;
+          return {
+            sku: blindRow.sku,
+            name: blindRow.name,
+            series: blindRow.series,
+            type: "BLIND_BOX" as const,
+            character: null,
+            slotRestrictionEnabled: blindRow.slotRestrictionEnabled,
+            slotRestrictedCharacter:
+              blindRow.slotRestrictionEnabled ? blindRow.slotRestrictedCharacter : null,
+            imageUrl: blindRow.imageUrl,
+            price: blindRow.price,
+            stock: null,
+            maxPerUser: blindRow.maxPerUser,
+          };
+        })
+        : resolvedRows.map((row) => {
+          const normalRow = row as NormalProductImportRow;
+          return {
+            sku: normalRow.sku,
+            name: normalRow.name,
+            series: normalRow.series,
+            type: "NORMAL" as const,
+            character: normalRow.character,
+            slotRestrictionEnabled: false,
+            slotRestrictedCharacter: null,
+            imageUrl: normalRow.imageUrl,
+            price: normalRow.price,
+            stock: normalRow.stock,
+            maxPerUser: normalRow.maxPerUser,
+          };
+        });
+
+      const syncResult = await syncProductsToSupabase(syncRows);
       setFeedback(`${localFeedback} ${syncResult.message}`);
       return;
     }
 
-    const parsed = importMode === "BLIND_CSV"
+    const parsed = importMode === "BLIND_ITEM_CSV"
       ? parseBlindItemImportCsv(text)
       : parseBlindItemImportJson(text);
 
@@ -1143,10 +1238,8 @@ function AdminSettingsPanel(props: { system: UseOrderSystemReturn }): JSX.Elemen
 
         <div className="glass-card p-5">
           <h3 className="text-lg font-bold text-slate-900">表單匯入商品（批次）</h3>
-          <p className="mt-2 text-sm text-slate-600">支援商品與盲盒子項兩類匯入，可用 CSV 或 JSON。</p>
-          <p className="mt-1 text-xs text-slate-500">
-            `character` 只作為一般商品的展示角色；`slotRestrictionEnabled / slotRestrictedCharacter` 只對盲盒母商品有效。
-          </p>
+          <p className="mt-2 text-sm text-slate-600">一般商品、盲盒母商品、盲盒子項分開匯入，可用 CSV 或 JSON。</p>
+          <p className="mt-1 text-xs text-slate-500">{importModeDescription[importMode]}</p>
 
           <div className="mt-3 grid gap-3 text-sm">
             <label className="block">
@@ -1167,12 +1260,14 @@ function AdminSettingsPanel(props: { system: UseOrderSystemReturn }): JSX.Elemen
               <select
                 className="mt-1 w-full rounded-xl border border-slate-200 px-3 py-2"
                 value={importMode}
-                onChange={(event) => setImportMode(event.target.value as "PRODUCT_CSV" | "PRODUCT_JSON" | "BLIND_CSV" | "BLIND_JSON")}
+                onChange={(event) => setImportMode(event.target.value as ImportMode)}
               >
-                <option value="PRODUCT_CSV">商品 CSV</option>
-                <option value="PRODUCT_JSON">商品 JSON</option>
-                <option value="BLIND_CSV">盲盒子項 CSV</option>
-                <option value="BLIND_JSON">盲盒子項 JSON</option>
+                <option value="NORMAL_PRODUCT_CSV">一般商品 CSV</option>
+                <option value="NORMAL_PRODUCT_JSON">一般商品 JSON</option>
+                <option value="BLIND_PRODUCT_CSV">盲盒母商品 CSV</option>
+                <option value="BLIND_PRODUCT_JSON">盲盒母商品 JSON</option>
+                <option value="BLIND_ITEM_CSV">盲盒子項 CSV</option>
+                <option value="BLIND_ITEM_JSON">盲盒子項 JSON</option>
               </select>
             </label>
 
@@ -1180,12 +1275,7 @@ function AdminSettingsPanel(props: { system: UseOrderSystemReturn }): JSX.Elemen
               <button
                 type="button"
                 className="rounded-lg border px-3 py-1.5 text-xs font-semibold"
-                onClick={() => {
-                  if (importMode === "PRODUCT_CSV") setImportText(PRODUCT_IMPORT_CSV_TEMPLATE);
-                  if (importMode === "BLIND_CSV") setImportText(BLIND_ITEM_IMPORT_CSV_TEMPLATE);
-                  if (importMode === "PRODUCT_JSON") setImportText("[]");
-                  if (importMode === "BLIND_JSON") setImportText("[]");
-                }}
+                onClick={() => setImportText(importTemplateByMode[importMode])}
               >
                 載入模板
               </button>
