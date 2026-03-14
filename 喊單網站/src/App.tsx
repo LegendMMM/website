@@ -101,6 +101,13 @@ function formatCharacterSlotSummary(slots: CharacterSlot[]): string {
   return "未分配";
 }
 
+function formatClaimPrioritySummary(product: Product | undefined, roleTier: CharacterTier): string {
+  if (product?.type === "NORMAL") {
+    return "排單方式：一般代購 / 先喊先處理";
+  }
+  return `排單固位：${roleLabel(roleTier)}`;
+}
+
 function HeaderNav(props: {
   currentView: PageView;
   setView: (view: PageView) => void;
@@ -378,7 +385,7 @@ function CampaignView(props: {
                 {product.type === "NORMAL" && (
                   <>
                     <p>購買方式：一般代購，全員可喊</p>
-                    <p>商品角色：{product.character ?? "-"}</p>
+                    {product.character && <p>展示角色：{product.character}</p>}
                     <p>上限：{product.maxPerUser ?? "不限"} / 已加入：{myQty}</p>
                   </>
                 )}
@@ -748,7 +755,7 @@ function MeView(props: { system: UseOrderSystemReturn }): JSX.Element {
                 <article key={claim.id} className="rounded-xl border border-slate-200 px-3 py-2 text-sm">
                   <p className="font-semibold text-slate-900">{label}</p>
                   <p className="text-xs text-slate-500">{campaign?.title ?? "未知活動"} / {formatDate(claim.createdAt)}</p>
-                  <p className="text-xs text-slate-600">排單固位：{roleLabel(claim.roleTier)}</p>
+                  <p className="text-xs text-slate-600">{formatClaimPrioritySummary(product, claim.roleTier)}</p>
                   <p className="text-xs font-semibold text-slate-700">狀態：{claim.status}</p>
                 </article>
               );
@@ -777,7 +784,7 @@ function AdminSettingsPanel(props: { system: UseOrderSystemReturn }): JSX.Elemen
   const [productSeries, setProductSeries] = useState<ProductSeries>(system.state.productCategories[0] ?? "未分類");
   const [newCategoryName, setNewCategoryName] = useState("");
   const [productName, setProductName] = useState("");
-  const [productCharacter, setProductCharacter] = useState<CharacterName>("八千代");
+  const [productCharacter, setProductCharacter] = useState<CharacterName | "">("");
   const [productSlotRestrictionEnabled, setProductSlotRestrictionEnabled] = useState(true);
   const [productSlotRestrictedCharacter, setProductSlotRestrictedCharacter] = useState<CharacterName | "">("八千代");
   const [productImageUrl, setProductImageUrl] = useState("");
@@ -1137,6 +1144,9 @@ function AdminSettingsPanel(props: { system: UseOrderSystemReturn }): JSX.Elemen
         <div className="glass-card p-5">
           <h3 className="text-lg font-bold text-slate-900">表單匯入商品（批次）</h3>
           <p className="mt-2 text-sm text-slate-600">支援商品與盲盒子項兩類匯入，可用 CSV 或 JSON。</p>
+          <p className="mt-1 text-xs text-slate-500">
+            `character` 只作為一般商品的展示角色；`slotRestrictionEnabled / slotRestrictedCharacter` 只對盲盒母商品有效。
+          </p>
 
           <div className="mt-3 grid gap-3 text-sm">
             <label className="block">
@@ -1325,18 +1335,13 @@ function AdminSettingsPanel(props: { system: UseOrderSystemReturn }): JSX.Elemen
 
             {productType === "NORMAL" && (
               <label className="block">
-                角色
+                展示角色（可留空）
                 <select
                   className="mt-1 w-full rounded-xl border border-slate-200 px-3 py-2"
                   value={productCharacter}
-                  onChange={(event) => {
-                    const next = event.target.value as CharacterName;
-                    setProductCharacter(next);
-                    if (!productSlotRestrictedCharacter) {
-                      setProductSlotRestrictedCharacter(next);
-                    }
-                  }}
+                  onChange={(event) => setProductCharacter(event.target.value as CharacterName | "")}
                 >
+                  <option value="">不指定角色</option>
                   {CHARACTER_OPTIONS.map((character) => (
                     <option key={character} value={character}>{character}</option>
                   ))}
@@ -1429,14 +1434,14 @@ function AdminSettingsPanel(props: { system: UseOrderSystemReturn }): JSX.Elemen
                   name: productName,
                   series: productSeries,
                   type: productType,
-                  character: productType === "NORMAL" ? productCharacter : null,
+                  character: productType === "NORMAL" && productCharacter ? productCharacter : null,
                   slotRestrictionEnabled: productType === "BLIND_BOX" ? productSlotRestrictionEnabled : false,
                   slotRestrictedCharacter:
                     productType === "BLIND_BOX" && productSlotRestrictionEnabled && productSlotRestrictedCharacter
                     ? productSlotRestrictedCharacter
                     : null,
                   imageUrl: productImageUrl || null,
-                  price: Number(productPrice),
+                  price: productPrice.trim() ? Number(productPrice) : Number.NaN,
                   stock: productType === "NORMAL" && productStock.trim() ? Number(productStock) : null,
                   maxPerUser: productMaxPerUser.trim() ? Number(productMaxPerUser) : null,
                 });
@@ -1444,6 +1449,7 @@ function AdminSettingsPanel(props: { system: UseOrderSystemReturn }): JSX.Elemen
                 if (result.ok) {
                   setProductName("");
                   setProductImageUrl("");
+                  setProductCharacter("");
                   setProductPrice("120");
                   setProductStock("");
                   setProductMaxPerUser("");
@@ -2217,6 +2223,7 @@ function AdminConsoleView(props: {
                       <p className="text-xs text-slate-500">
                         狀態：{claim.status} / 順位：{rank > 0 ? rank : "-"} / 名額：{stock ?? "不限"}
                       </p>
+                      <p className="text-xs text-slate-600">{formatClaimPrioritySummary(product, claim.roleTier)}</p>
                     </div>
                     <div className="flex flex-wrap gap-2">
                       <button

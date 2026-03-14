@@ -110,7 +110,7 @@ function toCharacter(value: string | undefined): CharacterName | null {
 function assertProductRow(row: ProductImportRow, index: number): string[] {
   const errors: string[] = [];
   if (!row.name) errors.push(`第 ${index} 筆：缺少 name`);
-  if (!Number.isFinite(row.price) || row.price < 0) errors.push(`第 ${index} 筆：price 必須是 >= 0 的數字`);
+  if (!Number.isFinite(row.price) || row.price < 0) errors.push(`第 ${index} 筆：price 必填，且必須是 >= 0 的數字`);
   return errors;
 }
 
@@ -121,6 +121,7 @@ export function parseProductImportCsv(text: string): { rows: ProductImportRow[];
 
   rawRows.forEach((raw, idx) => {
     const type = toProductType(raw.type);
+    const price = parseNullableNumber(raw.price);
     const row: ProductImportRow = {
       sku: (raw.sku ?? "").trim(),
       name: (raw.name ?? "").trim(),
@@ -130,7 +131,7 @@ export function parseProductImportCsv(text: string): { rows: ProductImportRow[];
       slotRestrictionEnabled: type === "BLIND_BOX" ? parseBoolean(raw.slotRestrictionEnabled, true) : false,
       slotRestrictedCharacter: type === "BLIND_BOX" ? toCharacter(raw.slotRestrictedCharacter) : null,
       imageUrl: raw.imageUrl?.trim() ? raw.imageUrl.trim() : null,
-      price: Number(raw.price ?? 0),
+      price: price ?? Number.NaN,
       stock: parseNullableNumber(raw.stock),
       maxPerUser: parseNullableNumber(raw.maxPerUser),
     };
@@ -159,6 +160,7 @@ export function parseProductImportJson(text: string): { rows: ProductImportRow[]
     parsed.forEach((raw, idx) => {
       const item = raw as Record<string, unknown>;
       const type = toProductType(String(item.type ?? ""));
+      const price = item.price === null || item.price === undefined ? null : Number(item.price);
       const row: ProductImportRow = {
         sku: String(item.sku ?? "").trim(),
         name: String(item.name ?? "").trim(),
@@ -172,7 +174,7 @@ export function parseProductImportJson(text: string): { rows: ProductImportRow[]
           ? toCharacter(typeof item.slotRestrictedCharacter === "string" ? item.slotRestrictedCharacter : undefined)
           : null,
         imageUrl: typeof item.imageUrl === "string" && item.imageUrl.trim() ? item.imageUrl.trim() : null,
-        price: Number(item.price ?? 0),
+        price: price ?? Number.NaN,
         stock: item.stock === null || item.stock === undefined ? null : Number(item.stock),
         maxPerUser: item.maxPerUser === null || item.maxPerUser === undefined ? null : Number(item.maxPerUser),
       };
@@ -272,6 +274,8 @@ export function parseBlindItemImportJson(text: string): { rows: BlindBoxItemImpo
   }
 }
 
-export const PRODUCT_IMPORT_CSV_TEMPLATE = `sku,name,series,type,character,slotRestrictionEnabled,slotRestrictedCharacter,imageUrl,price,stock,maxPerUser\n,夏祭立牌A,Q版系列,NORMAL,八千代,false,,https://example.com/a.jpg,120,8,2`;
+export const PRODUCT_IMPORT_CSV_TEMPLATE = `sku,name,series,type,character,slotRestrictionEnabled,slotRestrictedCharacter,imageUrl,price,stock,maxPerUser
+,八千代吊飾,Q版系列,NORMAL,八千代,,,https://example.com/yachiyo-charm.jpg,120,8,2
+,Q版壓克力,HOBBY系列,BLIND_BOX,,true,,https://example.com/q-acrylic.jpg,150,,`;
 
 export const BLIND_ITEM_IMPORT_CSV_TEMPLATE = `parentSku,sku,name,character,imageUrl,price,stock,maxPerUser\nSUM-B01,,盲盒-八千代,八千代,https://example.com/y.jpg,,3,1`;
