@@ -25,6 +25,7 @@ import type {
   Campaign,
   CartItem,
   CharacterName,
+  CharacterSlot,
   CharacterTier,
   Claim,
   Order,

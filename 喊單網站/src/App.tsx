@@ -12,8 +12,6 @@ import {
   NORMAL_PRODUCT_IMPORT_CSV_TEMPLATE,
   NORMAL_PRODUCT_IMPORT_JSON_TEMPLATE,
   type BlindBoxItemImportRow,
-  type BlindProductImportRow,
-  type NormalProductImportRow,
   parseBlindItemImportCsv,
   parseBlindItemImportJson,
   parseBlindProductImportCsv,
@@ -1005,20 +1003,11 @@ function AdminSettingsPanel(props: { system: UseOrderSystemReturn }): JSX.Elemen
       return;
     }
 
-    if (
-      importMode === "NORMAL_PRODUCT_CSV" ||
-      importMode === "NORMAL_PRODUCT_JSON" ||
-      importMode === "BLIND_PRODUCT_CSV" ||
-      importMode === "BLIND_PRODUCT_JSON"
-    ) {
+    if (importMode === "NORMAL_PRODUCT_CSV" || importMode === "NORMAL_PRODUCT_JSON") {
       const parsed =
         importMode === "NORMAL_PRODUCT_CSV"
           ? parseNormalProductImportCsv(text)
-          : importMode === "NORMAL_PRODUCT_JSON"
-            ? parseNormalProductImportJson(text)
-            : importMode === "BLIND_PRODUCT_CSV"
-              ? parseBlindProductImportCsv(text)
-              : parseBlindProductImportJson(text);
+          : parseNormalProductImportJson(text);
 
       if (parsed.errors.length > 0) {
         setFeedback(`匯入失敗：${parsed.errors.slice(0, 3).join(" / ")}`);
@@ -1026,14 +1015,11 @@ function AdminSettingsPanel(props: { system: UseOrderSystemReturn }): JSX.Elemen
       }
 
       if (parsed.rows.length === 0) {
-        setFeedback("沒有可匯入的商品資料。");
+        setFeedback("沒有可匯入的一般商品資料。");
         return;
       }
 
       const resolvedRows = assignGeneratedSkus("PRD", parsed.rows, system.state.products.map((item) => item.sku));
-      const isBlindProductImport =
-        importMode === "BLIND_PRODUCT_CSV" || importMode === "BLIND_PRODUCT_JSON";
-
       let successCount = 0;
       let firstError = "";
       resolvedRows.forEach((row) => {
@@ -1042,16 +1028,13 @@ function AdminSettingsPanel(props: { system: UseOrderSystemReturn }): JSX.Elemen
           sku: row.sku,
           name: row.name,
           series: row.series,
-          type: isBlindProductImport ? "BLIND_BOX" : "NORMAL",
-          character: isBlindProductImport ? null : (row as NormalProductImportRow).character,
-          slotRestrictionEnabled: isBlindProductImport ? (row as BlindProductImportRow).slotRestrictionEnabled : false,
-          slotRestrictedCharacter:
-            isBlindProductImport && (row as BlindProductImportRow).slotRestrictionEnabled
-              ? (row as BlindProductImportRow).slotRestrictedCharacter
-              : null,
+          type: "NORMAL",
+          character: row.character,
+          slotRestrictionEnabled: false,
+          slotRestrictedCharacter: null,
           imageUrl: row.imageUrl,
           price: row.price,
-          stock: isBlindProductImport ? null : (row as NormalProductImportRow).stock,
+          stock: row.stock,
           maxPerUser: row.maxPerUser,
         });
         if (result.ok) {
@@ -1064,42 +1047,86 @@ function AdminSettingsPanel(props: { system: UseOrderSystemReturn }): JSX.Elemen
       const localFeedback =
         firstError
           ? `已匯入 ${successCount} 筆，失敗原因：${firstError}`
-          : `${isBlindProductImport ? "盲盒母商品" : "一般商品"}匯入成功，共 ${successCount} 筆。`;
+          : `一般商品匯入成功，共 ${successCount} 筆。`;
 
-      const syncRows = isBlindProductImport
-        ? resolvedRows.map((row) => {
-          const blindRow = row as BlindProductImportRow;
-          return {
-            sku: blindRow.sku,
-            name: blindRow.name,
-            series: blindRow.series,
-            type: "BLIND_BOX" as const,
-            character: null,
-            slotRestrictionEnabled: blindRow.slotRestrictionEnabled,
-            slotRestrictedCharacter:
-              blindRow.slotRestrictionEnabled ? blindRow.slotRestrictedCharacter : null,
-            imageUrl: blindRow.imageUrl,
-            price: blindRow.price,
-            stock: null,
-            maxPerUser: blindRow.maxPerUser,
-          };
-        })
-        : resolvedRows.map((row) => {
-          const normalRow = row as NormalProductImportRow;
-          return {
-            sku: normalRow.sku,
-            name: normalRow.name,
-            series: normalRow.series,
-            type: "NORMAL" as const,
-            character: normalRow.character,
-            slotRestrictionEnabled: false,
-            slotRestrictedCharacter: null,
-            imageUrl: normalRow.imageUrl,
-            price: normalRow.price,
-            stock: normalRow.stock,
-            maxPerUser: normalRow.maxPerUser,
-          };
+      const syncRows = resolvedRows.map((row) => ({
+        sku: row.sku,
+        name: row.name,
+        series: row.series,
+        type: "NORMAL" as const,
+        character: row.character,
+        slotRestrictionEnabled: false,
+        slotRestrictedCharacter: null,
+        imageUrl: row.imageUrl,
+        price: row.price,
+        stock: row.stock,
+        maxPerUser: row.maxPerUser,
+      }));
+
+      const syncResult = await syncProductsToSupabase(syncRows);
+      setFeedback(`${localFeedback} ${syncResult.message}`);
+      return;
+    }
+
+    if (importMode === "BLIND_PRODUCT_CSV" || importMode === "BLIND_PRODUCT_JSON") {
+      const parsed =
+        importMode === "BLIND_PRODUCT_CSV"
+          ? parseBlindProductImportCsv(text)
+          : parseBlindProductImportJson(text);
+
+      if (parsed.errors.length > 0) {
+        setFeedback(`匯入失敗：${parsed.errors.slice(0, 3).join(" / ")}`);
+        return;
+      }
+
+      if (parsed.rows.length === 0) {
+        setFeedback("沒有可匯入的盲盒母商品資料。");
+        return;
+      }
+
+      const resolvedRows = assignGeneratedSkus("PRD", parsed.rows, system.state.products.map((item) => item.sku));
+      let successCount = 0;
+      let firstError = "";
+      resolvedRows.forEach((row) => {
+        const result = system.adminCreateProduct({
+          campaignId: productCampaignId,
+          sku: row.sku,
+          name: row.name,
+          series: row.series,
+          type: "BLIND_BOX",
+          character: null,
+          slotRestrictionEnabled: row.slotRestrictionEnabled,
+          slotRestrictedCharacter: row.slotRestrictionEnabled ? row.slotRestrictedCharacter : null,
+          imageUrl: row.imageUrl,
+          price: row.price,
+          stock: null,
+          maxPerUser: row.maxPerUser,
         });
+        if (result.ok) {
+          successCount += 1;
+        } else if (!firstError) {
+          firstError = result.message;
+        }
+      });
+
+      const localFeedback =
+        firstError
+          ? `已匯入 ${successCount} 筆，失敗原因：${firstError}`
+          : `盲盒母商品匯入成功，共 ${successCount} 筆。`;
+
+      const syncRows = resolvedRows.map((row) => ({
+        sku: row.sku,
+        name: row.name,
+        series: row.series,
+        type: "BLIND_BOX" as const,
+        character: null,
+        slotRestrictionEnabled: row.slotRestrictionEnabled,
+        slotRestrictedCharacter: row.slotRestrictionEnabled ? row.slotRestrictedCharacter : null,
+        imageUrl: row.imageUrl,
+        price: row.price,
+        stock: null,
+        maxPerUser: row.maxPerUser,
+      }));
 
       const syncResult = await syncProductsToSupabase(syncRows);
       setFeedback(`${localFeedback} ${syncResult.message}`);
