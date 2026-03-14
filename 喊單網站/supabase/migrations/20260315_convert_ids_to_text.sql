@@ -32,6 +32,7 @@ alter table if exists public.character_slots drop constraint if exists character
 alter table if exists public.blind_box_items drop constraint if exists blind_box_items_product_id_fkey;
 alter table if exists public.products drop constraint if exists products_campaign_id_fkey;
 alter table if exists public.campaigns drop constraint if exists campaigns_created_by_fkey;
+alter table if exists public.profiles drop constraint if exists profiles_id_fkey;
 
 alter table if exists public.profiles alter column id drop default;
 alter table if exists public.campaigns alter column id drop default;
