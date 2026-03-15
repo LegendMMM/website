@@ -444,7 +444,13 @@ function CampaignView(props: {
 
           return (
             <article key={product.id} className="product-stage-card">
-              <ProductImage imageUrl={product.imageUrl} alt={product.name} />
+              <div className="product-figure">
+                <ProductImage imageUrl={product.imageUrl} alt={product.name} />
+                <div className="product-price-badge">
+                  <span className="text-[11px] uppercase tracking-[0.16em] text-slate-400">Price</span>
+                  <strong>{twd(product.price)}</strong>
+                </div>
+              </div>
 
               <div className="mt-4 flex items-start justify-between gap-3">
                 <div>
@@ -455,9 +461,14 @@ function CampaignView(props: {
                 <span className="state-pill bg-slate-100 text-slate-700">{product.type === "NORMAL" ? "代購" : "拆分"}</span>
               </div>
 
-              <div className="mt-4 space-y-1 text-sm text-slate-600">
-                <p className="text-lg font-bold text-slate-900">{twd(product.price)}</p>
+              <div className="meta-chip-row">
+                <span className="meta-chip">SKU {product.sku}</span>
+                <span className="meta-chip">{product.series}</span>
+                {product.type === "NORMAL" && <span className="meta-chip">庫存 {product.stock ?? "不限"}</span>}
+                {product.type === "BLIND_BOX" && <span className="meta-chip">子項 {blindItemsCount} 項</span>}
+              </div>
 
+              <div className="mt-4 space-y-1 text-sm text-slate-600">
                 {product.type === "NORMAL" && (
                   <>
                     <p>購買方式：一般代購，全員可喊</p>
@@ -476,7 +487,7 @@ function CampaignView(props: {
 
               {product.type === "NORMAL" ? (
                 <>
-                  <p className={`mt-2 text-xs font-semibold ${normalAccess?.ok ? "text-emerald-700" : "text-amber-700"}`}>
+                  <p className={`status-note ${normalAccess?.ok ? "status-note-ok" : "status-note-warn"}`}>
                     {normalAccess?.ok ? "可加入購物車" : normalAccess?.reason}
                   </p>
 
@@ -561,22 +572,32 @@ function BlindBoxView(props: {
 
           return (
             <article key={item.id} className="product-stage-card">
-              <ProductImage imageUrl={item.imageUrl} alt={item.name} />
+              <div className="product-figure">
+                <ProductImage imageUrl={item.imageUrl} alt={item.name} />
+                <div className="product-price-badge">
+                  <span className="text-[11px] uppercase tracking-[0.16em] text-slate-400">Price</span>
+                  <strong>{twd(calculateUnitPrice(product, item))}</strong>
+                </div>
+              </div>
               <div className="mt-3">
                 <p className="text-xs text-slate-500">{item.sku}</p>
                 <h3 className="text-xl font-extrabold text-slate-900">{item.name}</h3>
                 <p className="text-sm text-slate-500">角色：{item.character}</p>
               </div>
 
+              <div className="meta-chip-row">
+                <span className="meta-chip">{item.character}</span>
+                <span className="meta-chip">固位 {myTier ? fixedTierLabel(myTier) : "未分配"}</span>
+                <span className="meta-chip">庫存 {item.stock ?? "不限"}</span>
+                <span className="meta-chip">上限 {item.maxPerUser ?? "不限"}</span>
+              </div>
+
               <div className="mt-3 space-y-1 text-sm text-slate-600">
-                <p className="text-lg font-bold text-slate-900">{twd(calculateUnitPrice(product, item))}</p>
                 <p>你的角色固位：{myTier ? fixedTierLabel(myTier) : "未分配"}</p>
-                <p>子項庫存：{item.stock ?? "不限"}</p>
-                <p>子項上限：{item.maxPerUser ?? "不限"}</p>
                 <p>你已加入：{inCartQty}</p>
               </div>
 
-              <p className={`mt-2 text-xs font-semibold ${access.ok ? "text-emerald-700" : "text-amber-700"}`}>
+              <p className={`status-note ${access.ok ? "status-note-ok" : "status-note-warn"}`}>
                 {access.ok ? "可加入購物車" : access.reason}
               </p>
 
@@ -1257,6 +1278,7 @@ function AdminSettingsPanel(props: { system: UseOrderSystemReturn }): JSX.Elemen
   return (
     <section className="space-y-5">
       <div className="section-frame">
+        <p className="section-kicker">Settings Workspace</p>
         <h2 className="text-2xl font-extrabold text-slate-900">活動設定（管理員）</h2>
         <p className="mt-2 text-sm text-slate-600">一般商品固定全員可喊，只有盲盒拆分商品才使用固位限制。價格全面改為手動設定。</p>
         {feedback && <p className="mt-2 text-sm font-semibold text-slate-800">{feedback}</p>}
@@ -1265,6 +1287,7 @@ function AdminSettingsPanel(props: { system: UseOrderSystemReturn }): JSX.Elemen
       <section className="section-frame">
         <div className="flex flex-wrap items-center justify-between gap-3">
           <div>
+            <p className="section-kicker">Categories</p>
             <h3 className="text-lg font-bold text-slate-900">商品分類管理</h3>
             <p className="mt-1 text-sm text-slate-600">分類由管理員自行維護，刪除分類後商品會自動改放到未分類。</p>
           </div>
@@ -1289,9 +1312,9 @@ function AdminSettingsPanel(props: { system: UseOrderSystemReturn }): JSX.Elemen
           </div>
         </div>
 
-        <div className="mt-4 flex flex-wrap gap-2">
+        <div className="admin-chip-group">
           {system.state.productCategories.map((category) => (
-            <div key={category} className="flex items-center gap-2 rounded-full border border-slate-200 bg-white/70 px-3 py-2 text-sm">
+            <div key={category} className="admin-chip flex items-center gap-2">
               <span>{category}</span>
               {category !== "未分類" && (
                 <button
@@ -1314,6 +1337,7 @@ function AdminSettingsPanel(props: { system: UseOrderSystemReturn }): JSX.Elemen
 
       <section className="grid gap-5 xl:grid-cols-2">
         <div className="section-frame">
+          <p className="section-kicker">Supabase</p>
           <h3 className="text-lg font-bold text-slate-900">Supabase 設定</h3>
           <p className="mt-2 text-sm text-slate-600">
             目前狀態：{isSupabaseEnabled ? "已設定環境變數" : "未設定環境變數（目前使用 Local Demo）"}
@@ -1341,6 +1365,7 @@ function AdminSettingsPanel(props: { system: UseOrderSystemReturn }): JSX.Elemen
         </div>
 
         <div className="section-frame">
+          <p className="section-kicker">Bulk Import</p>
           <h3 className="text-lg font-bold text-slate-900">表單匯入商品（批次）</h3>
           <p className="mt-2 text-sm text-slate-600">一般商品、盲盒母商品、盲盒子項分開匯入，可用 CSV 或 JSON。</p>
           <p className="mt-1 text-xs text-slate-500">{importModeDescription[importMode]}</p>
@@ -1412,6 +1437,7 @@ function AdminSettingsPanel(props: { system: UseOrderSystemReturn }): JSX.Elemen
 
       <div className="grid gap-5 xl:grid-cols-2">
         <section className="section-frame">
+          <p className="section-kicker">Campaign Builder</p>
           <h3 className="text-lg font-bold text-slate-900">新增活動</h3>
           <div className="mt-3 space-y-3 text-sm">
             <input
@@ -1471,8 +1497,9 @@ function AdminSettingsPanel(props: { system: UseOrderSystemReturn }): JSX.Elemen
         </section>
 
         <section className="section-frame">
+          <p className="section-kicker">Product Builder</p>
           <h3 className="text-lg font-bold text-slate-900">新增商品（含圖片）</h3>
-          <div className="mt-3 space-y-3 text-sm">
+          <div className="mt-3 space-y-4 text-sm">
             <label className="block">
               所屬活動
               <select
@@ -1486,20 +1513,24 @@ function AdminSettingsPanel(props: { system: UseOrderSystemReturn }): JSX.Elemen
               </select>
             </label>
 
-            <div className="grid gap-3 sm:grid-cols-3">
-              <label className="block">
-                商品類型
-                <select
-                  className="mt-1 w-full rounded-xl border border-slate-200 px-3 py-2"
-                  value={productType}
-                  onChange={(event) => setProductType(event.target.value as ProductType)}
-                >
-                  {productTypeOptions.map((type) => (
-                    <option key={type} value={type}>{productTypeLabel(type)}</option>
-                  ))}
-                </select>
-              </label>
+            <div className="form-panel">
+              <p className="form-section-title">1. 商品基礎</p>
+              <p className="form-section-copy">先決定這件商品是一般代購，還是盲盒母商品。這個選擇會直接影響後面欄位。</p>
+              <div className="admin-chip-group">
+                {productTypeOptions.map((type) => (
+                  <button
+                    key={type}
+                    type="button"
+                    className={productType === type ? "admin-chip admin-chip-active" : "admin-chip"}
+                    onClick={() => setProductType(type)}
+                  >
+                    {productTypeLabel(type)}
+                  </button>
+                ))}
+              </div>
+            </div>
 
+            <div className="grid gap-3 sm:grid-cols-2">
               <label className="block">
                 商品分類
                 <select
@@ -1544,7 +1575,9 @@ function AdminSettingsPanel(props: { system: UseOrderSystemReturn }): JSX.Elemen
             )}
 
             {productType === "BLIND_BOX" ? (
-              <div className="rounded-2xl border border-slate-200 bg-white/60 p-3 text-sm">
+              <div className="form-panel">
+                <p className="form-section-title">2. 固位規則</p>
+                <p className="form-section-copy">只有盲盒母商品才設定這一塊。一般商品固定全員可喊，不會跑固位規則。</p>
                 <label className="flex items-center gap-2 text-sm text-slate-700">
                   <input
                     type="checkbox"
@@ -1572,56 +1605,61 @@ function AdminSettingsPanel(props: { system: UseOrderSystemReturn }): JSX.Elemen
                 )}
               </div>
             ) : (
-              <div className="rounded-2xl border border-slate-200 bg-white/60 p-3 text-sm text-slate-600">
+              <div className="form-panel text-sm text-slate-600">
+                <p className="form-section-title">2. 固位規則</p>
+                <p className="form-section-copy">一般商品屬於代購模式，固定全員可喊，不使用固位限制。</p>
                 一般商品屬於代購模式，固定全員可喊，不使用固位限制。
               </div>
             )}
 
-            <input
-              className="w-full rounded-xl border border-slate-200 px-3 py-2"
-              placeholder="圖片 URL（可留空）"
-              value={productImageUrl}
-              onChange={(event) => setProductImageUrl(event.target.value)}
-            />
-
-            <div className="grid gap-3 sm:grid-cols-2">
-              <input
-                className="w-full rounded-xl border border-slate-200 px-3 py-2"
-                type="number"
-                min={0}
-                placeholder="商品價格"
-                value={productPrice}
-                onChange={(event) => setProductPrice(event.target.value)}
-              />
-              <div className="rounded-xl border border-dashed border-slate-300 px-3 py-2 text-xs text-slate-500">
-                價格為手動設定；盲盒子項若留空，會自動沿用母商品價格。
-              </div>
-            </div>
-
-            <div className="grid gap-3 sm:grid-cols-2">
-              {productType === "NORMAL" && (
+            <div className="form-panel">
+              <p className="form-section-title">3. 圖片與價格</p>
+              <p className="form-section-copy">價格全面改成手動設定；盲盒子項若留空，會自動沿用母商品價格。</p>
+              <div className="mt-3 space-y-3">
+                <input
+                  className="w-full rounded-xl border border-slate-200 px-3 py-2"
+                  placeholder="圖片 URL（可留空）"
+                  value={productImageUrl}
+                  onChange={(event) => setProductImageUrl(event.target.value)}
+                />
+                <div className="grid gap-3 sm:grid-cols-2">
+                  <input
+                    className="w-full rounded-xl border border-slate-200 px-3 py-2"
+                    type="number"
+                    min={0}
+                    placeholder="商品價格"
+                    value={productPrice}
+                    onChange={(event) => setProductPrice(event.target.value)}
+                  />
+                  {productType === "NORMAL" ? (
+                    <input
+                      className="w-full rounded-xl border border-slate-200 px-3 py-2"
+                      type="number"
+                      min={0}
+                      placeholder="庫存（留空 = 不限量）"
+                      value={productStock}
+                      onChange={(event) => setProductStock(event.target.value)}
+                    />
+                  ) : (
+                    <div className="rounded-xl border border-dashed border-slate-300 px-3 py-2 text-xs text-slate-500">
+                      母商品不直接控庫存，真正的名額放在盲盒子項上。
+                    </div>
+                  )}
+                </div>
                 <input
                   className="w-full rounded-xl border border-slate-200 px-3 py-2"
                   type="number"
-                  min={0}
-                  placeholder="庫存（留空 = 不限量）"
-                  value={productStock}
-                  onChange={(event) => setProductStock(event.target.value)}
+                  min={1}
+                  placeholder="每人上限（留空=不限）"
+                  value={productMaxPerUser}
+                  onChange={(event) => setProductMaxPerUser(event.target.value)}
                 />
-              )}
-              <input
-                className="w-full rounded-xl border border-slate-200 px-3 py-2"
-                type="number"
-                min={1}
-                placeholder="每人上限（留空=不限）"
-                value={productMaxPerUser}
-                onChange={(event) => setProductMaxPerUser(event.target.value)}
-              />
+              </div>
             </div>
 
             <button
               type="button"
-              className="w-full rounded-xl bg-slate-900 px-4 py-2 font-semibold text-white hover:bg-slate-700"
+              className="cta-primary w-full"
               onClick={() => {
                 const result = system.adminCreateProduct({
                   campaignId: productCampaignId,
@@ -1657,6 +1695,7 @@ function AdminSettingsPanel(props: { system: UseOrderSystemReturn }): JSX.Elemen
       </div>
 
       <section className="section-frame">
+        <p className="section-kicker">Blind Items</p>
         <h3 className="text-lg font-bold text-slate-900">新增盲盒角色子項（含圖片）</h3>
         <div className="mt-3 grid gap-3 text-sm md:grid-cols-2">
           <label className="block md:col-span-2">
@@ -1763,7 +1802,7 @@ function AdminSettingsPanel(props: { system: UseOrderSystemReturn }): JSX.Elemen
             <p className="font-semibold text-slate-900">目前子項</p>
             {selectedBlindItems.length === 0 && <p className="text-slate-500">此盲盒尚無子項。</p>}
             {selectedBlindItems.map((item) => (
-              <div key={item.id} className="rounded-xl border border-slate-200 px-3 py-2">
+              <div key={item.id} className="mini-preview-card">
                 <p className="font-semibold text-slate-900">{item.name}</p>
                 <p className="text-xs text-slate-500">
                   {item.sku} / {item.character} / 價格 {twd(selectedBlindProduct ? calculateUnitPrice(selectedBlindProduct, item) : 0)} / 庫存 {item.stock ?? "不限"} / 上限 {item.maxPerUser ?? "不限"}
@@ -1822,7 +1861,10 @@ function AdminSettingsPanel(props: { system: UseOrderSystemReturn }): JSX.Elemen
         {system.state.campaigns.map((campaign) => (
           <article key={campaign.id} className="campaign-card">
             <div className="flex items-start justify-between gap-2">
-              <h3 className="text-lg font-bold text-slate-900">{campaign.title}</h3>
+              <div>
+                <p className="section-kicker">Campaign</p>
+                <h3 className="text-lg font-bold text-slate-900">{campaign.title}</h3>
+              </div>
               <button
                 type="button"
                 className="rounded-lg border border-rose-300 bg-rose-50 px-2 py-1 text-[11px] font-semibold text-rose-700"
@@ -1860,7 +1902,7 @@ function AdminSettingsPanel(props: { system: UseOrderSystemReturn }): JSX.Elemen
 
             <div className="mt-4 space-y-2">
               {system.getProductsByCampaign(campaign.id).map((product) => (
-                <div key={product.id} className="rounded-lg border border-slate-200 p-2">
+                <div key={product.id} className="mini-preview-card">
                   <p className="text-xs font-semibold text-slate-900">{product.name}</p>
                   <p className="text-[11px] text-slate-500">系列：{product.series}</p>
                   <p className="text-[11px] text-slate-500">類型：{productTypeLabel(product.type)}</p>
@@ -1976,12 +2018,15 @@ function AdminSettingsPanel(props: { system: UseOrderSystemReturn }): JSX.Elemen
         ))}
       </section>
 
-      <div className="glass-card p-5">
+      <div className="section-frame">
         <div className="flex flex-wrap items-center justify-between gap-2">
-          <h3 className="text-lg font-bold text-slate-900">角色固位分配</h3>
+          <div>
+            <p className="section-kicker">Character Slots</p>
+            <h3 className="text-lg font-bold text-slate-900">角色固位分配</h3>
+          </div>
           <button
             type="button"
-            className="rounded-lg border px-3 py-1.5 text-xs font-semibold"
+            className="cta-secondary"
             onClick={() => {
               const result = system.adminAutoAssignCharacterSlots(selectedCharacter);
               setFeedback(result.message);
@@ -1991,14 +2036,12 @@ function AdminSettingsPanel(props: { system: UseOrderSystemReturn }): JSX.Elemen
           </button>
         </div>
 
-        <div className="mt-3 flex flex-wrap gap-2">
+        <div className="admin-chip-group">
           {CHARACTER_OPTIONS.map((character) => (
             <button
               key={character}
               type="button"
-              className={`rounded-lg border px-3 py-1 text-xs font-semibold ${
-                selectedCharacter === character ? "border-slate-900 bg-slate-900 text-white" : "border-slate-200"
-              }`}
+              className={selectedCharacter === character ? "admin-chip admin-chip-active" : "admin-chip"}
               onClick={() => setSelectedCharacter(character)}
             >
               {character}
@@ -2010,7 +2053,7 @@ function AdminSettingsPanel(props: { system: UseOrderSystemReturn }): JSX.Elemen
           {members.map((member) => {
             const tier = system.getUserCharacterTier(member.id, selectedCharacter);
             return (
-              <div key={member.id} className="flex flex-wrap items-center justify-between gap-2 rounded-xl border border-slate-200 px-3 py-2">
+              <div key={member.id} className="mini-preview-card flex flex-wrap items-center justify-between gap-2">
                 <div>
                   <p className="text-sm font-semibold text-slate-900">{member.fbNickname}</p>
                   <p className="text-xs text-slate-500">{selectedCharacter} 目前：{tier ? fixedTierLabel(tier) : "無（預設）"}</p>

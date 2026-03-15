@@ -304,6 +304,99 @@ body {
     linear-gradient(180deg, rgba(28, 30, 61, 0.94), rgba(17, 18, 38, 0.88));
 }
 
+.product-figure {
+  position: relative;
+}
+
+.product-figure img,
+.product-figure [aria-label="no-image"] {
+  height: 220px !important;
+  border-radius: 1.35rem !important;
+}
+
+.product-price-badge {
+  position: absolute;
+  left: 14px;
+  bottom: 14px;
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  padding: 10px 14px;
+  border-radius: 9999px;
+  background: rgba(11, 12, 26, 0.78);
+  border: 1px solid rgba(232, 220, 255, 0.18);
+  color: #faf7ff;
+  backdrop-filter: blur(10px);
+}
+
+.product-price-badge strong {
+  font-size: 1rem;
+}
+
+.meta-chip-row {
+  @apply mt-3 flex flex-wrap gap-2;
+}
+
+.meta-chip {
+  @apply inline-flex items-center rounded-full border px-3 py-1 text-[11px] font-semibold;
+  border-color: rgba(232, 220, 255, 0.18);
+  background: rgba(255, 255, 255, 0.04);
+  color: #d7d0f4;
+}
+
+.status-note {
+  @apply mt-3 rounded-2xl border px-3 py-3 text-xs font-semibold;
+  border-color: rgba(232, 220, 255, 0.16);
+  background: rgba(12, 14, 30, 0.52);
+}
+
+.status-note-ok {
+  color: #8ef0c4;
+}
+
+.status-note-warn {
+  color: #ffc99c;
+}
+
+.form-panel {
+  @apply rounded-[1.5rem] border p-4;
+  border-color: rgba(232, 220, 255, 0.16);
+  background: rgba(17, 19, 40, 0.66);
+}
+
+.form-section-title {
+  @apply text-sm font-bold;
+  color: #f2ecff;
+}
+
+.form-section-copy {
+  @apply mt-1 text-xs;
+  color: #aea8d3;
+}
+
+.admin-chip-group {
+  @apply mt-3 flex flex-wrap gap-2;
+}
+
+.admin-chip {
+  @apply rounded-full border px-3 py-1.5 text-xs font-semibold;
+  border-color: rgba(232, 220, 255, 0.18);
+  background: rgba(21, 22, 44, 0.64);
+  color: #ddd7f7;
+}
+
+.admin-chip-active {
+  border-color: rgba(255, 232, 249, 0.44);
+  background: linear-gradient(100deg, rgba(247, 217, 255, 0.95), rgba(186, 203, 255, 0.95), rgba(151, 232, 255, 0.92));
+  color: #160f31;
+}
+
+.mini-preview-card {
+  @apply rounded-[1.35rem] border p-4;
+  border-color: rgba(232, 220, 255, 0.16);
+  background: rgba(19, 20, 42, 0.68);
+}
+
 .empty-panel {
   @apply rounded-[1.75rem] border px-5 py-8 text-sm;
   border-color: rgba(232, 220, 255, 0.18);
