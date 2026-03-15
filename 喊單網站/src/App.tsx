@@ -45,7 +45,7 @@ import type {
   ReleaseStage,
 } from "./types/domain";
 
-type PageView = "home" | "campaign" | "blindBox" | "cart" | "me";
+type PageView = "home" | "storeDemo" | "campaign" | "blindBox" | "cart" | "me";
 type RootRoute = "shop" | "admin";
 type AdminTab = "dashboard" | "members" | "claims" | "orders" | "shipping" | "settings";
 type ClaimStatusFilter = "ALL" | "LOCKED" | "CONFIRMED" | "CANCELLED_BY_ADMIN";
@@ -180,6 +180,7 @@ function HeaderNav(props: {
   return (
     <div className="action-nav">
       <button className={buttonClass("home")} type="button" onClick={() => setView("home")}>大主頁</button>
+      <button className={buttonClass("storeDemo")} type="button" onClick={() => setView("storeDemo")}>主題 DEMO</button>
       <button className={buttonClass("cart")} type="button" onClick={() => setView("cart")}>購物車 ({cartCount})</button>
       <button className={buttonClass("me")} type="button" onClick={() => setView("me")}>個人主頁</button>
       {system.currentUser?.isAdmin && (
@@ -263,8 +264,9 @@ function parseOptionalNonNegativeNumber(value: string, label: string): { ok: tru
 function HomeView(props: {
   system: UseOrderSystemReturn;
   onOpenCampaign: (campaign: Campaign) => void;
+  onOpenDemo: () => void;
 }): JSX.Element {
-  const { system, onOpenCampaign } = props;
+  const { system, onOpenCampaign, onOpenDemo } = props;
   const cartCount = system.getMyCartItems().reduce((sum, item) => sum + item.qty, 0);
   const myOrdersCount = system.getMyOrders().length;
   const myPendingClaims = system.currentUser
@@ -281,6 +283,14 @@ function HomeView(props: {
             <p className="mt-3 max-w-2xl text-sm text-slate-600">
               一般商品預設全員可喊，但團主也可針對單品開啟固位限制；盲盒商品則可依整盒設定是否走角色拆分與固位判定。首頁應該是導覽入口，不是直接把所有內容丟成一片卡片牆。
             </p>
+            <div className="mt-5 flex flex-wrap gap-3">
+              <button type="button" className="cta-primary" onClick={onOpenDemo}>查看輝耀姬店鋪 DEMO</button>
+              {system.visibleCampaigns[0] && (
+                <button type="button" className="cta-secondary" onClick={() => onOpenCampaign(system.visibleCampaigns[0])}>
+                  直接進入本期活動
+                </button>
+              )}
+            </div>
           </div>
           <div className="grid gap-3 sm:grid-cols-3 lg:grid-cols-1 xl:grid-cols-3">
             <InsightTile label="可進活動" value={system.visibleCampaigns.length} detail="目前開放中的團務" accent="violet" />
@@ -329,6 +339,423 @@ function HomeView(props: {
           </article>
         ))}
       </div>
+    </section>
+  );
+}
+
+function StorefrontDemoView(props: {
+  system: UseOrderSystemReturn;
+  onOpenCampaign: (campaign: Campaign) => void;
+  onOpenBlindBox: (campaign: Campaign, product: Product) => void;
+}): JSX.Element {
+  const { system, onOpenCampaign, onOpenBlindBox } = props;
+
+  const featuredCampaignCards = useMemo(() => {
+    const realCards = system.visibleCampaigns.slice(0, 3).map((campaign, index) => ({
+      id: campaign.id,
+      title: campaign.title,
+      subtitle: index === 0 ? "主視覺檔期" : index === 1 ? "期間限定支線" : "收藏補完場",
+      description: campaign.description || "這一檔的世界觀、角色貨量與購買節奏，應該先在這裡講清楚。",
+      release: releaseStageLabel(campaign.releaseStage),
+      deadline: formatDate(campaign.deadlineAt),
+      campaign,
+    }));
+
+    if (realCards.length > 0) {
+      return realCards;
+    }
+
+    return [
+      {
+        id: "demo-campaign-1",
+        title: "星虹月蝕祭",
+        subtitle: "主視覺檔期",
+        description: "首頁第一屏應該像角色特設站，先告訴買家本期主打、節奏與入場方式。",
+        release: "固一＋固二",
+        deadline: "2026/03/31 23:59",
+        campaign: null,
+      },
+      {
+        id: "demo-campaign-2",
+        title: "夜航收藏室",
+        subtitle: "期間限定支線",
+        description: "小型副場可放在第二層，作為補貨、加購或餘量釋出的入口。",
+        release: "全面開放",
+        deadline: "2026/04/03 23:59",
+        campaign: null,
+      },
+      {
+        id: "demo-campaign-3",
+        title: "月海盲盒拆分",
+        subtitle: "收藏補完場",
+        description: "盲盒拆分最好像一個獨立劇場，讓人知道這一區才要開始看角色固位。",
+        release: "固一",
+        deadline: "2026/04/06 23:59",
+        campaign: null,
+      },
+    ];
+  }, [system.visibleCampaigns]);
+
+  const featuredProducts = useMemo(() => {
+    const entries = system.visibleCampaigns.flatMap((campaign) =>
+      system.getProductsByCampaign(campaign.id).map((product) => ({ campaign, product })),
+    );
+
+    if (entries.length > 0) {
+      return entries.slice(0, 6);
+    }
+
+    return [
+      {
+        campaign: null,
+        product: {
+          id: "demo-product-1",
+          campaignId: "demo",
+          name: "輝耀姬銀箔壓克力牌",
+          sku: "PRD-DEMO-001",
+          series: "聖裝系列",
+          type: "NORMAL" as ProductType,
+          character: "輝耀姬" as CharacterName,
+          imageUrl: null,
+          price: 240,
+          stock: 8,
+          maxPerUser: 2,
+          slotRestrictionEnabled: false,
+          slotRestrictedCharacter: null,
+        },
+      },
+      {
+        campaign: null,
+        product: {
+          id: "demo-product-2",
+          campaignId: "demo",
+          name: "星軌吊飾套組",
+          sku: "PRD-DEMO-002",
+          series: "Q版系列",
+          type: "NORMAL" as ProductType,
+          character: "八千代" as CharacterName,
+          imageUrl: null,
+          price: 180,
+          stock: null,
+          maxPerUser: null,
+          slotRestrictionEnabled: false,
+          slotRestrictedCharacter: null,
+        },
+      },
+      {
+        campaign: null,
+        product: {
+          id: "demo-product-3",
+          campaignId: "demo",
+          name: "月讀迷你立牌盲盒",
+          sku: "PRD-DEMO-003",
+          series: "盲盒劇場",
+          type: "BLIND_BOX" as ProductType,
+          character: null,
+          imageUrl: null,
+          price: 150,
+          stock: null,
+          maxPerUser: null,
+          slotRestrictionEnabled: true,
+          slotRestrictedCharacter: null,
+        },
+      },
+    ];
+  }, [system]);
+
+  const demoSeries = useMemo(() => {
+    const series = Array.from(
+      new Set(featuredProducts.map(({ product }) => product.series || "未分類").filter(Boolean)),
+    );
+
+    if (series.length > 0) {
+      return series.slice(0, 5);
+    }
+
+    return ["聖裝系列", "Q版系列", "盲盒劇場", "收藏周邊", "限定復刻"];
+  }, [featuredProducts]);
+
+  const spotlightBlindEntry = useMemo(() => (
+    featuredProducts.find((entry) => entry.product.type === "BLIND_BOX")
+    ?? null
+  ), [featuredProducts]);
+
+  const spotlightBlindItems = useMemo(() => {
+    if (spotlightBlindEntry?.campaign && spotlightBlindEntry.product.type === "BLIND_BOX") {
+      const items = system.getBlindBoxItemsByProduct(spotlightBlindEntry.product.id).slice(0, 4);
+      if (items.length > 0) {
+        return items.map((item) => ({
+          id: item.id,
+          name: item.name,
+          character: item.character,
+          imageUrl: item.imageUrl,
+          price: calculateUnitPrice(spotlightBlindEntry.product, item),
+          note: spotlightBlindEntry.product.slotRestrictionEnabled ? "依角色固位入場" : "全員可喊",
+        }));
+      }
+    }
+
+    return [
+      { id: "demo-blind-1", name: "月輪輝耀姬", character: "輝耀姬" as CharacterName, imageUrl: null, price: 150, note: "第一批僅開固一" },
+      { id: "demo-blind-2", name: "流星八千代", character: "八千代" as CharacterName, imageUrl: null, price: 150, note: "第二批開至固二" },
+      { id: "demo-blind-3", name: "極光彩葉", character: "彩葉" as CharacterName, imageUrl: null, price: 150, note: "全面開放後撿漏可進" },
+      { id: "demo-blind-4", name: "聖紋輝耀姬", character: "輝耀姬" as CharacterName, imageUrl: null, price: 150, note: "拆分頁集中看資格" },
+    ];
+  }, [spotlightBlindEntry, system]);
+
+  const heroPrimaryCampaign = featuredCampaignCards[0] ?? null;
+
+  return (
+    <section className="princess-demo-shell">
+      <section className="princess-hero">
+        <div className="princess-hero-copy">
+          <p className="princess-kicker">Chronicle of Kaguya</p>
+          <h2 className="princess-title">超時空輝耀姬 特設店鋪 DEMO</h2>
+          <p className="princess-copy">
+            這一版不是控制台式商城，而是角色特設站。主視覺先建立情緒，再把活動、分類與商品帶進一條明確的購買路徑。
+            前台要像在逛作品官網，不是像在看資料表。
+          </p>
+
+          <div className="princess-hero-actions">
+            <button
+              type="button"
+              className="princess-cta"
+              onClick={() => heroPrimaryCampaign?.campaign && onOpenCampaign(heroPrimaryCampaign.campaign)}
+              disabled={!heroPrimaryCampaign?.campaign}
+            >
+              {heroPrimaryCampaign?.campaign ? "進入本期主視覺活動" : "這裡可接主視覺活動 CTA"}
+            </button>
+            <button
+              type="button"
+              className="princess-ghost"
+              onClick={() => {
+                if (spotlightBlindEntry?.campaign) {
+                  onOpenBlindBox(spotlightBlindEntry.campaign, spotlightBlindEntry.product);
+                }
+              }}
+              disabled={!spotlightBlindEntry?.campaign}
+            >
+              查看盲盒拆分劇場
+            </button>
+          </div>
+
+          <div className="princess-stat-grid">
+            <article className="princess-stat-card">
+              <p className="princess-stat-label">主打檔期</p>
+              <p className="princess-stat-value">{system.visibleCampaigns.length || 3}</p>
+              <p className="princess-stat-detail">首頁應優先呈現進行中的世界觀場景</p>
+            </article>
+            <article className="princess-stat-card">
+              <p className="princess-stat-label">系列層級</p>
+              <p className="princess-stat-value">{demoSeries.length}</p>
+              <p className="princess-stat-detail">分類應像櫥窗導覽，不該只是管理標籤</p>
+            </article>
+            <article className="princess-stat-card">
+              <p className="princess-stat-label">拆分劇場</p>
+              <p className="princess-stat-value">{spotlightBlindItems.length}</p>
+              <p className="princess-stat-detail">固位與撿漏只在盲盒場景集中閱讀</p>
+            </article>
+          </div>
+        </div>
+
+        <div className="princess-hero-stage">
+          <div className="princess-stage-orbit princess-stage-orbit-large" />
+          <div className="princess-stage-orbit princess-stage-orbit-small" />
+          <div className="princess-stage-card">
+            <p className="princess-stage-kicker">Featured Arc</p>
+            <h3>{heroPrimaryCampaign?.title ?? "星虹月蝕祭"}</h3>
+            <p>{heroPrimaryCampaign?.description ?? "主視覺旁邊應該放一塊真正的活動摘要卡，讓人知道先看哪個入口、何時截止、目前釋出到哪一階段。"}</p>
+            <div className="princess-stage-meta">
+              <span>{heroPrimaryCampaign?.subtitle ?? "主視覺檔期"}</span>
+              <span>{heroPrimaryCampaign?.release ?? "固一＋固二"}</span>
+              <span>{heroPrimaryCampaign?.deadline ?? "2026/03/31 23:59"}</span>
+            </div>
+          </div>
+        </div>
+      </section>
+
+      <section className="princess-section">
+        <div className="princess-section-heading">
+          <div>
+            <p className="princess-kicker">Campaign Chapters</p>
+            <h3>把活動做成章節入口，而不是一排資訊卡</h3>
+          </div>
+          <p>每個活動都像一個篇章。首頁先給一個情緒濃度高的入口，再給次層支線與補完場，讓買家有逛特設站的感覺。</p>
+        </div>
+
+        <div className="princess-campaign-grid">
+          {featuredCampaignCards.map((card) => (
+            <article key={card.id} className="princess-feature-card">
+              <p className="princess-feature-kicker">{card.subtitle}</p>
+              <h4>{card.title}</h4>
+              <p>{card.description}</p>
+              <div className="princess-feature-meta">
+                <span>{card.release}</span>
+                <span>{card.deadline}</span>
+              </div>
+              <button
+                type="button"
+                className="princess-feature-link"
+                onClick={() => card.campaign && onOpenCampaign(card.campaign)}
+                disabled={!card.campaign}
+              >
+                {card.campaign ? "進入活動" : "這裡可接活動頁"}
+              </button>
+            </article>
+          ))}
+        </div>
+      </section>
+
+      <section className="princess-section">
+        <div className="princess-section-heading">
+          <div>
+            <p className="princess-kicker">Moon Shelves</p>
+            <h3>分類應該像選品櫥窗，不是後台篩選器的延伸</h3>
+          </div>
+          <p>這些分類在前台不是資料欄位，而是氛圍入口。每個標籤都應該帶出該系列的角色、材質和收藏感。</p>
+        </div>
+
+        <div className="princess-ribbon-row">
+          {demoSeries.map((series) => (
+            <span key={series} className="princess-ribbon-chip">{series}</span>
+          ))}
+        </div>
+
+        <div className="princess-showcase-grid">
+          {featuredProducts.map(({ campaign, product }, index) => {
+            const highlightLabel = product.type === "BLIND_BOX" ? "Blind Box Theatre" : index === 0 ? "Main Pickup" : "Select Item";
+            return (
+              <article key={product.id} className="princess-product-card">
+                <div className="princess-product-media">
+                  {product.imageUrl ? (
+                    <img src={product.imageUrl} alt={product.name} loading="lazy" />
+                  ) : (
+                    <div className="princess-product-fallback">
+                      <span>{product.series || "Collection"}</span>
+                    </div>
+                  )}
+                  <span className="princess-product-badge">{highlightLabel}</span>
+                </div>
+
+                <div className="princess-product-copy">
+                  <div className="princess-product-head">
+                    <div>
+                      <p className="princess-product-code">{product.sku}</p>
+                      <h4>{product.name}</h4>
+                    </div>
+                    <strong>{twd(product.price)}</strong>
+                  </div>
+
+                  <p className="princess-product-meta">
+                    {product.series} / {product.type === "BLIND_BOX" ? "拆分劇場" : "一般選品"}
+                    {product.character ? ` / ${product.character}` : ""}
+                  </p>
+                  <p className="princess-product-note">
+                    {product.type === "BLIND_BOX"
+                      ? product.slotRestrictionEnabled ? "這類商品應該直接進入角色拆分頁閱讀資格與釋出階段。" : "這類盲盒目前可先做全員可喊版型。"
+                      : product.slotRestrictionEnabled ? "一般商品若啟用固位，前台也要把限制角色講清楚。" : "一般商品在這個版本會更像周邊通販，而不是資料列表。"}
+                  </p>
+
+                  <div className="princess-product-actions">
+                    {product.type === "BLIND_BOX" ? (
+                      <button
+                        type="button"
+                        className="princess-inline-cta"
+                        onClick={() => campaign && onOpenBlindBox(campaign, product)}
+                        disabled={!campaign}
+                      >
+                        進入拆分頁
+                      </button>
+                    ) : (
+                      <button
+                        type="button"
+                        className="princess-inline-cta"
+                        onClick={() => campaign && onOpenCampaign(campaign)}
+                        disabled={!campaign}
+                      >
+                        前往活動購買
+                      </button>
+                    )}
+                  </div>
+                </div>
+              </article>
+            );
+          })}
+        </div>
+      </section>
+
+      <section className="princess-spotlight">
+        <div className="princess-spotlight-copy">
+          <p className="princess-kicker">Blind Box Theatre</p>
+          <h3>盲盒拆分應該像獨立劇場，不要混在一般商品流裡</h3>
+          <p>
+            這一區專門承接固位與撿漏邏輯。使用者在這裡只看角色、時段、資格與庫存，不需要再被一般代購商品的訊息干擾。
+          </p>
+          <div className="princess-spotlight-pills">
+            <span>時段釋出清楚可讀</span>
+            <span>角色固位集中展示</span>
+            <span>加入購物車前先講資格</span>
+          </div>
+          <button
+            type="button"
+            className="princess-cta"
+            onClick={() => spotlightBlindEntry?.campaign && onOpenBlindBox(spotlightBlindEntry.campaign, spotlightBlindEntry.product)}
+            disabled={!spotlightBlindEntry?.campaign}
+          >
+            打開盲盒拆分 DEMO
+          </button>
+        </div>
+
+        <div className="princess-character-grid">
+          {spotlightBlindItems.map((item) => (
+            <article key={item.id} className="princess-character-card">
+              <div className="princess-character-portrait">
+                {item.imageUrl ? (
+                  <img src={item.imageUrl} alt={item.name} loading="lazy" />
+                ) : (
+                  <div className="princess-product-fallback">
+                    <span>{item.character}</span>
+                  </div>
+                )}
+              </div>
+              <div>
+                <p className="princess-character-name">{item.name}</p>
+                <p className="princess-character-role">{item.character}</p>
+              </div>
+              <p className="princess-character-note">{item.note}</p>
+              <strong className="princess-character-price">{twd(item.price)}</strong>
+            </article>
+          ))}
+        </div>
+      </section>
+
+      <section className="princess-section">
+        <div className="princess-section-heading">
+          <div>
+            <p className="princess-kicker">Purchase Flow</p>
+            <h3>前台節奏應該更像一條儀式流程</h3>
+          </div>
+          <p>用戶不該一進站就面對所有規則，而是先被導入主視覺，再進系列，再進商品，最後才在必要處看固位。</p>
+        </div>
+
+        <div className="princess-flow-grid">
+          <article className="princess-flow-card">
+            <span>01</span>
+            <h4>先進主視覺活動</h4>
+            <p>首頁只做章節入口，讓買家先知道現在主打哪一檔、該從哪裡開始逛。</p>
+          </article>
+          <article className="princess-flow-card">
+            <span>02</span>
+            <h4>再依系列挑商品</h4>
+            <p>分類像櫥窗。一般商品以展示感和價格為主，購物動線要明顯，不要像讀清單。</p>
+          </article>
+          <article className="princess-flow-card">
+            <span>03</span>
+            <h4>盲盒才展開規則</h4>
+            <p>只有進到拆分劇場，才開始讀固位、時段與角色資格，讓複雜度集中在正確位置。</p>
+          </article>
+        </div>
+      </section>
     </section>
   );
 }
@@ -3628,10 +4055,27 @@ export default function App(): JSX.Element {
         {view === "home" && (
           <HomeView
             system={system}
+            onOpenDemo={() => setView("storeDemo")}
             onOpenCampaign={(campaign) => {
               setSelectedCampaignId(campaign.id);
               setSelectedBlindProductId("");
               setView("campaign");
+            }}
+          />
+        )}
+
+        {view === "storeDemo" && (
+          <StorefrontDemoView
+            system={system}
+            onOpenCampaign={(campaign) => {
+              setSelectedCampaignId(campaign.id);
+              setSelectedBlindProductId("");
+              setView("campaign");
+            }}
+            onOpenBlindBox={(campaign, product) => {
+              setSelectedCampaignId(campaign.id);
+              setSelectedBlindProductId(product.id);
+              setView("blindBox");
             }}
           />
         )}
