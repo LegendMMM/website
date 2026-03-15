@@ -63,6 +63,8 @@ interface ProductEditorDraft {
   series: ProductSeries;
   character: CharacterName | "";
   imageUrl: string;
+  imageFile: File | null;
+  imagePreviewUrl: string | null;
   price: string;
   stock: string;
   maxPerUser: string;
@@ -74,6 +76,8 @@ interface BlindItemEditorDraft {
   name: string;
   character: CharacterName;
   imageUrl: string;
+  imageFile: File | null;
+  imagePreviewUrl: string | null;
   price: string;
   stock: string;
   maxPerUser: string;
@@ -137,7 +141,7 @@ function formatCharacterSlotSummary(slots: CharacterSlot[]): string {
 }
 
 function formatClaimPrioritySummary(product: Product | undefined, roleTier: CharacterTier): string {
-  if (product?.type === "NORMAL") {
+  if (!product?.slotRestrictionEnabled) {
     return "排單方式：一般代購 / 先喊先處理";
   }
   return `排單固位：${roleLabel(roleTier)}`;
@@ -275,7 +279,7 @@ function HomeView(props: {
             <p className="section-kicker">Shop Entry</p>
             <h2 className="text-3xl font-extrabold text-slate-900">先選活動，再進入對應系列挑商品</h2>
             <p className="mt-3 max-w-2xl text-sm text-slate-600">
-              一般商品固定全員可喊，盲盒商品才會進入角色拆分與固位判定。首頁應該是導覽入口，不是直接把所有內容丟成一片卡片牆。
+              一般商品預設全員可喊，但團主也可針對單品開啟固位限制；盲盒商品則可依整盒設定是否走角色拆分與固位判定。首頁應該是導覽入口，不是直接把所有內容丟成一片卡片牆。
             </p>
           </div>
           <div className="grid gap-3 sm:grid-cols-3 lg:grid-cols-1 xl:grid-cols-3">
@@ -493,7 +497,7 @@ function CampaignView(props: {
 
           <div className="mt-5 rounded-2xl border border-slate-200 bg-white/60 p-4 text-xs text-slate-600">
             <p className="font-semibold text-slate-800">選購提醒</p>
-            <p className="mt-2">一般商品固定全員可喊，盲盒商品請進拆分頁挑角色。</p>
+            <p className="mt-2">一般商品預設全員可喊，但團主可對單品另開固位限制；盲盒商品請進拆分頁挑角色。</p>
           </div>
         </aside>
 
@@ -549,8 +553,14 @@ function CampaignView(props: {
               <div className="mt-4 space-y-1 text-sm text-slate-600">
                 {product.type === "NORMAL" && (
                   <>
-                    <p>購買方式：一般代購，全員可喊</p>
+                    <p>
+                      購買方式：一般代購，
+                      {product.slotRestrictionEnabled ? "此商品啟用固位限制" : "全員可喊"}
+                    </p>
                     {product.character && <p>展示角色：{product.character}</p>}
+                    {product.slotRestrictionEnabled && (
+                      <p>限制角色：{product.slotRestrictedCharacter ?? product.character ?? "未設定"}</p>
+                    )}
                     <p>上限：{product.maxPerUser ?? "不限"} / 已加入：{myQty}</p>
                   </>
                 )}
@@ -1016,13 +1026,6 @@ function AdminSettingsPanel(props: { system: UseOrderSystemReturn }): JSX.Elemen
   }, [productSeries, system.state.productCategories]);
 
   useEffect(() => {
-    if (productType === "NORMAL") {
-      setProductSlotRestrictionEnabled(false);
-      setProductSlotRestrictedCharacter("");
-    }
-  }, [productType]);
-
-  useEffect(() => {
     if (blindProducts.length === 0) {
       setBlindProductId("");
       return;
@@ -1088,6 +1091,8 @@ function AdminSettingsPanel(props: { system: UseOrderSystemReturn }): JSX.Elemen
       series: product.series,
       character: product.character ?? "",
       imageUrl: product.imageUrl ?? "",
+      imageFile: null,
+      imagePreviewUrl: null,
       price: String(product.price),
       stock: product.stock === null ? "" : String(product.stock),
       maxPerUser: product.maxPerUser === null ? "" : String(product.maxPerUser),
@@ -1108,6 +1113,20 @@ function AdminSettingsPanel(props: { system: UseOrderSystemReturn }): JSX.Elemen
     }));
   };
 
+  const handleSelectProductDraftImage = async (productId: string, file: File | null): Promise<void> => {
+    if (!file) {
+      patchProductEditorDraft(productId, { imageFile: null, imagePreviewUrl: null });
+      return;
+    }
+    try {
+      const preview = await readFileAsDataUrl(file);
+      patchProductEditorDraft(productId, { imageFile: file, imagePreviewUrl: preview });
+    } catch (error) {
+      const message = error instanceof Error ? error.message : "讀取圖片失敗。";
+      setFeedback(message);
+    }
+  };
+
   const resetProductEditorDraft = (productId: string): void => {
     setProductEditorDrafts((prev) => {
       const next = { ...prev };
@@ -1116,7 +1135,7 @@ function AdminSettingsPanel(props: { system: UseOrderSystemReturn }): JSX.Elemen
     });
   };
 
-  const handleSaveProductRow = (product: Product): void => {
+  const handleSaveProductRow = async (product: Product): Promise<void> => {
     const draft = getProductEditorDraft(product);
     const priceResult = parseRequiredNonNegativeNumber(draft.price, "商品價格");
     if (!priceResult.ok) {
@@ -1134,22 +1153,28 @@ function AdminSettingsPanel(props: { system: UseOrderSystemReturn }): JSX.Elemen
       return;
     }
 
+    const imageResult = await resolveImageUrlForSubmit(draft.imageFile, draft.imageUrl, "products");
+    if (!imageResult.ok) {
+      setFeedback(imageResult.note);
+      return;
+    }
+
     const result = system.adminUpdateProductRule({
       productId: product.id,
       name: draft.name,
       series: draft.series,
       character: product.type === "NORMAL" ? (draft.character || null) : null,
-      imageUrl: draft.imageUrl,
+      imageUrl: imageResult.imageUrl,
       price: priceResult.value,
       stock: product.type === "NORMAL" ? stockResult.value : undefined,
       maxPerUser: maxResult.value,
-      slotRestrictionEnabled: product.type === "BLIND_BOX" ? draft.slotRestrictionEnabled : false,
+      slotRestrictionEnabled: draft.slotRestrictionEnabled,
       slotRestrictedCharacter:
-        product.type === "BLIND_BOX" && draft.slotRestrictionEnabled
+        draft.slotRestrictionEnabled
           ? (draft.slotRestrictedCharacter || null)
           : null,
     });
-    setFeedback(result.message);
+    setFeedback(imageResult.note ? `${result.message} ${imageResult.note}` : result.message);
     if (result.ok) {
       resetProductEditorDraft(product.id);
     }
@@ -1162,6 +1187,8 @@ function AdminSettingsPanel(props: { system: UseOrderSystemReturn }): JSX.Elemen
       name: source.name,
       character: source.character,
       imageUrl: source.imageUrl ?? "",
+      imageFile: null,
+      imagePreviewUrl: null,
       price: source.price === null ? "" : String(source.price),
       stock: source.stock === null ? "" : String(source.stock),
       maxPerUser: source.maxPerUser === null ? "" : String(source.maxPerUser),
@@ -1180,6 +1207,20 @@ function AdminSettingsPanel(props: { system: UseOrderSystemReturn }): JSX.Elemen
     }));
   };
 
+  const handleSelectBlindItemDraftImage = async (itemId: string, file: File | null): Promise<void> => {
+    if (!file) {
+      patchBlindItemEditorDraft(itemId, { imageFile: null, imagePreviewUrl: null });
+      return;
+    }
+    try {
+      const preview = await readFileAsDataUrl(file);
+      patchBlindItemEditorDraft(itemId, { imageFile: file, imagePreviewUrl: preview });
+    } catch (error) {
+      const message = error instanceof Error ? error.message : "讀取圖片失敗。";
+      setFeedback(message);
+    }
+  };
+
   const resetBlindItemEditorDraft = (itemId: string): void => {
     setBlindItemEditorDrafts((prev) => {
       const next = { ...prev };
@@ -1188,7 +1229,7 @@ function AdminSettingsPanel(props: { system: UseOrderSystemReturn }): JSX.Elemen
     });
   };
 
-  const handleSaveBlindItemRow = (itemId: string): void => {
+  const handleSaveBlindItemRow = async (itemId: string): Promise<void> => {
     const draft = getBlindItemEditorDraft(itemId);
     if (!draft) {
       setFeedback("找不到盲盒子項。");
@@ -1211,16 +1252,22 @@ function AdminSettingsPanel(props: { system: UseOrderSystemReturn }): JSX.Elemen
       return;
     }
 
+    const imageResult = await resolveImageUrlForSubmit(draft.imageFile, draft.imageUrl, "blind-items");
+    if (!imageResult.ok) {
+      setFeedback(imageResult.note);
+      return;
+    }
+
     const result = system.adminUpdateBlindBoxItemRule({
       blindBoxItemId: itemId,
       name: draft.name,
       character: draft.character,
-      imageUrl: draft.imageUrl,
+      imageUrl: imageResult.imageUrl,
       price: priceResult.value,
       stock: stockResult.value,
       maxPerUser: maxResult.value,
     });
-    setFeedback(result.message);
+    setFeedback(imageResult.note ? `${result.message} ${imageResult.note}` : result.message);
     if (result.ok) {
       resetBlindItemEditorDraft(itemId);
     }
@@ -1293,9 +1340,9 @@ function AdminSettingsPanel(props: { system: UseOrderSystemReturn }): JSX.Elemen
         series: productSeries,
         type: productType,
         character: productType === "NORMAL" && productCharacter ? productCharacter : null,
-        slotRestrictionEnabled: productType === "BLIND_BOX" ? productSlotRestrictionEnabled : false,
+        slotRestrictionEnabled: productSlotRestrictionEnabled,
         slotRestrictedCharacter:
-          productType === "BLIND_BOX" && productSlotRestrictionEnabled && productSlotRestrictedCharacter
+          productSlotRestrictionEnabled && productSlotRestrictedCharacter
             ? productSlotRestrictedCharacter
             : null,
         imageUrl: imageResult.imageUrl,
@@ -1311,6 +1358,8 @@ function AdminSettingsPanel(props: { system: UseOrderSystemReturn }): JSX.Elemen
       setProductImageUrl("");
       setProductImageFile(null);
       setProductCharacter("");
+      setProductSlotRestrictionEnabled(false);
+      setProductSlotRestrictedCharacter("");
       setProductPrice("120");
       setProductStock("");
       setProductMaxPerUser("");
@@ -1647,7 +1696,7 @@ function AdminSettingsPanel(props: { system: UseOrderSystemReturn }): JSX.Elemen
       <div className="section-frame">
         <p className="section-kicker">Settings Workspace</p>
         <h2 className="text-2xl font-extrabold text-slate-900">活動設定（管理員）</h2>
-        <p className="mt-2 text-sm text-slate-600">一般商品固定全員可喊，只有盲盒拆分商品才使用固位限制。價格全面改為手動設定。</p>
+        <p className="mt-2 text-sm text-slate-600">商品價格全面改為手動設定；普通商品與盲盒母商品都可單獨啟用或關閉固位限制。</p>
         {feedback && <p className="mt-2 text-sm font-semibold text-slate-800">{feedback}</p>}
       </div>
 
@@ -1941,42 +1990,43 @@ function AdminSettingsPanel(props: { system: UseOrderSystemReturn }): JSX.Elemen
               </label>
             )}
 
-            {productType === "BLIND_BOX" ? (
-              <div className="form-panel">
-                <p className="form-section-title">2. 固位規則</p>
-                <p className="form-section-copy">這是單一盲盒母商品自己的開關，不會影響同活動內其他商品。一般商品固定全員可喊，不會跑固位規則。</p>
-                <label className="flex items-center gap-2 text-sm text-slate-700">
-                  <input
-                    type="checkbox"
-                    checked={productSlotRestrictionEnabled}
-                    onChange={(event) => setProductSlotRestrictionEnabled(event.target.checked)}
-                  />
-                  這一個盲盒商品啟用固位限制
-                </label>
-                <p className="mt-1 text-xs text-slate-500">啟用後只會限制這一個盲盒母商品；留空時自動依各子項角色判斷。</p>
+            <div className="form-panel">
+              <p className="form-section-title">2. 固位規則</p>
+              <p className="form-section-copy">
+                {productType === "BLIND_BOX"
+                  ? "這是單一盲盒母商品自己的開關，不會影響同活動內其他商品。"
+                  : "一般商品預設全員可喊；若你要某件普通商品也照角色順位開放，可以在這裡單獨開啟。"}
+              </p>
+              <label className="flex items-center gap-2 text-sm text-slate-700">
+                <input
+                  type="checkbox"
+                  checked={productSlotRestrictionEnabled}
+                  onChange={(event) => setProductSlotRestrictionEnabled(event.target.checked)}
+                />
+                {productType === "BLIND_BOX" ? "這一個盲盒商品啟用固位限制" : "這一個普通商品啟用固位限制"}
+              </label>
+              <p className="mt-1 text-xs text-slate-500">
+                {productType === "BLIND_BOX"
+                  ? "啟用後只會限制這一個盲盒母商品；留空時自動依各子項角色判斷。"
+                  : "普通商品若啟用，會依你設定的角色或展示角色判斷固位。"}
+              </p>
 
-                {productSlotRestrictionEnabled && (
-                  <label className="mt-3 block">
-                    限制角色
-                    <select
-                      className="mt-1 w-full rounded-xl border border-slate-200 px-3 py-2"
-                      value={productSlotRestrictedCharacter}
-                      onChange={(event) => setProductSlotRestrictedCharacter(event.target.value as CharacterName | "")}
-                    >
-                      <option value="">依子項角色自動判斷</option>
-                      {CHARACTER_OPTIONS.map((character) => (
-                        <option key={character} value={character}>{character}</option>
-                      ))}
-                    </select>
-                  </label>
-                )}
-              </div>
-            ) : (
-              <div className="form-panel text-sm text-slate-600">
-                <p className="form-section-title">2. 固位規則</p>
-                <p className="form-section-copy">一般商品屬於代購模式，固定全員可喊，不使用固位限制。</p>
-              </div>
-            )}
+              {productSlotRestrictionEnabled && (
+                <label className="mt-3 block">
+                  限制角色
+                  <select
+                    className="mt-1 w-full rounded-xl border border-slate-200 px-3 py-2"
+                    value={productSlotRestrictedCharacter}
+                    onChange={(event) => setProductSlotRestrictedCharacter(event.target.value as CharacterName | "")}
+                  >
+                    <option value="">{productType === "BLIND_BOX" ? "依子項角色自動判斷" : "優先使用展示角色"}</option>
+                    {CHARACTER_OPTIONS.map((character) => (
+                      <option key={character} value={character}>{character}</option>
+                    ))}
+                  </select>
+                </label>
+              )}
+            </div>
 
             <div className="form-panel">
               <p className="form-section-title">3. 圖片與價格</p>
@@ -2225,8 +2275,28 @@ function AdminSettingsPanel(props: { system: UseOrderSystemReturn }): JSX.Elemen
                                 placeholder="圖片 URL"
                                 onChange={(event) => patchBlindItemEditorDraft(item.id, { imageUrl: event.target.value })}
                               />
+                              <label className="file-picker !w-fit !rounded-lg !px-3 !py-1.5">
+                                <span>上傳圖片</span>
+                                <input
+                                  className="hidden"
+                                  type="file"
+                                  accept="image/*"
+                                  onChange={(event) => void handleSelectBlindItemDraftImage(item.id, event.target.files?.[0] ?? null)}
+                                />
+                              </label>
+                              <button
+                                type="button"
+                                className="rounded-lg border border-slate-200 px-3 py-1.5 text-xs font-semibold"
+                                onClick={() => patchBlindItemEditorDraft(item.id, {
+                                  imageUrl: "",
+                                  imageFile: null,
+                                  imagePreviewUrl: null,
+                                })}
+                              >
+                                清圖
+                              </button>
                               <div className="h-14 w-14 overflow-hidden rounded-lg border border-slate-200">
-                                <ProductImage imageUrl={draft.imageUrl || item.imageUrl} alt={draft.name} />
+                                <ProductImage imageUrl={(draft.imagePreviewUrl ?? draft.imageUrl) || item.imageUrl} alt={draft.name} />
                               </div>
                             </div>
                           </td>
@@ -2265,7 +2335,7 @@ function AdminSettingsPanel(props: { system: UseOrderSystemReturn }): JSX.Elemen
                               <button
                                 type="button"
                                 className="rounded-lg border border-slate-200 px-3 py-1.5 text-xs font-semibold"
-                                onClick={() => handleSaveBlindItemRow(item.id)}
+                                onClick={() => void handleSaveBlindItemRow(item.id)}
                               >
                                 儲存
                               </button>
@@ -2275,6 +2345,18 @@ function AdminSettingsPanel(props: { system: UseOrderSystemReturn }): JSX.Elemen
                                 onClick={() => resetBlindItemEditorDraft(item.id)}
                               >
                                 還原
+                              </button>
+                              <button
+                                type="button"
+                                className="rounded-lg border border-rose-300 bg-rose-50 px-3 py-1.5 text-xs font-semibold text-rose-700"
+                                onClick={() => {
+                                  const ok = window.confirm(`確定要刪除子項「${item.name}」？`);
+                                  if (!ok) return;
+                                  const result = system.adminDeleteBlindBoxItem(item.id);
+                                  setFeedback(result.message);
+                                }}
+                              >
+                                刪除
                               </button>
                             </div>
                             <p className="mt-2 text-[11px] text-slate-500">
@@ -2424,6 +2506,29 @@ function AdminSettingsPanel(props: { system: UseOrderSystemReturn }): JSX.Elemen
                                   placeholder="圖片 URL"
                                   onChange={(event) => patchProductEditorDraft(product.id, { imageUrl: event.target.value })}
                                 />
+                                <label className="file-picker !w-fit !rounded-lg !px-3 !py-1.5">
+                                  <span>上傳圖片</span>
+                                  <input
+                                    className="hidden"
+                                    type="file"
+                                    accept="image/*"
+                                    onChange={(event) => void handleSelectProductDraftImage(product.id, event.target.files?.[0] ?? null)}
+                                  />
+                                </label>
+                                <button
+                                  type="button"
+                                  className="rounded-lg border border-slate-200 px-3 py-1.5 text-xs font-semibold"
+                                  onClick={() => patchProductEditorDraft(product.id, {
+                                    imageUrl: "",
+                                    imageFile: null,
+                                    imagePreviewUrl: null,
+                                  })}
+                                >
+                                  清圖
+                                </button>
+                                <div className="h-14 w-14 overflow-hidden rounded-lg border border-slate-200">
+                                  <ProductImage imageUrl={(draft.imagePreviewUrl ?? draft.imageUrl) || product.imageUrl} alt={draft.name} />
+                                </div>
                               </div>
                             </td>
                             <td className="px-3 py-3">
@@ -2460,43 +2565,44 @@ function AdminSettingsPanel(props: { system: UseOrderSystemReturn }): JSX.Elemen
                               />
                             </td>
                             <td className="px-3 py-3">
-                              {product.type === "BLIND_BOX" ? (
-                                <div className="space-y-2">
-                                  <label className="flex items-center gap-2 text-xs text-slate-600">
-                                    <input
-                                      type="checkbox"
-                                      checked={draft.slotRestrictionEnabled}
-                                      onChange={(event) => patchProductEditorDraft(product.id, {
-                                        slotRestrictionEnabled: event.target.checked,
-                                        slotRestrictedCharacter: event.target.checked ? draft.slotRestrictedCharacter : "",
-                                      })}
-                                    />
-                                    啟用
-                                  </label>
-                                  <select
-                                    className="w-36 rounded-lg border border-slate-200 px-2 py-1.5"
-                                    value={draft.slotRestrictedCharacter}
-                                    disabled={!draft.slotRestrictionEnabled}
+                              <div className="space-y-2">
+                                <label className="flex items-center gap-2 text-xs text-slate-600">
+                                  <input
+                                    type="checkbox"
+                                    checked={draft.slotRestrictionEnabled}
                                     onChange={(event) => patchProductEditorDraft(product.id, {
-                                      slotRestrictedCharacter: event.target.value as CharacterName | "",
+                                      slotRestrictionEnabled: event.target.checked,
+                                      slotRestrictedCharacter: event.target.checked ? draft.slotRestrictedCharacter : "",
                                     })}
-                                  >
-                                    <option value="">依子項角色</option>
-                                    {CHARACTER_OPTIONS.map((character) => (
-                                      <option key={character} value={character}>{character}</option>
-                                    ))}
-                                  </select>
-                                </div>
-                              ) : (
-                                <span className="text-xs text-slate-500">一般代購全員可喊</span>
-                              )}
+                                  />
+                                  啟用
+                                </label>
+                                <select
+                                  className="w-36 rounded-lg border border-slate-200 px-2 py-1.5"
+                                  value={draft.slotRestrictedCharacter}
+                                  disabled={!draft.slotRestrictionEnabled}
+                                  onChange={(event) => patchProductEditorDraft(product.id, {
+                                    slotRestrictedCharacter: event.target.value as CharacterName | "",
+                                  })}
+                                >
+                                  <option value="">{product.type === "BLIND_BOX" ? "依子項角色" : "依展示角色"}</option>
+                                  {CHARACTER_OPTIONS.map((character) => (
+                                    <option key={character} value={character}>{character}</option>
+                                  ))}
+                                </select>
+                                <p className="text-[11px] text-slate-500">
+                                  {draft.slotRestrictionEnabled
+                                    ? `目前啟用：${draft.slotRestrictedCharacter || (draft.character || (product.type === "BLIND_BOX" ? "依子項角色" : "未指定角色"))}`
+                                    : "未啟用"}
+                                </p>
+                              </div>
                             </td>
                             <td className="px-3 py-3">
                               <div className="flex flex-col gap-2">
                                 <button
                                   type="button"
                                   className="rounded-lg border border-slate-200 px-3 py-1.5 text-xs font-semibold"
-                                  onClick={() => handleSaveProductRow(product)}
+                                  onClick={() => void handleSaveProductRow(product)}
                                 >
                                   儲存
                                 </button>
@@ -2506,6 +2612,18 @@ function AdminSettingsPanel(props: { system: UseOrderSystemReturn }): JSX.Elemen
                                   onClick={() => resetProductEditorDraft(product.id)}
                                 >
                                   還原
+                                </button>
+                                <button
+                                  type="button"
+                                  className="rounded-lg border border-rose-300 bg-rose-50 px-3 py-1.5 text-xs font-semibold text-rose-700"
+                                  onClick={() => {
+                                    const ok = window.confirm(`確定要刪除商品「${product.name}」？`);
+                                    if (!ok) return;
+                                    const result = system.adminDeleteProduct(product.id);
+                                    setFeedback(result.message);
+                                  }}
+                                >
+                                  刪除
                                 </button>
                               </div>
                             </td>

@@ -190,7 +190,9 @@ export interface UseOrderSystemReturn {
   adminCreateCampaign: (input: CreateCampaignInput) => ActionResult;
   adminDeleteCampaign: (campaignId: string) => ActionResult;
   adminCreateProduct: (input: CreateProductInput) => ActionResult;
+  adminDeleteProduct: (productId: string) => ActionResult;
   adminCreateBlindBoxItem: (input: CreateBlindBoxItemInput) => ActionResult;
+  adminDeleteBlindBoxItem: (blindBoxItemId: string) => ActionResult;
   adminSetUserAdmin: (userId: string, isAdmin: boolean) => Promise<ActionResult>;
   adminDeleteUser: (userId: string) => Promise<ActionResult>;
   adminUpdateUserPickupRate: (userId: string, pickupRate: number) => ActionResult;
@@ -480,6 +482,47 @@ export function useOrderSystem(): UseOrderSystemReturn {
     return state.campaigns.find((item) => item.id === campaignId);
   };
 
+  const recalculateOrdersAfterItemRemoval = (
+    sourceOrders: Order[],
+    sourceOrderItems: OrderItem[],
+    shouldRemove: (item: OrderItem) => boolean,
+  ): {
+    nextOrders: Order[];
+    nextOrderItems: OrderItem[];
+    deletedOrderIds: string[];
+    updatedOrders: Order[];
+  } => {
+    const nextOrderItems = sourceOrderItems.filter((item) => !shouldRemove(item));
+    const totalsByOrderId = new Map<string, number>();
+    nextOrderItems.forEach((item) => {
+      totalsByOrderId.set(item.orderId, (totalsByOrderId.get(item.orderId) ?? 0) + (item.unitPrice * item.qty));
+    });
+
+    const nextOrders: Order[] = [];
+    const deletedOrderIds: string[] = [];
+    const updatedOrders: Order[] = [];
+
+    sourceOrders.forEach((order) => {
+      const nextTotal = totalsByOrderId.get(order.id) ?? 0;
+      if (nextTotal <= 0) {
+        deletedOrderIds.push(order.id);
+        return;
+      }
+      const nextOrder = order.totalAmount === nextTotal ? order : { ...order, totalAmount: nextTotal };
+      nextOrders.push(nextOrder);
+      if (nextOrder !== order) {
+        updatedOrders.push(nextOrder);
+      }
+    });
+
+    return {
+      nextOrders,
+      nextOrderItems,
+      deletedOrderIds,
+      updatedOrders,
+    };
+  };
+
   const resolveTargetDescriptor = (product: Product, blindBoxItemId?: string): TargetDescriptor | null => {
     if (product.type === "NORMAL") {
       return {
@@ -503,7 +546,6 @@ export function useOrderSystem(): UseOrderSystemReturn {
   };
 
   const resolveSlotGateCharacter = (product: Product, target: TargetDescriptor): CharacterName | null => {
-    if (product.type !== "BLIND_BOX") return null;
     if (!product.slotRestrictionEnabled) return null;
     if (product.slotRestrictedCharacter) return product.slotRestrictedCharacter;
     return target.character;
@@ -582,10 +624,7 @@ export function useOrderSystem(): UseOrderSystemReturn {
         return claim;
       }
 
-      const gateCharacter =
-        product.type === "BLIND_BOX" && product.slotRestrictionEnabled
-          ? (product.slotRestrictedCharacter ?? target.character)
-          : null;
+      const gateCharacter = resolveSlotGateCharacter(product, target);
 
       const nextRoleTier = !gateCharacter
         ? "LEAK_PICK"
@@ -1463,24 +1502,24 @@ export function useOrderSystem(): UseOrderSystemReturn {
       return { ok: false, message: "庫存不可為負數。" };
     }
 
-    if (target.type === "NORMAL" && slotRestrictionEnabled === true) {
-      return { ok: false, message: "一般商品不支援固位限制，固定為全員可喊。" };
+    const nextSlotRestrictionEnabled = slotRestrictionEnabled ?? target.slotRestrictionEnabled;
+    const nextCharacter = target.type === "NORMAL"
+      ? (character === undefined ? target.character : character)
+      : null;
+    const nextSlotRestrictedCharacter = slotRestrictedCharacter === undefined
+      ? target.slotRestrictedCharacter
+      : slotRestrictedCharacter;
+
+    if (target.type === "NORMAL" && nextSlotRestrictionEnabled && !(nextSlotRestrictedCharacter ?? nextCharacter)) {
+      return { ok: false, message: "一般商品啟用固位限制時，請設定展示角色或限制角色。" };
     }
 
-    const nextSlotRestrictionEnabled = target.type === "BLIND_BOX"
-      ? (slotRestrictionEnabled ?? target.slotRestrictionEnabled)
-      : false;
-    const nextSlotRestrictedCharacter = target.type === "BLIND_BOX"
-      ? (slotRestrictedCharacter === undefined ? target.slotRestrictedCharacter : slotRestrictedCharacter)
-      : null;
     const normalizedSeries = series === undefined ? target.series : normalizeCategoryName(series);
     const nextProduct: Product = {
       ...target,
       name: name === undefined ? target.name : name.trim(),
       series: normalizedSeries,
-      character: target.type === "NORMAL"
-        ? (character === undefined ? target.character : character)
-        : null,
+      character: nextCharacter,
       imageUrl: imageUrl === undefined ? target.imageUrl : (imageUrl?.trim() || null),
       price: price === undefined ? target.price : price,
       maxPerUser: maxPerUser === undefined ? target.maxPerUser : maxPerUser,
@@ -1856,10 +1895,14 @@ export function useOrderSystem(): UseOrderSystemReturn {
 
     const sku = input.sku?.trim() || generateNextSku("PRD", state.products.map((product) => product.sku));
     const normalizedSeries = normalizeCategoryName(input.series);
-    const resolvedSlotRestrictionEnabled = input.type === "BLIND_BOX" ? input.slotRestrictionEnabled : false;
-    const resolvedSlotRestrictedCharacter = input.type === "BLIND_BOX" && resolvedSlotRestrictionEnabled
+    const resolvedSlotRestrictionEnabled = input.slotRestrictionEnabled;
+    const resolvedSlotRestrictedCharacter = resolvedSlotRestrictionEnabled
       ? input.slotRestrictedCharacter
       : null;
+
+    if (input.type === "NORMAL" && resolvedSlotRestrictionEnabled && !(resolvedSlotRestrictedCharacter ?? input.character)) {
+      return { ok: false, message: "一般商品啟用固位限制時，請至少指定展示角色或限制角色。" };
+    }
 
     const product: Product = {
       id: crypto.randomUUID(),
@@ -1890,6 +1933,54 @@ export function useOrderSystem(): UseOrderSystemReturn {
     });
 
     return { ok: true, message: `已建立商品「${product.name}」（SKU：${sku}）。` };
+  };
+
+  const adminDeleteProduct = (productId: string): ActionResult => {
+    if (!currentUser?.isAdmin) {
+      return { ok: false, message: "只有團主可以刪除商品。" };
+    }
+
+    const product = getProductById(productId);
+    if (!product) {
+      return { ok: false, message: "找不到商品。" };
+    }
+
+    const blindItemIds = new Set(
+      state.blindBoxItems
+        .filter((item) => item.productId === productId)
+        .map((item) => item.id),
+    );
+    const nextOrderState = recalculateOrdersAfterItemRemoval(
+      state.orders,
+      state.orderItems,
+      (item) => item.productId === productId || (item.blindBoxItemId !== null && blindItemIds.has(item.blindBoxItemId)),
+    );
+
+    setState((prev) => ({
+      ...prev,
+      products: prev.products.filter((item) => item.id !== productId),
+      blindBoxItems: prev.blindBoxItems.filter((item) => item.productId !== productId),
+      claims: prev.claims.filter((item) => item.productId !== productId),
+      cartItems: prev.cartItems.filter((item) => item.productId !== productId),
+      orders: nextOrderState.nextOrders,
+      orderItems: nextOrderState.nextOrderItems,
+    }));
+
+    runSupabaseWrite("delete product", async () => {
+      const { error } = await supabase!.from("products").delete().eq("id", productId);
+      if (error) throw error;
+
+      if (nextOrderState.deletedOrderIds.length > 0) {
+        const deleteOrdersResult = await supabase!.from("orders").delete().in("id", nextOrderState.deletedOrderIds);
+        if (deleteOrdersResult.error) throw deleteOrdersResult.error;
+      }
+
+      if (nextOrderState.updatedOrders.length > 0) {
+        await upsertOrders(supabase!, nextOrderState.updatedOrders);
+      }
+    });
+
+    return { ok: true, message: `已刪除商品「${product.name}」及其關聯資料。` };
   };
 
   const adminCreateBlindBoxItem = (input: CreateBlindBoxItemInput): ActionResult => {
@@ -1940,6 +2031,48 @@ export function useOrderSystem(): UseOrderSystemReturn {
     });
 
     return { ok: true, message: `已新增子項「${blindBoxItem.name}」（SKU：${sku}）。` };
+  };
+
+  const adminDeleteBlindBoxItem = (blindBoxItemId: string): ActionResult => {
+    if (!currentUser?.isAdmin) {
+      return { ok: false, message: "只有團主可以刪除盲盒子項。" };
+    }
+
+    const blindBoxItem = getBlindBoxItemById(blindBoxItemId);
+    if (!blindBoxItem) {
+      return { ok: false, message: "找不到盲盒子項。" };
+    }
+
+    const nextOrderState = recalculateOrdersAfterItemRemoval(
+      state.orders,
+      state.orderItems,
+      (item) => item.blindBoxItemId === blindBoxItemId,
+    );
+
+    setState((prev) => ({
+      ...prev,
+      blindBoxItems: prev.blindBoxItems.filter((item) => item.id !== blindBoxItemId),
+      claims: prev.claims.filter((item) => item.blindBoxItemId !== blindBoxItemId),
+      cartItems: prev.cartItems.filter((item) => item.blindBoxItemId !== blindBoxItemId),
+      orders: nextOrderState.nextOrders,
+      orderItems: nextOrderState.nextOrderItems,
+    }));
+
+    runSupabaseWrite("delete blind box item", async () => {
+      const { error } = await supabase!.from("blind_box_items").delete().eq("id", blindBoxItemId);
+      if (error) throw error;
+
+      if (nextOrderState.deletedOrderIds.length > 0) {
+        const deleteOrdersResult = await supabase!.from("orders").delete().in("id", nextOrderState.deletedOrderIds);
+        if (deleteOrdersResult.error) throw deleteOrdersResult.error;
+      }
+
+      if (nextOrderState.updatedOrders.length > 0) {
+        await upsertOrders(supabase!, nextOrderState.updatedOrders);
+      }
+    });
+
+    return { ok: true, message: `已刪除子項「${blindBoxItem.name}」及其關聯資料。` };
   };
 
   const adminUpdateBlindBoxItemRule = (args: BlindBoxItemRuleUpdateInput): ActionResult => {
@@ -2215,7 +2348,9 @@ export function useOrderSystem(): UseOrderSystemReturn {
     adminCreateCampaign,
     adminDeleteCampaign,
     adminCreateProduct,
+    adminDeleteProduct,
     adminCreateBlindBoxItem,
+    adminDeleteBlindBoxItem,
     adminSetUserAdmin,
     adminDeleteUser,
     adminUpdateUserPickupRate,
