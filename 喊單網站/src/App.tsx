@@ -56,6 +56,28 @@ type ImportMode =
   | "BLIND_PRODUCT_JSON"
   | "BLIND_ITEM_CSV"
   | "BLIND_ITEM_JSON";
+type BulkCharacterTierValue = CharacterTier | "NONE";
+
+interface ProductEditorDraft {
+  name: string;
+  series: ProductSeries;
+  character: CharacterName | "";
+  imageUrl: string;
+  price: string;
+  stock: string;
+  maxPerUser: string;
+  slotRestrictionEnabled: boolean;
+  slotRestrictedCharacter: CharacterName | "";
+}
+
+interface BlindItemEditorDraft {
+  name: string;
+  character: CharacterName;
+  imageUrl: string;
+  price: string;
+  stock: string;
+  maxPerUser: string;
+}
 
 const stageOptions: ReleaseStage[] = ["FIXED_1_ONLY", "FIXED_1_2", "FIXED_1_2_3", "ALL_OPEN"];
 const characterTierOptions: CharacterTier[] = ["FIXED_1", "FIXED_2", "FIXED_3", "LEAK_PICK"];
@@ -191,6 +213,47 @@ function readFileAsDataUrl(file: File): Promise<string> {
     reader.onerror = () => reject(new Error("讀取圖片失敗。"));
     reader.readAsDataURL(file);
   });
+}
+
+function parseRequiredNonNegativeNumber(value: string, label: string): { ok: true; value: number } | { ok: false; message: string } {
+  const nextValue = Number(value);
+  if (!Number.isFinite(nextValue) || nextValue < 0) {
+    return { ok: false, message: `${label} 必須是大於等於 0 的數字。` };
+  }
+  return { ok: true, value: nextValue };
+}
+
+function parseOptionalPositiveInteger(value: string, label: string): { ok: true; value: number | null } | { ok: false; message: string } {
+  if (!value.trim()) {
+    return { ok: true, value: null };
+  }
+  const nextValue = Number(value);
+  if (!Number.isFinite(nextValue) || nextValue < 1 || !Number.isInteger(nextValue)) {
+    return { ok: false, message: `${label} 需為大於等於 1 的整數，或留空。` };
+  }
+  return { ok: true, value: nextValue };
+}
+
+function parseOptionalNonNegativeInteger(value: string, label: string): { ok: true; value: number | null } | { ok: false; message: string } {
+  if (!value.trim()) {
+    return { ok: true, value: null };
+  }
+  const nextValue = Number(value);
+  if (!Number.isFinite(nextValue) || nextValue < 0 || !Number.isInteger(nextValue)) {
+    return { ok: false, message: `${label} 需為大於等於 0 的整數，或留空。` };
+  }
+  return { ok: true, value: nextValue };
+}
+
+function parseOptionalNonNegativeNumber(value: string, label: string): { ok: true; value: number | null } | { ok: false; message: string } {
+  if (!value.trim()) {
+    return { ok: true, value: null };
+  }
+  const nextValue = Number(value);
+  if (!Number.isFinite(nextValue) || nextValue < 0) {
+    return { ok: false, message: `${label} 需為大於等於 0 的數字，或留空。` };
+  }
+  return { ok: true, value: nextValue };
 }
 
 function HomeView(props: {
@@ -933,6 +996,9 @@ function AdminSettingsPanel(props: { system: UseOrderSystemReturn }): JSX.Elemen
   const [blindPrice, setBlindPrice] = useState("");
   const [blindStock, setBlindStock] = useState("");
   const [blindMaxPerUser, setBlindMaxPerUser] = useState("");
+  const [settingsProductKeyword, setSettingsProductKeyword] = useState("");
+  const [productEditorDrafts, setProductEditorDrafts] = useState<Record<string, ProductEditorDraft>>({});
+  const [blindItemEditorDrafts, setBlindItemEditorDrafts] = useState<Record<string, BlindItemEditorDraft>>({});
   const [importMode, setImportMode] = useState<ImportMode>("NORMAL_PRODUCT_CSV");
   const [importText, setImportText] = useState("");
 
@@ -1014,6 +1080,150 @@ function AdminSettingsPanel(props: { system: UseOrderSystemReturn }): JSX.Elemen
     BLIND_PRODUCT_JSON: BLIND_PRODUCT_IMPORT_JSON_TEMPLATE,
     BLIND_ITEM_CSV: BLIND_ITEM_IMPORT_CSV_TEMPLATE,
     BLIND_ITEM_JSON: BLIND_ITEM_IMPORT_JSON_TEMPLATE,
+  };
+
+  const getProductEditorDraft = (product: Product): ProductEditorDraft => (
+    productEditorDrafts[product.id] ?? {
+      name: product.name,
+      series: product.series,
+      character: product.character ?? "",
+      imageUrl: product.imageUrl ?? "",
+      price: String(product.price),
+      stock: product.stock === null ? "" : String(product.stock),
+      maxPerUser: product.maxPerUser === null ? "" : String(product.maxPerUser),
+      slotRestrictionEnabled: product.slotRestrictionEnabled,
+      slotRestrictedCharacter: product.slotRestrictedCharacter ?? "",
+    }
+  );
+
+  const patchProductEditorDraft = (productId: string, patch: Partial<ProductEditorDraft>): void => {
+    const source = system.state.products.find((item) => item.id === productId);
+    if (!source) return;
+    setProductEditorDrafts((prev) => ({
+      ...prev,
+      [productId]: {
+        ...getProductEditorDraft(source),
+        ...patch,
+      },
+    }));
+  };
+
+  const resetProductEditorDraft = (productId: string): void => {
+    setProductEditorDrafts((prev) => {
+      const next = { ...prev };
+      delete next[productId];
+      return next;
+    });
+  };
+
+  const handleSaveProductRow = (product: Product): void => {
+    const draft = getProductEditorDraft(product);
+    const priceResult = parseRequiredNonNegativeNumber(draft.price, "商品價格");
+    if (!priceResult.ok) {
+      setFeedback(priceResult.message);
+      return;
+    }
+    const maxResult = parseOptionalPositiveInteger(draft.maxPerUser, "每人上限");
+    if (!maxResult.ok) {
+      setFeedback(maxResult.message);
+      return;
+    }
+    const stockResult = parseOptionalNonNegativeInteger(draft.stock, "庫存");
+    if (!stockResult.ok) {
+      setFeedback(stockResult.message);
+      return;
+    }
+
+    const result = system.adminUpdateProductRule({
+      productId: product.id,
+      name: draft.name,
+      series: draft.series,
+      character: product.type === "NORMAL" ? (draft.character || null) : null,
+      imageUrl: draft.imageUrl,
+      price: priceResult.value,
+      stock: product.type === "NORMAL" ? stockResult.value : undefined,
+      maxPerUser: maxResult.value,
+      slotRestrictionEnabled: product.type === "BLIND_BOX" ? draft.slotRestrictionEnabled : false,
+      slotRestrictedCharacter:
+        product.type === "BLIND_BOX" && draft.slotRestrictionEnabled
+          ? (draft.slotRestrictedCharacter || null)
+          : null,
+    });
+    setFeedback(result.message);
+    if (result.ok) {
+      resetProductEditorDraft(product.id);
+    }
+  };
+
+  const getBlindItemEditorDraft = (itemId: string): BlindItemEditorDraft | null => {
+    const source = system.state.blindBoxItems.find((item) => item.id === itemId);
+    if (!source) return null;
+    return blindItemEditorDrafts[itemId] ?? {
+      name: source.name,
+      character: source.character,
+      imageUrl: source.imageUrl ?? "",
+      price: source.price === null ? "" : String(source.price),
+      stock: source.stock === null ? "" : String(source.stock),
+      maxPerUser: source.maxPerUser === null ? "" : String(source.maxPerUser),
+    };
+  };
+
+  const patchBlindItemEditorDraft = (itemId: string, patch: Partial<BlindItemEditorDraft>): void => {
+    const source = getBlindItemEditorDraft(itemId);
+    if (!source) return;
+    setBlindItemEditorDrafts((prev) => ({
+      ...prev,
+      [itemId]: {
+        ...source,
+        ...patch,
+      },
+    }));
+  };
+
+  const resetBlindItemEditorDraft = (itemId: string): void => {
+    setBlindItemEditorDrafts((prev) => {
+      const next = { ...prev };
+      delete next[itemId];
+      return next;
+    });
+  };
+
+  const handleSaveBlindItemRow = (itemId: string): void => {
+    const draft = getBlindItemEditorDraft(itemId);
+    if (!draft) {
+      setFeedback("找不到盲盒子項。");
+      return;
+    }
+
+    const priceResult = parseOptionalNonNegativeNumber(draft.price, "子項價格");
+    if (!priceResult.ok) {
+      setFeedback(priceResult.message);
+      return;
+    }
+    const stockResult = parseOptionalNonNegativeInteger(draft.stock, "子項庫存");
+    if (!stockResult.ok) {
+      setFeedback(stockResult.message);
+      return;
+    }
+    const maxResult = parseOptionalPositiveInteger(draft.maxPerUser, "子項上限");
+    if (!maxResult.ok) {
+      setFeedback(maxResult.message);
+      return;
+    }
+
+    const result = system.adminUpdateBlindBoxItemRule({
+      blindBoxItemId: itemId,
+      name: draft.name,
+      character: draft.character,
+      imageUrl: draft.imageUrl,
+      price: priceResult.value,
+      stock: stockResult.value,
+      maxPerUser: maxResult.value,
+    });
+    setFeedback(result.message);
+    if (result.ok) {
+      resetBlindItemEditorDraft(itemId);
+    }
   };
 
   const assignGeneratedSkus = <T extends { sku: string }>(prefix: string, rows: T[], existingSkus: string[]): T[] => {
@@ -1967,221 +2177,353 @@ function AdminSettingsPanel(props: { system: UseOrderSystemReturn }): JSX.Elemen
           <div className="mt-4 space-y-2 text-sm">
             <p className="font-semibold text-slate-900">目前子項</p>
             {selectedBlindItems.length === 0 && <p className="text-slate-500">此盲盒尚無子項。</p>}
-            {selectedBlindItems.map((item) => (
-              <div key={item.id} className="mini-preview-card">
-                <p className="font-semibold text-slate-900">{item.name}</p>
-                <p className="text-xs text-slate-500">
-                  {item.sku} / {item.character} / 價格 {twd(selectedBlindProduct ? calculateUnitPrice(selectedBlindProduct, item) : 0)} / 庫存 {item.stock ?? "不限"} / 上限 {item.maxPerUser ?? "不限"}
-                </p>
-                <div className="mt-2 flex flex-wrap gap-2">
-                  <button
-                    type="button"
-                    className="rounded border px-2 py-0.5 text-[11px]"
-                    onClick={() => {
-                      const value = window.prompt("子項價格（留空 = 跟母商品相同）", item.price === null ? "" : String(item.price));
-                      if (value === null) return;
-                      const result = value.trim() === ""
-                        ? system.adminUpdateBlindBoxItemRule({ blindBoxItemId: item.id, price: null })
-                        : system.adminUpdateBlindBoxItemRule({ blindBoxItemId: item.id, price: Number(value) });
-                      setFeedback(result.message);
-                    }}
-                  >
-                    設子項價格
-                  </button>
-                  <button
-                    type="button"
-                    className="rounded border px-2 py-0.5 text-[11px]"
-                    onClick={() => {
-                      const value = window.prompt("子項庫存（留空 = 不限量）", item.stock === null ? "" : String(item.stock));
-                      if (value === null) return;
-                      const result = value.trim() === ""
-                        ? system.adminUpdateBlindBoxItemRule({ blindBoxItemId: item.id, stock: null })
-                        : system.adminUpdateBlindBoxItemRule({ blindBoxItemId: item.id, stock: Number(value) });
-                      setFeedback(result.message);
-                    }}
-                  >
-                    設子項庫存
-                  </button>
-                  <button
-                    type="button"
-                    className="rounded border px-2 py-0.5 text-[11px]"
-                    onClick={() => {
-                      const value = window.prompt("子項每人上限（留空 = 不限）", item.maxPerUser === null ? "" : String(item.maxPerUser));
-                      if (value === null) return;
-                      const result = value.trim() === ""
-                        ? system.adminUpdateBlindBoxItemRule({ blindBoxItemId: item.id, maxPerUser: null })
-                        : system.adminUpdateBlindBoxItemRule({ blindBoxItemId: item.id, maxPerUser: Number(value) });
-                      setFeedback(result.message);
-                    }}
-                  >
-                    設子項上限
-                  </button>
-                </div>
+            {selectedBlindItems.length > 0 && (
+              <div className="overflow-x-auto rounded-2xl border border-slate-200">
+                <table className="min-w-full divide-y divide-slate-200 text-left text-sm">
+                  <thead className="bg-slate-50 text-xs uppercase tracking-[0.14em] text-slate-500">
+                    <tr>
+                      <th className="px-3 py-3">SKU</th>
+                      <th className="px-3 py-3">名稱</th>
+                      <th className="px-3 py-3">角色</th>
+                      <th className="px-3 py-3">圖片</th>
+                      <th className="px-3 py-3">價格</th>
+                      <th className="px-3 py-3">庫存</th>
+                      <th className="px-3 py-3">上限</th>
+                      <th className="px-3 py-3">操作</th>
+                    </tr>
+                  </thead>
+                  <tbody className="divide-y divide-slate-100">
+                    {selectedBlindItems.map((item) => {
+                      const draft = getBlindItemEditorDraft(item.id);
+                      if (!draft) return null;
+                      return (
+                        <tr key={item.id} className="align-top">
+                          <td className="px-3 py-3 text-xs text-slate-500">{item.sku}</td>
+                          <td className="px-3 py-3">
+                            <input
+                              className="w-40 rounded-lg border border-slate-200 px-2 py-1.5"
+                              value={draft.name}
+                              onChange={(event) => patchBlindItemEditorDraft(item.id, { name: event.target.value })}
+                            />
+                          </td>
+                          <td className="px-3 py-3">
+                            <select
+                              className="w-28 rounded-lg border border-slate-200 px-2 py-1.5"
+                              value={draft.character}
+                              onChange={(event) => patchBlindItemEditorDraft(item.id, { character: event.target.value as CharacterName })}
+                            >
+                              {CHARACTER_OPTIONS.map((character) => (
+                                <option key={character} value={character}>{character}</option>
+                              ))}
+                            </select>
+                          </td>
+                          <td className="px-3 py-3">
+                            <div className="space-y-2">
+                              <input
+                                className="w-56 rounded-lg border border-slate-200 px-2 py-1.5"
+                                value={draft.imageUrl}
+                                placeholder="圖片 URL"
+                                onChange={(event) => patchBlindItemEditorDraft(item.id, { imageUrl: event.target.value })}
+                              />
+                              <div className="h-14 w-14 overflow-hidden rounded-lg border border-slate-200">
+                                <ProductImage imageUrl={draft.imageUrl || item.imageUrl} alt={draft.name} />
+                              </div>
+                            </div>
+                          </td>
+                          <td className="px-3 py-3">
+                            <input
+                              className="w-24 rounded-lg border border-slate-200 px-2 py-1.5"
+                              type="number"
+                              min={0}
+                              value={draft.price}
+                              placeholder="跟母商品"
+                              onChange={(event) => patchBlindItemEditorDraft(item.id, { price: event.target.value })}
+                            />
+                          </td>
+                          <td className="px-3 py-3">
+                            <input
+                              className="w-24 rounded-lg border border-slate-200 px-2 py-1.5"
+                              type="number"
+                              min={0}
+                              value={draft.stock}
+                              placeholder="不限"
+                              onChange={(event) => patchBlindItemEditorDraft(item.id, { stock: event.target.value })}
+                            />
+                          </td>
+                          <td className="px-3 py-3">
+                            <input
+                              className="w-24 rounded-lg border border-slate-200 px-2 py-1.5"
+                              type="number"
+                              min={1}
+                              value={draft.maxPerUser}
+                              placeholder="不限"
+                              onChange={(event) => patchBlindItemEditorDraft(item.id, { maxPerUser: event.target.value })}
+                            />
+                          </td>
+                          <td className="px-3 py-3">
+                            <div className="flex flex-col gap-2">
+                              <button
+                                type="button"
+                                className="rounded-lg border border-slate-200 px-3 py-1.5 text-xs font-semibold"
+                                onClick={() => handleSaveBlindItemRow(item.id)}
+                              >
+                                儲存
+                              </button>
+                              <button
+                                type="button"
+                                className="rounded-lg border border-slate-200 px-3 py-1.5 text-xs font-semibold"
+                                onClick={() => resetBlindItemEditorDraft(item.id)}
+                              >
+                                還原
+                              </button>
+                            </div>
+                            <p className="mt-2 text-[11px] text-slate-500">
+                              目前價格：{twd(selectedBlindProduct ? calculateUnitPrice(selectedBlindProduct, item) : 0)}
+                            </p>
+                          </td>
+                        </tr>
+                      );
+                    })}
+                  </tbody>
+                </table>
               </div>
-            ))}
+            )}
           </div>
         )}
       </section>
 
-      <section className="grid gap-4 md:grid-cols-2 xl:grid-cols-3">
-        {system.state.campaigns.map((campaign) => (
-          <article key={campaign.id} className="campaign-card">
-            <div className="flex items-start justify-between gap-2">
-              <div>
-                <p className="section-kicker">Campaign</p>
-                <h3 className="text-lg font-bold text-slate-900">{campaign.title}</h3>
-              </div>
-              <button
-                type="button"
-                className="rounded-lg border border-rose-300 bg-rose-50 px-2 py-1 text-[11px] font-semibold text-rose-700"
-                onClick={() => {
-                  const ok = window.confirm(`確定要刪除活動「${campaign.title}」？\n會一併刪除此活動下的商品、喊單、訂單與物流資料。`);
-                  if (!ok) return;
-                  const result = system.adminDeleteCampaign(campaign.id);
-                  setFeedback(result.message);
-                }}
-              >
-                刪除活動
-              </button>
-            </div>
-            <p className="mt-2 text-xs text-slate-500">目前：{releaseStageLabel(campaign.releaseStage)}</p>
+      <section className="section-frame">
+        <div className="flex flex-wrap items-end justify-between gap-3">
+          <div>
+            <p className="section-kicker">Editable Catalog</p>
+            <h3 className="text-lg font-bold text-slate-900">活動與商品清單</h3>
+            <p className="mt-1 text-sm text-slate-600">直接在表格內修改商品與盲盒規則，不再使用 prompt。</p>
+          </div>
+          <input
+            className="w-full rounded-xl border border-slate-200 px-3 py-2 text-sm md:max-w-sm"
+            placeholder="搜尋活動內商品 / SKU / 分類"
+            value={settingsProductKeyword}
+            onChange={(event) => setSettingsProductKeyword(event.target.value)}
+          />
+        </div>
 
-            <div className="mt-3 grid grid-cols-2 gap-2">
-              {stageOptions.map((stage) => (
-                <button
-                  key={stage}
-                  type="button"
-                  className={`rounded-lg border px-2 py-1 text-xs font-semibold ${
-                    campaign.releaseStage === stage
-                      ? "border-slate-900 bg-slate-900 text-white"
-                      : "border-slate-200 bg-white text-slate-700"
-                  }`}
-                  onClick={() => {
-                    const result = system.adminUpdateCampaignReleaseStage(campaign.id, stage);
-                    setFeedback(result.message);
-                  }}
-                >
-                  {releaseStageLabel(stage)}
-                </button>
-              ))}
-            </div>
+        <div className="mt-5 space-y-5">
+          {system.state.campaigns.map((campaign) => {
+            const keyword = settingsProductKeyword.trim().toLowerCase();
+            const products = system
+              .getProductsByCampaign(campaign.id)
+              .filter((product) => (
+                !keyword
+                || product.name.toLowerCase().includes(keyword)
+                || product.sku.toLowerCase().includes(keyword)
+                || product.series.toLowerCase().includes(keyword)
+              ));
 
-            <div className="mt-4 space-y-2">
-              {system.getProductsByCampaign(campaign.id).map((product) => (
-                <div key={product.id} className="mini-preview-card">
-                  <p className="text-xs font-semibold text-slate-900">{product.name}</p>
-                  <p className="text-[11px] text-slate-500">系列：{product.series}</p>
-                  <p className="text-[11px] text-slate-500">類型：{productTypeLabel(product.type)}</p>
-                  <p className="text-[11px] text-slate-500">價格：{twd(product.price)}</p>
-                  <p className="text-[11px] text-slate-500">上限：{product.maxPerUser ?? "不限"}</p>
-                  <p className="text-[11px] text-slate-500">
-                    {product.type === "BLIND_BOX"
-                      ? `固位限制：${product.slotRestrictionEnabled
-                        ? `啟用（${product.slotRestrictedCharacter ?? "依子項角色"}）`
-                        : "關閉（全員）"}`
-                      : "一般代購：全員可喊"}
-                  </p>
-                  {product.type === "NORMAL" && <p className="text-[11px] text-slate-500">庫存：{product.stock ?? "不限"}</p>}
-
-                  <div className="mt-1 flex flex-wrap gap-1">
-                    {product.type === "BLIND_BOX" && (
-                      <>
-                        <button
-                          type="button"
-                          className="rounded border px-2 py-0.5 text-[11px]"
-                          onClick={() => {
-                            const result = system.adminUpdateProductRule({
-                              productId: product.id,
-                              slotRestrictionEnabled: !product.slotRestrictionEnabled,
-                              slotRestrictedCharacter: product.slotRestrictedCharacter,
-                            });
-                            setFeedback(result.message);
-                          }}
-                        >
-                          {product.slotRestrictionEnabled ? "關固位限制" : "開固位限制"}
-                        </button>
-
-                        <button
-                          type="button"
-                          className="rounded border px-2 py-0.5 text-[11px]"
-                          onClick={() => {
-                            const value = window.prompt(
-                              "設定限制角色（留空代表依子項角色判斷）",
-                              product.slotRestrictedCharacter ?? "",
-                            );
-                            if (value === null) return;
-                            if (value.trim() !== "" && !CHARACTER_OPTIONS.includes(value as CharacterName)) {
-                              setFeedback("角色名稱無效。");
-                              return;
-                            }
-                            const result = system.adminUpdateProductRule({
-                              productId: product.id,
-                              slotRestrictionEnabled: true,
-                              slotRestrictedCharacter: value.trim() === "" ? null : value as CharacterName,
-                            });
-                            setFeedback(result.message);
-                          }}
-                        >
-                          設限制角色
-                        </button>
-                      </>
-                    )}
-
-                    <button
-                      type="button"
-                      className="rounded border px-2 py-0.5 text-[11px]"
-                      onClick={() => {
-                        const value = window.prompt("此商品價格", String(product.price));
-                        if (value === null) return;
-                        const nextPrice = Number(value);
-                        if (!Number.isFinite(nextPrice) || nextPrice < 0) {
-                          setFeedback("價格必須是大於等於 0 的數字。");
-                          return;
-                        }
-                        const result = system.adminUpdateProductRule({ productId: product.id, price: nextPrice });
-                        setFeedback(result.message);
-                      }}
-                    >
-                      設價格
-                    </button>
-
-                    <button
-                      type="button"
-                      className="rounded border px-2 py-0.5 text-[11px]"
-                      onClick={() => {
-                        const value = window.prompt("此商品每人上限（留空為不限）", product.maxPerUser ? String(product.maxPerUser) : "");
-                        if (value === null) return;
-                        const result = value.trim() === ""
-                          ? system.adminUpdateProductRule({ productId: product.id, maxPerUser: null })
-                          : system.adminUpdateProductRule({ productId: product.id, maxPerUser: Number(value) });
-                        setFeedback(result.message);
-                      }}
-                    >
-                      設上限
-                    </button>
-
-                    {product.type === "NORMAL" && (
-                      <button
-                        type="button"
-                        className="rounded border px-2 py-0.5 text-[11px]"
-                        onClick={() => {
-                          const value = window.prompt("此商品庫存（留空為不限量）", product.stock === null ? "" : String(product.stock));
-                          if (value === null) return;
-                          const result = value.trim() === ""
-                            ? system.adminUpdateProductRule({ productId: product.id, stock: null })
-                            : system.adminUpdateProductRule({ productId: product.id, stock: Number(value) });
-                          setFeedback(result.message);
-                        }}
-                      >
-                        設庫存
-                      </button>
-                    )}
+            return (
+              <article key={campaign.id} className="rounded-[1.5rem] border border-slate-200 p-4">
+                <div className="flex flex-wrap items-start justify-between gap-2">
+                  <div>
+                    <p className="section-kicker">Campaign</p>
+                    <h4 className="text-lg font-bold text-slate-900">{campaign.title}</h4>
+                    <p className="mt-1 text-xs text-slate-500">目前：{releaseStageLabel(campaign.releaseStage)}</p>
                   </div>
+                  <button
+                    type="button"
+                    className="rounded-lg border border-rose-300 bg-rose-50 px-2 py-1 text-[11px] font-semibold text-rose-700"
+                    onClick={() => {
+                      const ok = window.confirm(`確定要刪除活動「${campaign.title}」？\n會一併刪除此活動下的商品、喊單、訂單與物流資料。`);
+                      if (!ok) return;
+                      const result = system.adminDeleteCampaign(campaign.id);
+                      setFeedback(result.message);
+                    }}
+                  >
+                    刪除活動
+                  </button>
                 </div>
-              ))}
-            </div>
-          </article>
-        ))}
+
+                <div className="mt-3 grid grid-cols-2 gap-2 md:grid-cols-4">
+                  {stageOptions.map((stage) => (
+                    <button
+                      key={stage}
+                      type="button"
+                      className={`rounded-lg border px-2 py-1 text-xs font-semibold ${
+                        campaign.releaseStage === stage
+                          ? "border-slate-900 bg-slate-900 text-white"
+                          : "border-slate-200 bg-white text-slate-700"
+                      }`}
+                      onClick={() => {
+                        const result = system.adminUpdateCampaignReleaseStage(campaign.id, stage);
+                        setFeedback(result.message);
+                      }}
+                    >
+                      {releaseStageLabel(stage)}
+                    </button>
+                  ))}
+                </div>
+
+                <div className="mt-4 overflow-x-auto rounded-2xl border border-slate-200">
+                  <table className="min-w-full divide-y divide-slate-200 text-left text-sm">
+                    <thead className="bg-slate-50 text-xs uppercase tracking-[0.14em] text-slate-500">
+                      <tr>
+                        <th className="px-3 py-3">SKU / 名稱</th>
+                        <th className="px-3 py-3">分類 / 類型</th>
+                        <th className="px-3 py-3">角色 / 圖片</th>
+                        <th className="px-3 py-3">價格</th>
+                        <th className="px-3 py-3">庫存</th>
+                        <th className="px-3 py-3">上限</th>
+                        <th className="px-3 py-3">固位限制</th>
+                        <th className="px-3 py-3">操作</th>
+                      </tr>
+                    </thead>
+                    <tbody className="divide-y divide-slate-100">
+                      {products.map((product) => {
+                        const draft = getProductEditorDraft(product);
+                        return (
+                          <tr key={product.id} className="align-top">
+                            <td className="px-3 py-3">
+                              <p className="mb-2 text-xs text-slate-500">{product.sku}</p>
+                              <input
+                                className="w-44 rounded-lg border border-slate-200 px-2 py-1.5"
+                                value={draft.name}
+                                onChange={(event) => patchProductEditorDraft(product.id, { name: event.target.value })}
+                              />
+                            </td>
+                            <td className="px-3 py-3">
+                              <div className="space-y-2">
+                                <select
+                                  className="w-32 rounded-lg border border-slate-200 px-2 py-1.5"
+                                  value={draft.series}
+                                  onChange={(event) => patchProductEditorDraft(product.id, { series: event.target.value as ProductSeries })}
+                                >
+                                  {system.state.productCategories.map((series) => (
+                                    <option key={series} value={series}>{series}</option>
+                                  ))}
+                                </select>
+                                <p className="text-xs text-slate-500">{productTypeLabel(product.type)}</p>
+                              </div>
+                            </td>
+                            <td className="px-3 py-3">
+                              <div className="space-y-2">
+                                {product.type === "NORMAL" ? (
+                                  <select
+                                    className="w-32 rounded-lg border border-slate-200 px-2 py-1.5"
+                                    value={draft.character}
+                                    onChange={(event) => patchProductEditorDraft(product.id, { character: event.target.value as CharacterName | "" })}
+                                  >
+                                    <option value="">不指定角色</option>
+                                    {CHARACTER_OPTIONS.map((character) => (
+                                      <option key={character} value={character}>{character}</option>
+                                    ))}
+                                  </select>
+                                ) : (
+                                  <p className="text-xs text-slate-500">盲盒母商品</p>
+                                )}
+                                <input
+                                  className="w-56 rounded-lg border border-slate-200 px-2 py-1.5"
+                                  value={draft.imageUrl}
+                                  placeholder="圖片 URL"
+                                  onChange={(event) => patchProductEditorDraft(product.id, { imageUrl: event.target.value })}
+                                />
+                              </div>
+                            </td>
+                            <td className="px-3 py-3">
+                              <input
+                                className="w-24 rounded-lg border border-slate-200 px-2 py-1.5"
+                                type="number"
+                                min={0}
+                                value={draft.price}
+                                onChange={(event) => patchProductEditorDraft(product.id, { price: event.target.value })}
+                              />
+                            </td>
+                            <td className="px-3 py-3">
+                              {product.type === "NORMAL" ? (
+                                <input
+                                  className="w-24 rounded-lg border border-slate-200 px-2 py-1.5"
+                                  type="number"
+                                  min={0}
+                                  value={draft.stock}
+                                  placeholder="不限"
+                                  onChange={(event) => patchProductEditorDraft(product.id, { stock: event.target.value })}
+                                />
+                              ) : (
+                                <span className="text-xs text-slate-500">母商品不控庫存</span>
+                              )}
+                            </td>
+                            <td className="px-3 py-3">
+                              <input
+                                className="w-24 rounded-lg border border-slate-200 px-2 py-1.5"
+                                type="number"
+                                min={1}
+                                value={draft.maxPerUser}
+                                placeholder="不限"
+                                onChange={(event) => patchProductEditorDraft(product.id, { maxPerUser: event.target.value })}
+                              />
+                            </td>
+                            <td className="px-3 py-3">
+                              {product.type === "BLIND_BOX" ? (
+                                <div className="space-y-2">
+                                  <label className="flex items-center gap-2 text-xs text-slate-600">
+                                    <input
+                                      type="checkbox"
+                                      checked={draft.slotRestrictionEnabled}
+                                      onChange={(event) => patchProductEditorDraft(product.id, {
+                                        slotRestrictionEnabled: event.target.checked,
+                                        slotRestrictedCharacter: event.target.checked ? draft.slotRestrictedCharacter : "",
+                                      })}
+                                    />
+                                    啟用
+                                  </label>
+                                  <select
+                                    className="w-36 rounded-lg border border-slate-200 px-2 py-1.5"
+                                    value={draft.slotRestrictedCharacter}
+                                    disabled={!draft.slotRestrictionEnabled}
+                                    onChange={(event) => patchProductEditorDraft(product.id, {
+                                      slotRestrictedCharacter: event.target.value as CharacterName | "",
+                                    })}
+                                  >
+                                    <option value="">依子項角色</option>
+                                    {CHARACTER_OPTIONS.map((character) => (
+                                      <option key={character} value={character}>{character}</option>
+                                    ))}
+                                  </select>
+                                </div>
+                              ) : (
+                                <span className="text-xs text-slate-500">一般代購全員可喊</span>
+                              )}
+                            </td>
+                            <td className="px-3 py-3">
+                              <div className="flex flex-col gap-2">
+                                <button
+                                  type="button"
+                                  className="rounded-lg border border-slate-200 px-3 py-1.5 text-xs font-semibold"
+                                  onClick={() => handleSaveProductRow(product)}
+                                >
+                                  儲存
+                                </button>
+                                <button
+                                  type="button"
+                                  className="rounded-lg border border-slate-200 px-3 py-1.5 text-xs font-semibold"
+                                  onClick={() => resetProductEditorDraft(product.id)}
+                                >
+                                  還原
+                                </button>
+                              </div>
+                            </td>
+                          </tr>
+                        );
+                      })}
+                      {products.length === 0 && (
+                        <tr>
+                          <td className="px-3 py-4 text-sm text-slate-500" colSpan={8}>此活動目前沒有符合搜尋條件的商品。</td>
+                        </tr>
+                      )}
+                    </tbody>
+                  </table>
+                </div>
+              </article>
+            );
+          })}
+        </div>
       </section>
 
     </section>
@@ -2197,6 +2539,10 @@ function AdminConsoleView(props: {
   const { system, onBackToShop, activeTab, onChangeTab } = props;
   const [feedback, setFeedback] = useState("");
   const [selectedCharacter, setSelectedCharacter] = useState<CharacterName>("八千代");
+  const [memberKeyword, setMemberKeyword] = useState("");
+  const [selectedMemberIds, setSelectedMemberIds] = useState<string[]>([]);
+  const [bulkCharacterTier, setBulkCharacterTier] = useState<BulkCharacterTierValue>("FIXED_1");
+  const [pickupRateDrafts, setPickupRateDrafts] = useState<Record<string, string>>({});
   const [exportCampaignId, setExportCampaignId] = useState(system.state.campaigns[0]?.id ?? "");
   const [claimCampaignFilter, setClaimCampaignFilter] = useState<string>("ALL");
   const [claimStatusFilter, setClaimStatusFilter] = useState<ClaimStatusFilter>("ALL");
@@ -2311,6 +2657,63 @@ function AdminConsoleView(props: {
       })
       .sort((a, b) => Number(b.user.isAdmin) - Number(a.user.isAdmin) || a.user.fbNickname.localeCompare(b.user.fbNickname));
   }, [system.state.characterSlots, system.state.claims, system.state.orders, system.state.users]);
+
+  const filteredMemberRows = useMemo(() => {
+    const keyword = memberKeyword.trim().toLowerCase();
+    if (!keyword) return memberRows;
+    return memberRows.filter(({ user }) => (
+      user.fbNickname.toLowerCase().includes(keyword)
+      || user.email.toLowerCase().includes(keyword)
+    ));
+  }, [memberKeyword, memberRows]);
+
+  const slotAssignableRows = useMemo(
+    () => filteredMemberRows.filter(({ user }) => !user.isAdmin),
+    [filteredMemberRows],
+  );
+
+  useEffect(() => {
+    const availableIds = new Set(slotAssignableRows.map(({ user }) => user.id));
+    setSelectedMemberIds((prev) => prev.filter((userId) => availableIds.has(userId)));
+  }, [slotAssignableRows]);
+
+  const toggleSelectedMember = (userId: string): void => {
+    setSelectedMemberIds((prev) => (
+      prev.includes(userId)
+        ? prev.filter((id) => id !== userId)
+        : [...prev, userId]
+    ));
+  };
+
+  const handleBatchCharacterSlotApply = (): void => {
+    const result = system.adminAssignCharacterSlotsBatch({
+      userIds: selectedMemberIds,
+      character: selectedCharacter,
+      tier: bulkCharacterTier === "NONE" ? null : bulkCharacterTier,
+    });
+    setFeedback(result.message);
+    if (result.ok && bulkCharacterTier === "NONE") {
+      setSelectedMemberIds([]);
+    }
+  };
+
+  const handlePickupRateSave = (userId: string, currentPickupRate: number): void => {
+    const draftValue = pickupRateDrafts[userId] ?? String(currentPickupRate);
+    const nextValue = Number(draftValue);
+    if (!Number.isFinite(nextValue)) {
+      setFeedback("取貨率必須是數字。");
+      return;
+    }
+    const result = system.adminUpdateUserPickupRate(userId, nextValue);
+    setFeedback(result.message);
+    if (result.ok) {
+      setPickupRateDrafts((prev) => {
+        const next = { ...prev };
+        delete next[userId];
+        return next;
+      });
+    }
+  };
 
   const dashboardStats = useMemo(() => {
     const totalOrderAmount = system.state.orders.reduce((sum, order) => sum + order.totalAmount, 0);
@@ -2432,8 +2835,16 @@ function AdminConsoleView(props: {
             <div className="section-frame">
               <h3 className="text-lg font-bold text-slate-900">帳號總覽</h3>
               <p className="mt-1 text-sm text-slate-600">可直接調整管理員權限與取貨率，並檢視每位會員訂單表現。</p>
+              <div className="mt-4">
+                <input
+                  className="w-full rounded-xl border border-slate-200 px-3 py-2 text-sm"
+                  placeholder="搜尋會員暱稱或 Email"
+                  value={memberKeyword}
+                  onChange={(event) => setMemberKeyword(event.target.value)}
+                />
+              </div>
               <div className="mt-4 space-y-3">
-                {memberRows.map(({ user, orderCount, orderTotal, pendingClaims, slotSummary }) => (
+                {filteredMemberRows.map(({ user, orderCount, orderTotal, pendingClaims, slotSummary }) => (
                   <article key={user.id} className="row-card">
                     <div className="flex flex-wrap items-start justify-between gap-3">
                       <div>
@@ -2458,18 +2869,26 @@ function AdminConsoleView(props: {
                         >
                           {user.isAdmin ? "取消管理員" : "設為管理員"}
                         </button>
-                        <button
-                          type="button"
-                          className="rounded-lg border border-slate-200 px-3 py-1.5 text-xs font-semibold"
-                          onClick={() => {
-                            const value = window.prompt("請輸入新的取貨率（0-100）", String(user.pickupRate));
-                            if (value === null) return;
-                            const result = system.adminUpdateUserPickupRate(user.id, Number(value));
-                            setFeedback(result.message);
-                          }}
-                        >
-                          調整取貨率
-                        </button>
+                        <div className="flex items-center gap-2 rounded-lg border border-slate-200 px-2 py-1">
+                          <input
+                            className="w-20 border-0 bg-transparent px-1 py-1 text-xs focus:outline-none"
+                            type="number"
+                            min={0}
+                            max={100}
+                            value={pickupRateDrafts[user.id] ?? String(user.pickupRate)}
+                            onChange={(event) => setPickupRateDrafts((prev) => ({
+                              ...prev,
+                              [user.id]: event.target.value,
+                            }))}
+                          />
+                          <button
+                            type="button"
+                            className="rounded-lg border border-slate-200 px-2 py-1 text-xs font-semibold"
+                            onClick={() => handlePickupRateSave(user.id, user.pickupRate)}
+                          >
+                            存取貨率
+                          </button>
+                        </div>
                         <button
                           type="button"
                           className="rounded-lg border border-rose-300 bg-rose-50 px-3 py-1.5 text-xs font-semibold text-rose-700 disabled:opacity-60"
@@ -2499,16 +2918,34 @@ function AdminConsoleView(props: {
                   <h3 className="text-lg font-bold text-slate-900">角色固位分配</h3>
                   <p className="mt-1 text-sm text-slate-600">角色固位屬於會員資料，直接放在會員頁管理，不再混進活動與商品設定。</p>
                 </div>
-                <button
-                  type="button"
-                  className="cta-secondary"
-                  onClick={() => {
-                    const result = system.adminAutoAssignCharacterSlots(selectedCharacter);
-                    setFeedback(result.message);
-                  }}
-                >
-                  自動分配 {selectedCharacter}
-                </button>
+                <div className="flex flex-wrap gap-2">
+                  <button
+                    type="button"
+                    className="cta-secondary"
+                    onClick={() => {
+                      const result = system.adminAutoAssignCharacterSlots(selectedCharacter);
+                      setFeedback(result.message);
+                    }}
+                  >
+                    自動分配 {selectedCharacter}
+                  </button>
+                  <button
+                    type="button"
+                    className="rounded-xl border border-slate-200 px-3 py-2 text-sm font-semibold"
+                    onClick={() => setSelectedMemberIds(slotAssignableRows.map(({ user }) => user.id))}
+                    disabled={slotAssignableRows.length === 0}
+                  >
+                    全選篩選結果
+                  </button>
+                  <button
+                    type="button"
+                    className="rounded-xl border border-slate-200 px-3 py-2 text-sm font-semibold"
+                    onClick={() => setSelectedMemberIds([])}
+                    disabled={selectedMemberIds.length === 0}
+                  >
+                    清空選取
+                  </button>
+                </div>
               </div>
 
               <div className="admin-chip-group mt-4">
@@ -2524,18 +2961,52 @@ function AdminConsoleView(props: {
                 ))}
               </div>
 
+              <div className="mt-4 grid gap-3 md:grid-cols-[minmax(0,1fr)_180px_auto]">
+                <input
+                  className="w-full rounded-xl border border-slate-200 px-3 py-2 text-sm"
+                  placeholder="搜尋要分配固位的會員"
+                  value={memberKeyword}
+                  onChange={(event) => setMemberKeyword(event.target.value)}
+                />
+                <select
+                  className="rounded-xl border border-slate-200 px-3 py-2 text-sm"
+                  value={bulkCharacterTier}
+                  onChange={(event) => setBulkCharacterTier(event.target.value as BulkCharacterTierValue)}
+                >
+                  {characterTierOptions.map((optionTier) => (
+                    <option key={optionTier} value={optionTier}>{fixedTierLabel(optionTier)}</option>
+                  ))}
+                  <option value="NONE">無</option>
+                </select>
+                <button
+                  type="button"
+                  className="cta-primary"
+                  onClick={handleBatchCharacterSlotApply}
+                  disabled={selectedMemberIds.length === 0}
+                >
+                  套用到 {selectedMemberIds.length} 位會員
+                </button>
+              </div>
+
               <div className="mt-4 space-y-2">
-                {memberRows.map(({ user }) => {
+                {slotAssignableRows.map(({ user }) => {
                   const tier = system.getUserCharacterTier(user.id, selectedCharacter);
+                  const isSelected = selectedMemberIds.includes(user.id);
                   return (
                     <div key={`${user.id}:${selectedCharacter}`} className="mini-preview-card flex flex-wrap items-center justify-between gap-2">
-                      <div>
-                        <p className="text-sm font-semibold text-slate-900">
-                          {user.fbNickname}
-                          {user.isAdmin && <span className="ml-2 text-xs text-slate-500">管理員</span>}
-                        </p>
-                        <p className="text-xs text-slate-500">{user.email}</p>
-                        <p className="text-xs text-slate-500">{selectedCharacter} 目前：{tier ? fixedTierLabel(tier) : "無（預設）"}</p>
+                      <div className="flex items-start gap-3">
+                        <label className="mt-1 flex items-center">
+                          <input
+                            type="checkbox"
+                            checked={isSelected}
+                            onChange={() => toggleSelectedMember(user.id)}
+                          />
+                        </label>
+                        <div>
+                          <p className="text-sm font-semibold text-slate-900">{user.fbNickname}</p>
+                          <p className="text-xs text-slate-500">{user.email}</p>
+                          <p className="text-xs text-slate-500">{selectedCharacter} 目前：{tier ? fixedTierLabel(tier) : "無（預設）"}</p>
+                        </div>
                       </div>
                       <div className="flex flex-wrap gap-1">
                         {characterTierOptions.map((optionTier) => (
@@ -2577,6 +3048,9 @@ function AdminConsoleView(props: {
                     </div>
                   );
                 })}
+                {slotAssignableRows.length === 0 && (
+                  <div className="mini-preview-card text-sm text-slate-500">找不到符合條件的會員。</div>
+                )}
               </div>
             </div>
           </section>

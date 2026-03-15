@@ -114,6 +114,10 @@ interface CreateBlindBoxItemInput {
 
 interface ProductRuleUpdateInput {
   productId: string;
+  name?: string;
+  series?: ProductSeries;
+  character?: CharacterName | null;
+  imageUrl?: string | null;
   price?: number;
   maxPerUser?: number | null;
   stock?: number | null;
@@ -123,6 +127,9 @@ interface ProductRuleUpdateInput {
 
 interface BlindBoxItemRuleUpdateInput {
   blindBoxItemId: string;
+  name?: string;
+  character?: CharacterName;
+  imageUrl?: string | null;
   price?: number | null;
   stock?: number | null;
   maxPerUser?: number | null;
@@ -171,6 +178,11 @@ export interface UseOrderSystemReturn {
   adminDeleteCategory: (name: string) => ActionResult;
   adminAssignCharacterSlot: (args: {
     userId: string;
+    character: CharacterName;
+    tier: CharacterTier | null;
+  }) => ActionResult;
+  adminAssignCharacterSlotsBatch: (args: {
+    userIds: string[];
     character: CharacterName;
     tier: CharacterTier | null;
   }) => ActionResult;
@@ -1422,10 +1434,24 @@ export function useOrderSystem(): UseOrderSystemReturn {
       return { ok: false, message: "只有團主可以調整商品規則。" };
     }
 
-    const { productId, price, maxPerUser, stock, slotRestrictionEnabled, slotRestrictedCharacter } = args;
+    const {
+      productId,
+      name,
+      series,
+      character,
+      imageUrl,
+      price,
+      maxPerUser,
+      stock,
+      slotRestrictionEnabled,
+      slotRestrictedCharacter,
+    } = args;
     const target = getProductById(productId);
     if (!target) return { ok: false, message: "找不到商品。" };
 
+    if (name !== undefined && !name.trim()) {
+      return { ok: false, message: "商品名稱不可為空。" };
+    }
     if (price !== undefined && (!Number.isFinite(price) || price < 0)) {
       return { ok: false, message: "商品價格不可小於 0。" };
     }
@@ -1447,8 +1473,15 @@ export function useOrderSystem(): UseOrderSystemReturn {
     const nextSlotRestrictedCharacter = target.type === "BLIND_BOX"
       ? (slotRestrictedCharacter === undefined ? target.slotRestrictedCharacter : slotRestrictedCharacter)
       : null;
+    const normalizedSeries = series === undefined ? target.series : normalizeCategoryName(series);
     const nextProduct: Product = {
       ...target,
+      name: name === undefined ? target.name : name.trim(),
+      series: normalizedSeries,
+      character: target.type === "NORMAL"
+        ? (character === undefined ? target.character : character)
+        : null,
+      imageUrl: imageUrl === undefined ? target.imageUrl : (imageUrl?.trim() || null),
       price: price === undefined ? target.price : price,
       maxPerUser: maxPerUser === undefined ? target.maxPerUser : maxPerUser,
       stock: stock === undefined ? target.stock : (target.type === "NORMAL" ? stock : target.stock),
@@ -1458,6 +1491,9 @@ export function useOrderSystem(): UseOrderSystemReturn {
 
     setState((prev) => ({
       ...prev,
+      productCategories: prev.productCategories.includes(normalizedSeries)
+        ? prev.productCategories
+        : [...prev.productCategories, normalizedSeries],
       products: prev.products.map((product) =>
         product.id === productId
           ? nextProduct
@@ -1583,6 +1619,87 @@ export function useOrderSystem(): UseOrderSystemReturn {
     });
 
     return { ok: true, message: `${user.fbNickname} 的 ${character} 已設為 ${tier}。` };
+  };
+
+  const adminAssignCharacterSlotsBatch = (args: {
+    userIds: string[];
+    character: CharacterName;
+    tier: CharacterTier | null;
+  }): ActionResult => {
+    if (!currentUser?.isAdmin) {
+      return { ok: false, message: "只有團主可以批次分配固位。" };
+    }
+
+    const userIds = Array.from(new Set(args.userIds));
+    const targetMembers = state.users.filter((user) => userIds.includes(user.id) && !user.isAdmin);
+    if (targetMembers.length === 0) {
+      return { ok: false, message: "請先選擇至少一位會員。" };
+    }
+
+    const now = new Date().toISOString();
+    const existingByUserId = new Map(
+      state.characterSlots
+        .filter((slot) => slot.character === args.character && userIds.includes(slot.userId))
+        .map((slot) => [slot.userId, slot] as const),
+    );
+
+    const nextSlotsForSync: CharacterSlot[] = [];
+    const slotIdsToDelete: string[] = [];
+
+    setState((prev) => {
+      let nextSlots = [...prev.characterSlots];
+
+      targetMembers.forEach((member) => {
+        const existing = existingByUserId.get(member.id);
+
+        if (!args.tier) {
+          if (existing) {
+            nextSlots = nextSlots.filter((slot) => slot.id !== existing.id);
+            slotIdsToDelete.push(existing.id);
+          }
+          return;
+        }
+
+        const nextSlot: CharacterSlot = existing
+          ? { ...existing, tier: args.tier, updatedAt: now }
+          : {
+            id: crypto.randomUUID(),
+            userId: member.id,
+            character: args.character,
+            tier: args.tier,
+            createdAt: now,
+            updatedAt: now,
+          };
+
+        if (existing) {
+          nextSlots = nextSlots.map((slot) => (slot.id === existing.id ? nextSlot : slot));
+        } else {
+          nextSlots.push(nextSlot);
+        }
+        nextSlotsForSync.push(nextSlot);
+      });
+
+      return { ...prev, characterSlots: nextSlots };
+    });
+
+    if (slotIdsToDelete.length > 0) {
+      runSupabaseWrite("batch delete character slots", async () => {
+        await deleteCharacterSlots(supabase!, slotIdsToDelete);
+      });
+    }
+
+    if (nextSlotsForSync.length > 0) {
+      runSupabaseWrite("batch upsert character slots", async () => {
+        await syncCharacterSlotRows(nextSlotsForSync);
+      });
+    }
+
+    return {
+      ok: true,
+      message: args.tier
+        ? `已將 ${targetMembers.length} 位會員的 ${args.character} 設為 ${args.tier}。`
+        : `已清除 ${targetMembers.length} 位會員的 ${args.character} 固位。`,
+    };
   };
 
   const adminAutoAssignCharacterSlots = (character: CharacterName): ActionResult => {
@@ -1830,10 +1947,13 @@ export function useOrderSystem(): UseOrderSystemReturn {
       return { ok: false, message: "只有團主可以調整盲盒子項。" };
     }
 
-    const { blindBoxItemId, price, stock, maxPerUser } = args;
+    const { blindBoxItemId, name, character, imageUrl, price, stock, maxPerUser } = args;
     const target = getBlindBoxItemById(blindBoxItemId);
     if (!target) {
       return { ok: false, message: "找不到盲盒子項。" };
+    }
+    if (name !== undefined && !name.trim()) {
+      return { ok: false, message: "子項名稱不可為空。" };
     }
     if (price !== undefined && price !== null && (!Number.isFinite(price) || price < 0)) {
       return { ok: false, message: "子項價格不可小於 0。" };
@@ -1851,6 +1971,9 @@ export function useOrderSystem(): UseOrderSystemReturn {
         item.id === blindBoxItemId
           ? {
             ...item,
+            name: name === undefined ? item.name : name.trim(),
+            character: character === undefined ? item.character : character,
+            imageUrl: imageUrl === undefined ? item.imageUrl : (imageUrl?.trim() || null),
             price: price === undefined ? item.price : price,
             stock: stock === undefined ? item.stock : stock,
             maxPerUser: maxPerUser === undefined ? item.maxPerUser : maxPerUser,
@@ -1861,6 +1984,9 @@ export function useOrderSystem(): UseOrderSystemReturn {
 
     const nextBlindBoxItem: BlindBoxItem = {
       ...target,
+      name: name === undefined ? target.name : name.trim(),
+      character: character === undefined ? target.character : character,
+      imageUrl: imageUrl === undefined ? target.imageUrl : (imageUrl?.trim() || null),
       price: price === undefined ? target.price : price,
       stock: stock === undefined ? target.stock : stock,
       maxPerUser: maxPerUser === undefined ? target.maxPerUser : maxPerUser,
@@ -2084,6 +2210,7 @@ export function useOrderSystem(): UseOrderSystemReturn {
     adminCreateCategory,
     adminDeleteCategory,
     adminAssignCharacterSlot,
+    adminAssignCharacterSlotsBatch,
     adminAutoAssignCharacterSlots,
     adminCreateCampaign,
     adminDeleteCampaign,
