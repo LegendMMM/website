@@ -397,6 +397,38 @@ body {
   background: rgba(19, 20, 42, 0.68);
 }
 
+.image-upload-panel {
+  @apply grid gap-3 rounded-[1.35rem] border p-4;
+  border-color: rgba(232, 220, 255, 0.16);
+  background: rgba(19, 20, 42, 0.68);
+}
+
+@media (min-width: 768px) {
+  .image-upload-panel {
+    grid-template-columns: minmax(180px, 240px) minmax(0, 1fr);
+    align-items: start;
+  }
+}
+
+.image-upload-preview {
+  @apply overflow-hidden rounded-[1.2rem] border;
+  border-color: rgba(232, 220, 255, 0.16);
+  background: rgba(10, 12, 28, 0.72);
+}
+
+.image-upload-preview img,
+.image-upload-preview [aria-label="no-image"] {
+  height: 180px !important;
+  border-radius: 0 !important;
+}
+
+.file-picker {
+  @apply inline-flex cursor-pointer items-center justify-center rounded-2xl px-4 py-3 text-sm font-semibold;
+  background: linear-gradient(100deg, rgba(247, 217, 255, 0.95), rgba(186, 203, 255, 0.95), rgba(151, 232, 255, 0.92));
+  color: #160f31;
+  border: 1px solid rgba(255, 236, 249, 0.46);
+}
+
 .empty-panel {
   @apply rounded-[1.75rem] border px-5 py-8 text-sm;
   border-color: rgba(232, 220, 255, 0.18);

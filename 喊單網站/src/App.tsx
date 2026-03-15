@@ -32,7 +32,7 @@ import {
 import { calculateUnitPrice } from "./lib/business-rules";
 import { downloadTextFile } from "./lib/download";
 import { upsertCampaigns, upsertProfiles } from "./lib/supabase-sync";
-import { isSupabaseEnabled, supabase, testSupabaseConnection } from "./lib/supabase";
+import { isSupabaseEnabled, supabase, testSupabaseConnection, uploadImageToSupabaseStorage } from "./lib/supabase";
 import type {
   Campaign,
   CharacterName,
@@ -176,6 +176,21 @@ function ProductImage(props: { imageUrl: string | null; alt: string }): JSX.Elem
     return <div className="h-36 w-full rounded-xl bg-slate-100" aria-label="no-image" />;
   }
   return <img className="h-36 w-full rounded-xl object-cover" src={imageUrl} alt={alt} loading="lazy" />;
+}
+
+function readFileAsDataUrl(file: File): Promise<string> {
+  return new Promise((resolve, reject) => {
+    const reader = new FileReader();
+    reader.onload = () => {
+      if (typeof reader.result === "string") {
+        resolve(reader.result);
+        return;
+      }
+      reject(new Error("讀取圖片失敗。"));
+    };
+    reader.onerror = () => reject(new Error("讀取圖片失敗。"));
+    reader.readAsDataURL(file);
+  });
 }
 
 function HomeView(props: {
@@ -888,6 +903,8 @@ function AdminSettingsPanel(props: { system: UseOrderSystemReturn }): JSX.Elemen
   const [productSlotRestrictionEnabled, setProductSlotRestrictionEnabled] = useState(true);
   const [productSlotRestrictedCharacter, setProductSlotRestrictedCharacter] = useState<CharacterName | "">("八千代");
   const [productImageUrl, setProductImageUrl] = useState("");
+  const [productImageFile, setProductImageFile] = useState<File | null>(null);
+  const [productImagePreviewUrl, setProductImagePreviewUrl] = useState<string | null>(null);
   const [productPrice, setProductPrice] = useState("120");
   const [productStock, setProductStock] = useState("");
   const [productMaxPerUser, setProductMaxPerUser] = useState("");
@@ -901,6 +918,8 @@ function AdminSettingsPanel(props: { system: UseOrderSystemReturn }): JSX.Elemen
   const [blindName, setBlindName] = useState("");
   const [blindCharacter, setBlindCharacter] = useState<CharacterName>("八千代");
   const [blindImageUrl, setBlindImageUrl] = useState("");
+  const [blindImageFile, setBlindImageFile] = useState<File | null>(null);
+  const [blindImagePreviewUrl, setBlindImagePreviewUrl] = useState<string | null>(null);
   const [blindPrice, setBlindPrice] = useState("");
   const [blindStock, setBlindStock] = useState("");
   const [blindMaxPerUser, setBlindMaxPerUser] = useState("");
@@ -940,6 +959,28 @@ function AdminSettingsPanel(props: { system: UseOrderSystemReturn }): JSX.Elemen
     }
   }, [blindProductId, blindProducts]);
 
+  useEffect(() => {
+    if (!productImageFile) {
+      setProductImagePreviewUrl(null);
+      return;
+    }
+
+    const objectUrl = URL.createObjectURL(productImageFile);
+    setProductImagePreviewUrl(objectUrl);
+    return () => URL.revokeObjectURL(objectUrl);
+  }, [productImageFile]);
+
+  useEffect(() => {
+    if (!blindImageFile) {
+      setBlindImagePreviewUrl(null);
+      return;
+    }
+
+    const objectUrl = URL.createObjectURL(blindImageFile);
+    setBlindImagePreviewUrl(objectUrl);
+    return () => URL.revokeObjectURL(objectUrl);
+  }, [blindImageFile]);
+
   const members = system.state.users
     .filter((user) => !user.isAdmin)
     .sort((a, b) => new Date(a.createdAt).getTime() - new Date(b.createdAt).getTime());
@@ -959,6 +1000,9 @@ function AdminSettingsPanel(props: { system: UseOrderSystemReturn }): JSX.Elemen
     BLIND_ITEM_CSV: "匯入盲盒子項，會掛到既有母商品 SKU 底下。",
     BLIND_ITEM_JSON: "匯入盲盒子項，會掛到既有母商品 SKU 底下。",
   };
+
+  const productPreviewImage = productImagePreviewUrl ?? (productImageUrl.trim() || null);
+  const blindPreviewImage = blindImagePreviewUrl ?? (blindImageUrl.trim() || null);
 
   const importTemplateByMode: Record<ImportMode, string> = {
     NORMAL_PRODUCT_CSV: NORMAL_PRODUCT_IMPORT_CSV_TEMPLATE,
@@ -984,6 +1028,116 @@ function AdminSettingsPanel(props: { system: UseOrderSystemReturn }): JSX.Elemen
         sku: `${prefix}-${String(sequence).padStart(4, "0")}`,
       };
     });
+  };
+
+  const resolveImageUrlForSubmit = async (
+    file: File | null,
+    manualUrl: string,
+    folder: "products" | "blind-items",
+  ): Promise<{ ok: boolean; imageUrl: string | null; note: string }> => {
+    const normalizedUrl = manualUrl.trim();
+    if (!file) {
+      return { ok: true, imageUrl: normalizedUrl || null, note: "" };
+    }
+
+    if (!file.type.startsWith("image/")) {
+      return { ok: false, imageUrl: null, note: "只能上傳圖片檔。" };
+    }
+
+    if (file.size > 4 * 1024 * 1024) {
+      return { ok: false, imageUrl: null, note: "圖片請控制在 4MB 內。" };
+    }
+
+    if (isSupabaseEnabled) {
+      const uploaded = await uploadImageToSupabaseStorage(file, folder);
+      if (uploaded.ok) {
+        return { ok: true, imageUrl: uploaded.url, note: uploaded.message };
+      }
+
+      const embeddedUrl = await readFileAsDataUrl(file);
+      return {
+        ok: true,
+        imageUrl: embeddedUrl,
+        note: `Supabase Storage 上傳失敗：${uploaded.message}。已改用嵌入式圖片。`,
+      };
+    }
+
+    const embeddedUrl = await readFileAsDataUrl(file);
+    return { ok: true, imageUrl: embeddedUrl, note: "目前使用本地嵌入式圖片。" };
+  };
+
+  const handleCreateProduct = async () => {
+    try {
+      const imageResult = await resolveImageUrlForSubmit(productImageFile, productImageUrl, "products");
+      if (!imageResult.ok) {
+        setFeedback(imageResult.note);
+        return;
+      }
+
+      const result = system.adminCreateProduct({
+        campaignId: productCampaignId,
+        name: productName,
+        series: productSeries,
+        type: productType,
+        character: productType === "NORMAL" && productCharacter ? productCharacter : null,
+        slotRestrictionEnabled: productType === "BLIND_BOX" ? productSlotRestrictionEnabled : false,
+        slotRestrictedCharacter:
+          productType === "BLIND_BOX" && productSlotRestrictionEnabled && productSlotRestrictedCharacter
+            ? productSlotRestrictedCharacter
+            : null,
+        imageUrl: imageResult.imageUrl,
+        price: productPrice.trim() ? Number(productPrice) : Number.NaN,
+        stock: productType === "NORMAL" && productStock.trim() ? Number(productStock) : null,
+        maxPerUser: productMaxPerUser.trim() ? Number(productMaxPerUser) : null,
+      });
+
+      setFeedback(imageResult.note ? `${result.message} ${imageResult.note}` : result.message);
+      if (!result.ok) return;
+
+      setProductName("");
+      setProductImageUrl("");
+      setProductImageFile(null);
+      setProductCharacter("");
+      setProductPrice("120");
+      setProductStock("");
+      setProductMaxPerUser("");
+    } catch (error) {
+      const message = error instanceof Error ? error.message : "圖片處理失敗。";
+      setFeedback(message);
+    }
+  };
+
+  const handleCreateBlindBoxItem = async () => {
+    try {
+      const imageResult = await resolveImageUrlForSubmit(blindImageFile, blindImageUrl, "blind-items");
+      if (!imageResult.ok) {
+        setFeedback(imageResult.note);
+        return;
+      }
+
+      const result = system.adminCreateBlindBoxItem({
+        productId: blindProductId,
+        name: blindName,
+        character: blindCharacter,
+        imageUrl: imageResult.imageUrl,
+        price: blindPrice.trim() ? Number(blindPrice) : null,
+        stock: blindStock.trim() ? Number(blindStock) : null,
+        maxPerUser: blindMaxPerUser.trim() ? Number(blindMaxPerUser) : null,
+      });
+
+      setFeedback(imageResult.note ? `${result.message} ${imageResult.note}` : result.message);
+      if (!result.ok) return;
+
+      setBlindName("");
+      setBlindImageUrl("");
+      setBlindImageFile(null);
+      setBlindPrice("");
+      setBlindStock("");
+      setBlindMaxPerUser("");
+    } catch (error) {
+      const message = error instanceof Error ? error.message : "圖片處理失敗。";
+      setFeedback(message);
+    }
   };
 
   const syncProductsToSupabase = async (
@@ -1616,9 +1770,36 @@ function AdminSettingsPanel(props: { system: UseOrderSystemReturn }): JSX.Elemen
               <p className="form-section-title">3. 圖片與價格</p>
               <p className="form-section-copy">價格全面改成手動設定；盲盒子項若留空，會自動沿用母商品價格。</p>
               <div className="mt-3 space-y-3">
+                <div className="image-upload-panel">
+                  <div className="image-upload-preview">
+                    <ProductImage imageUrl={productPreviewImage} alt={productName || "商品預覽"} />
+                  </div>
+                  <div className="space-y-3">
+                    <label className="file-picker">
+                      <span>選擇圖片檔</span>
+                      <input
+                        className="hidden"
+                        type="file"
+                        accept="image/*"
+                        onChange={(event) => setProductImageFile(event.target.files?.[0] ?? null)}
+                      />
+                    </label>
+                    <button
+                      type="button"
+                      className="rounded-xl border border-slate-200 px-3 py-2 text-xs font-semibold"
+                      onClick={() => {
+                        setProductImageFile(null);
+                        setProductImageUrl("");
+                      }}
+                    >
+                      清除圖片
+                    </button>
+                    <p className="text-xs text-slate-500">可直接上傳檔案，也可保留使用圖片 URL。若兩者都有，會優先使用上傳檔案。</p>
+                  </div>
+                </div>
                 <input
                   className="w-full rounded-xl border border-slate-200 px-3 py-2"
-                  placeholder="圖片 URL（可留空）"
+                  placeholder="圖片 URL（可留空，或作為備用）"
                   value={productImageUrl}
                   onChange={(event) => setProductImageUrl(event.target.value)}
                 />
@@ -1660,33 +1841,7 @@ function AdminSettingsPanel(props: { system: UseOrderSystemReturn }): JSX.Elemen
             <button
               type="button"
               className="cta-primary w-full"
-              onClick={() => {
-                const result = system.adminCreateProduct({
-                  campaignId: productCampaignId,
-                  name: productName,
-                  series: productSeries,
-                  type: productType,
-                  character: productType === "NORMAL" && productCharacter ? productCharacter : null,
-                  slotRestrictionEnabled: productType === "BLIND_BOX" ? productSlotRestrictionEnabled : false,
-                  slotRestrictedCharacter:
-                    productType === "BLIND_BOX" && productSlotRestrictionEnabled && productSlotRestrictedCharacter
-                    ? productSlotRestrictedCharacter
-                    : null,
-                  imageUrl: productImageUrl || null,
-                  price: productPrice.trim() ? Number(productPrice) : Number.NaN,
-                  stock: productType === "NORMAL" && productStock.trim() ? Number(productStock) : null,
-                  maxPerUser: productMaxPerUser.trim() ? Number(productMaxPerUser) : null,
-                });
-                setFeedback(result.message);
-                if (result.ok) {
-                  setProductName("");
-                  setProductImageUrl("");
-                  setProductCharacter("");
-                  setProductPrice("120");
-                  setProductStock("");
-                  setProductMaxPerUser("");
-                }
-              }}
+              onClick={() => void handleCreateProduct()}
             >
               建立商品
             </button>
@@ -1736,12 +1891,39 @@ function AdminSettingsPanel(props: { system: UseOrderSystemReturn }): JSX.Elemen
             </select>
           </label>
 
-          <input
-            className="w-full rounded-xl border border-slate-200 px-3 py-2"
-            placeholder="圖片 URL（可留空）"
-            value={blindImageUrl}
-            onChange={(event) => setBlindImageUrl(event.target.value)}
-          />
+          <div className="image-upload-panel md:col-span-2">
+            <div className="image-upload-preview">
+              <ProductImage imageUrl={blindPreviewImage} alt={blindName || "盲盒子項預覽"} />
+            </div>
+            <div className="space-y-3">
+              <label className="file-picker">
+                <span>選擇子項圖片</span>
+                <input
+                  className="hidden"
+                  type="file"
+                  accept="image/*"
+                  onChange={(event) => setBlindImageFile(event.target.files?.[0] ?? null)}
+                />
+              </label>
+              <button
+                type="button"
+                className="rounded-xl border border-slate-200 px-3 py-2 text-xs font-semibold"
+                onClick={() => {
+                  setBlindImageFile(null);
+                  setBlindImageUrl("");
+                }}
+              >
+                清除圖片
+              </button>
+              <input
+                className="w-full rounded-xl border border-slate-200 px-3 py-2"
+                placeholder="圖片 URL（可留空，或作為備用）"
+                value={blindImageUrl}
+                onChange={(event) => setBlindImageUrl(event.target.value)}
+              />
+              <p className="text-xs text-slate-500">這裡一樣支援直接上傳或貼 URL。若兩者都有，優先使用上傳檔案。</p>
+            </div>
+          </div>
 
           <input
             className="w-full rounded-xl border border-slate-200 px-3 py-2"
@@ -1773,25 +1955,7 @@ function AdminSettingsPanel(props: { system: UseOrderSystemReturn }): JSX.Elemen
             type="button"
             className="md:col-span-2 w-full rounded-xl bg-slate-900 px-4 py-2 font-semibold text-white hover:bg-slate-700 disabled:cursor-not-allowed disabled:bg-slate-300"
             disabled={!blindProductId}
-            onClick={() => {
-              const result = system.adminCreateBlindBoxItem({
-                productId: blindProductId,
-                name: blindName,
-                character: blindCharacter,
-                imageUrl: blindImageUrl || null,
-                price: blindPrice.trim() ? Number(blindPrice) : null,
-                stock: blindStock.trim() ? Number(blindStock) : null,
-                maxPerUser: blindMaxPerUser.trim() ? Number(blindMaxPerUser) : null,
-              });
-              setFeedback(result.message);
-              if (result.ok) {
-                setBlindName("");
-                setBlindImageUrl("");
-                setBlindPrice("");
-                setBlindStock("");
-                setBlindMaxPerUser("");
-              }
-            }}
+            onClick={() => void handleCreateBlindBoxItem()}
           >
             建立盲盒子項
           </button>
