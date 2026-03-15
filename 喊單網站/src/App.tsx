@@ -121,6 +121,22 @@ function formatClaimPrioritySummary(product: Product | undefined, roleTier: Char
   return `排單固位：${roleLabel(roleTier)}`;
 }
 
+function InsightTile(props: {
+  label: string;
+  value: string | number;
+  detail?: string;
+  accent?: "violet" | "sky" | "rose" | "amber";
+}): JSX.Element {
+  const { label, value, detail, accent = "violet" } = props;
+  return (
+    <article className={`insight-tile insight-${accent}`}>
+      <p className="insight-label">{label}</p>
+      <p className="insight-value">{value}</p>
+      {detail && <p className="insight-detail">{detail}</p>}
+    </article>
+  );
+}
+
 function HeaderNav(props: {
   currentView: PageView;
   setView: (view: PageView) => void;
@@ -133,21 +149,19 @@ function HeaderNav(props: {
     : 0;
 
   const buttonClass = (view: PageView): string =>
-    `rounded-xl border px-4 py-2 text-sm font-semibold ${
-      currentView === view ? "border-slate-900 bg-slate-900 text-white" : "border-slate-200 bg-white text-slate-700"
-    }`;
+    currentView === view ? "nav-chip nav-chip-active" : "nav-chip";
 
   return (
-    <div className="flex flex-wrap items-center gap-2">
+    <div className="action-nav">
       <button className={buttonClass("home")} type="button" onClick={() => setView("home")}>大主頁</button>
       <button className={buttonClass("cart")} type="button" onClick={() => setView("cart")}>購物車 ({cartCount})</button>
       <button className={buttonClass("me")} type="button" onClick={() => setView("me")}>個人主頁</button>
       {system.currentUser?.isAdmin && (
-        <button className="rounded-xl border border-slate-200 bg-white px-4 py-2 text-sm font-semibold text-slate-700" type="button" onClick={onGoAdmin}>管理後台</button>
+        <button className="nav-chip" type="button" onClick={onGoAdmin}>管理後台</button>
       )}
       <button
         onClick={system.logout}
-        className="rounded-xl border border-rose-300 bg-rose-50 px-4 py-2 text-sm font-semibold text-rose-700"
+        className="nav-chip nav-chip-danger"
         type="button"
       >
         登出
@@ -169,29 +183,63 @@ function HomeView(props: {
   onOpenCampaign: (campaign: Campaign) => void;
 }): JSX.Element {
   const { system, onOpenCampaign } = props;
+  const cartCount = system.getMyCartItems().reduce((sum, item) => sum + item.qty, 0);
+  const myOrdersCount = system.getMyOrders().length;
+  const myPendingClaims = system.currentUser
+    ? system.state.claims.filter((claim) => claim.userId === system.currentUser?.id && claim.status === "LOCKED").length
+    : 0;
 
   return (
-    <section className="space-y-5">
-      <div className="glass-card p-5">
-        <h2 className="text-2xl font-extrabold text-slate-900">活動導覽</h2>
-        <p className="mt-2 text-sm text-slate-600">先選活動，再選商品。盲盒商品會再進一層角色拆分頁填單。</p>
+    <section className="space-y-6">
+      <div className="hero-panel">
+        <div className="hero-grid">
+          <div>
+            <p className="section-kicker">Shop Entry</p>
+            <h2 className="text-3xl font-extrabold text-slate-900">先選活動，再進入對應系列挑商品</h2>
+            <p className="mt-3 max-w-2xl text-sm text-slate-600">
+              一般商品固定全員可喊，盲盒商品才會進入角色拆分與固位判定。首頁應該是導覽入口，不是直接把所有內容丟成一片卡片牆。
+            </p>
+          </div>
+          <div className="grid gap-3 sm:grid-cols-3 lg:grid-cols-1 xl:grid-cols-3">
+            <InsightTile label="可進活動" value={system.visibleCampaigns.length} detail="目前開放中的團務" accent="violet" />
+            <InsightTile label="購物車" value={cartCount} detail="待送出的商品數" accent="sky" />
+            <InsightTile label="待審喊單" value={myPendingClaims} detail={`已下單 ${myOrdersCount} 筆`} accent="rose" />
+          </div>
+        </div>
       </div>
 
-      <div className="grid gap-4 md:grid-cols-2 xl:grid-cols-3">
+      <div className="section-frame">
+        <div className="flex flex-wrap items-end justify-between gap-3">
+          <div>
+            <p className="section-kicker">Campaigns</p>
+            <h3 className="text-2xl font-extrabold text-slate-900">活動導覽</h3>
+            <p className="mt-1 text-sm text-slate-600">從活動切進去後再用分類和篩選縮小範圍，操作會比現在直接掃整頁快很多。</p>
+          </div>
+        </div>
+      </div>
+
+      <div className="grid gap-5 md:grid-cols-2 xl:grid-cols-3">
         {system.visibleCampaigns.map((campaign) => (
-          <article key={campaign.id} className="glass-card p-5">
-            <div className="flex items-start justify-between gap-2">
-              <h3 className="text-lg font-bold text-slate-900">{campaign.title}</h3>
+          <article key={campaign.id} className="campaign-card">
+            <div className="campaign-card-top">
+              <p className="section-kicker">Campaign</p>
               <span className="state-pill bg-slate-100 text-slate-700">{releaseStageLabel(campaign.releaseStage)}</span>
             </div>
-            <p className="mt-2 text-sm text-slate-600">{campaign.description}</p>
-            <div className="mt-3 space-y-1 text-xs text-slate-500">
-              <p>截止：{formatDate(campaign.deadlineAt)}</p>
-              <p>釋出階段：{releaseStageLabel(campaign.releaseStage)}</p>
+            <h3 className="mt-4 text-2xl font-extrabold text-slate-900">{campaign.title}</h3>
+            <p className="mt-3 min-h-12 text-sm text-slate-600">{campaign.description || "尚未填寫活動描述。"}</p>
+            <div className="campaign-meta mt-4">
+              <div>
+                <p className="campaign-meta-label">截止時間</p>
+                <p className="campaign-meta-value">{formatDate(campaign.deadlineAt)}</p>
+              </div>
+              <div>
+                <p className="campaign-meta-label">目前釋出</p>
+                <p className="campaign-meta-value">{releaseStageLabel(campaign.releaseStage)}</p>
+              </div>
             </div>
             <button
               onClick={() => onOpenCampaign(campaign)}
-              className="mt-4 w-full rounded-xl bg-slate-900 px-4 py-2 text-sm font-semibold text-white hover:bg-slate-700"
+              className="cta-primary mt-6 w-full"
               type="button"
             >
               進入活動
@@ -285,50 +333,53 @@ function CampaignView(props: {
   }, [campaign.id, keyword, onlyAvailable, selectedSeriesProducts, sortBy, system]);
 
   return (
-    <section className="space-y-5">
-      <div className="glass-card p-5">
+    <section className="space-y-6">
+      <div className="hero-panel">
         <div className="flex flex-wrap items-center justify-between gap-2">
-          <button className="rounded-lg border px-3 py-1.5 text-sm" type="button" onClick={onBack}>返回活動導覽</button>
-          <button className="rounded-lg border px-3 py-1.5 text-sm" type="button" onClick={onGoCart}>前往購物車</button>
+          <button className="cta-secondary" type="button" onClick={onBack}>返回活動導覽</button>
+          <button className="cta-secondary" type="button" onClick={onGoCart}>前往購物車</button>
         </div>
 
-        <h2 className="mt-3 text-2xl font-extrabold text-slate-900">{campaign.title}</h2>
-        <p className="mt-2 text-sm text-slate-600">{campaign.description}</p>
+        <p className="section-kicker mt-6">Campaign Workspace</p>
+        <h2 className="mt-2 text-3xl font-extrabold text-slate-900">{campaign.title}</h2>
+        <p className="mt-3 max-w-3xl text-sm text-slate-600">{campaign.description}</p>
 
-        <div className="mt-3 flex flex-wrap gap-2 text-xs">
+        <div className="mt-4 flex flex-wrap gap-2 text-xs">
           <span className="state-pill bg-slate-100 text-slate-700">釋出：{releaseStageLabel(campaign.releaseStage)}</span>
           <span className="state-pill bg-slate-100 text-slate-700">截止：{formatDate(campaign.deadlineAt)}</span>
         </div>
-        <p className="mt-3 text-sm text-slate-700">先選系列，再用篩選快速找到可喊商品。</p>
+        <p className="mt-4 text-sm text-slate-700">左側先切分類與篩選，右側才看商品。這樣比把篩選器塞在商品上方更快。</p>
 
         {feedback && <p className="mt-3 text-sm font-semibold text-slate-800">{feedback}</p>}
       </div>
 
-      <div className="glass-card p-3">
-        <div className="flex flex-wrap gap-2">
-          {seriesGroups.map((group) => (
-            <button
-              key={group.series}
-              type="button"
-              className={`rounded-full border px-4 py-2 text-sm font-semibold ${
-                selectedSeries === group.series
-                  ? "border-slate-900 bg-slate-900 text-white"
-                  : "border-slate-200 bg-white text-slate-700"
-              }`}
-              onClick={() => setSelectedSeries(group.series)}
-            >
-              {group.series} ({group.products.length})
-            </button>
-          ))}
-        </div>
-      </div>
-
       <div className="grid gap-4 lg:grid-cols-[280px_minmax(0,1fr)]">
-        <aside className="glass-card p-4">
-          <h3 className="text-base font-bold text-slate-900">系列篩選</h3>
-          <p className="mt-1 text-xs text-slate-500">目前系列：{selectedSeries}</p>
+        <aside className="section-frame h-fit lg:sticky lg:top-6">
+          <div className="flex items-start justify-between gap-3">
+            <div>
+              <p className="section-kicker">Filter</p>
+              <h3 className="text-base font-bold text-slate-900">系列與篩選</h3>
+            </div>
+            <div className="rounded-full border border-slate-200 px-3 py-1 text-xs text-slate-500">
+              {visibleProducts.length} / {selectedSeriesProducts.length}
+            </div>
+          </div>
 
-          <div className="mt-3 space-y-3 text-sm">
+          <div className="series-rail mt-4">
+            {seriesGroups.map((group) => (
+              <button
+                key={group.series}
+                type="button"
+                className={selectedSeries === group.series ? "series-chip series-chip-active" : "series-chip"}
+                onClick={() => setSelectedSeries(group.series)}
+              >
+                <span>{group.series}</span>
+                <span className="text-xs opacity-75">{group.products.length}</span>
+              </button>
+            ))}
+          </div>
+
+          <div className="filter-panel mt-5 space-y-3 text-sm">
             <label className="block">
               搜尋關鍵字
               <input
@@ -362,14 +413,25 @@ function CampaignView(props: {
             </label>
           </div>
 
-          <div className="mt-4 rounded-xl border border-slate-200 bg-white/70 p-3 text-xs text-slate-600">
-            顯示 {visibleProducts.length} / {selectedSeriesProducts.length} 件
+          <div className="mt-5 rounded-2xl border border-slate-200 bg-white/60 p-4 text-xs text-slate-600">
+            <p className="font-semibold text-slate-800">選購提醒</p>
+            <p className="mt-2">一般商品固定全員可喊，盲盒商品請進拆分頁挑角色。</p>
           </div>
         </aside>
 
         <div className="space-y-3">
+          <div className="section-frame">
+            <p className="section-kicker">Series</p>
+            <div className="flex flex-wrap items-end justify-between gap-3">
+              <div>
+                <h3 className="text-2xl font-extrabold text-slate-900">{selectedSeries || "未選擇分類"}</h3>
+                <p className="mt-1 text-sm text-slate-600">商品已依可視條件整理完成，直接從這裡加入購物車或進入盲盒拆分。</p>
+              </div>
+            </div>
+          </div>
+
           {visibleProducts.length === 0 && (
-            <div className="glass-card p-5 text-sm text-slate-600">此系列目前沒有符合條件的商品。</div>
+            <div className="empty-panel">此系列目前沒有符合條件的商品。</div>
           )}
 
       <div className="grid gap-4 md:grid-cols-2 2xl:grid-cols-3">
@@ -381,19 +443,20 @@ function CampaignView(props: {
           const blindItemsCount = system.getBlindBoxItemsByProduct(product.id).length;
 
           return (
-            <article key={product.id} className="glass-card p-5">
+            <article key={product.id} className="product-stage-card">
               <ProductImage imageUrl={product.imageUrl} alt={product.name} />
 
-              <div className="mt-3 flex items-start justify-between gap-2">
+              <div className="mt-4 flex items-start justify-between gap-3">
                 <div>
                   <p className="text-xs text-slate-500">{product.sku}</p>
-                  <h3 className="text-base font-bold text-slate-900">{product.name}</h3>
+                  <h3 className="text-xl font-extrabold text-slate-900">{product.name}</h3>
                   <p className="text-xs text-slate-500">{product.series} / {productTypeLabel(product.type)}</p>
                 </div>
+                <span className="state-pill bg-slate-100 text-slate-700">{product.type === "NORMAL" ? "代購" : "拆分"}</span>
               </div>
 
-              <div className="mt-3 space-y-1 text-sm text-slate-600">
-                <p>單價：{twd(product.price)}</p>
+              <div className="mt-4 space-y-1 text-sm text-slate-600">
+                <p className="text-lg font-bold text-slate-900">{twd(product.price)}</p>
 
                 {product.type === "NORMAL" && (
                   <>
@@ -424,10 +487,10 @@ function CampaignView(props: {
                       const result = system.addToCart(campaign.id, product.id);
                       setFeedback(result.message);
                     }}
-                    className={`mt-4 w-full rounded-xl px-4 py-2 text-sm font-semibold ${
+                    className={`mt-5 w-full rounded-2xl px-4 py-3 text-sm font-semibold ${
                       normalAccess?.ok
-                        ? "bg-slate-900 text-white hover:bg-slate-700"
-                        : "cursor-not-allowed bg-slate-100 text-slate-500"
+                        ? "cta-primary"
+                        : "cursor-not-allowed rounded-2xl border border-slate-200 bg-slate-100 text-slate-500"
                     }`}
                   >
                     加入購物車
@@ -436,7 +499,7 @@ function CampaignView(props: {
               ) : (
                 <button
                   type="button"
-                  className="mt-4 w-full rounded-xl bg-slate-900 px-4 py-2 text-sm font-semibold text-white hover:bg-slate-700"
+                  className="cta-primary mt-5 w-full"
                   onClick={() => onOpenBlindBox(product)}
                 >
                   進入盲盒拆分
@@ -469,16 +532,17 @@ function BlindBoxView(props: {
   const cartMap = new Map(cartItems.map((item) => [item.blindBoxItemId ?? "", item.qty]));
 
   return (
-    <section className="space-y-5">
-      <div className="glass-card p-5">
+    <section className="space-y-6">
+      <div className="hero-panel">
         <div className="flex flex-wrap items-center justify-between gap-2">
-          <button className="rounded-lg border px-3 py-1.5 text-sm" type="button" onClick={onBack}>返回活動商品</button>
-          <button className="rounded-lg border px-3 py-1.5 text-sm" type="button" onClick={onGoCart}>前往購物車</button>
+          <button className="cta-secondary" type="button" onClick={onBack}>返回活動商品</button>
+          <button className="cta-secondary" type="button" onClick={onGoCart}>前往購物車</button>
         </div>
 
-        <h2 className="mt-3 text-2xl font-extrabold text-slate-900">{product.name}</h2>
-        <p className="mt-2 text-sm text-slate-600">盲盒子項拆分填單：依角色固位與活動釋出階段判定可否加入。</p>
-        <div className="mt-3 flex flex-wrap gap-2 text-xs">
+        <p className="section-kicker mt-6">Blind Box Split</p>
+        <h2 className="mt-2 text-3xl font-extrabold text-slate-900">{product.name}</h2>
+        <p className="mt-3 text-sm text-slate-600">這一頁才是真正要看固位的地方。會員是選角色子項，不是直接買母商品。</p>
+        <div className="mt-4 flex flex-wrap gap-2 text-xs">
           <span className="state-pill bg-slate-100 text-slate-700">
             {product.slotRestrictionEnabled ? "依子項角色固位排單" : "全員可喊"}
           </span>
@@ -487,7 +551,7 @@ function BlindBoxView(props: {
         {feedback && <p className="mt-3 text-sm font-semibold text-slate-800">{feedback}</p>}
       </div>
 
-      {items.length === 0 && <div className="glass-card p-5 text-sm text-slate-600">此盲盒尚未建立任何角色子項。</div>}
+      {items.length === 0 && <div className="empty-panel">此盲盒尚未建立任何角色子項。</div>}
 
       <div className="grid gap-4 md:grid-cols-2 xl:grid-cols-3">
         {items.map((item) => {
@@ -496,16 +560,16 @@ function BlindBoxView(props: {
           const inCartQty = cartMap.get(item.id) ?? 0;
 
           return (
-            <article key={item.id} className="glass-card p-5">
+            <article key={item.id} className="product-stage-card">
               <ProductImage imageUrl={item.imageUrl} alt={item.name} />
               <div className="mt-3">
                 <p className="text-xs text-slate-500">{item.sku}</p>
-                <h3 className="text-base font-bold text-slate-900">{item.name}</h3>
+                <h3 className="text-xl font-extrabold text-slate-900">{item.name}</h3>
                 <p className="text-sm text-slate-500">角色：{item.character}</p>
               </div>
 
               <div className="mt-3 space-y-1 text-sm text-slate-600">
-                <p>單價：{twd(calculateUnitPrice(product, item))}</p>
+                <p className="text-lg font-bold text-slate-900">{twd(calculateUnitPrice(product, item))}</p>
                 <p>你的角色固位：{myTier ? fixedTierLabel(myTier) : "未分配"}</p>
                 <p>子項庫存：{item.stock ?? "不限"}</p>
                 <p>子項上限：{item.maxPerUser ?? "不限"}</p>
@@ -523,10 +587,10 @@ function BlindBoxView(props: {
                   const result = system.addToCart(campaign.id, product.id, item.id);
                   setFeedback(result.message);
                 }}
-                className={`mt-4 w-full rounded-xl px-4 py-2 text-sm font-semibold ${
+                className={`mt-5 w-full rounded-2xl px-4 py-3 text-sm font-semibold ${
                   access.ok
-                    ? "bg-slate-900 text-white hover:bg-slate-700"
-                    : "cursor-not-allowed bg-slate-100 text-slate-500"
+                    ? "cta-primary"
+                    : "cursor-not-allowed rounded-2xl border border-slate-200 bg-slate-100 text-slate-500"
                 }`}
               >
                 加入購物車
@@ -572,15 +636,16 @@ function CartView(props: {
   }, [cartItems]);
 
   return (
-    <section className="space-y-5">
-      <div className="glass-card p-5">
+    <section className="space-y-6">
+      <div className="section-frame">
+        <p className="section-kicker">Cart</p>
         <h2 className="text-2xl font-extrabold text-slate-900">購物車</h2>
         <p className="mt-2 text-sm text-slate-600">單一商品或盲盒子項都可多件，且各自受上限與庫存限制。</p>
         {feedback && <p className="mt-2 text-sm font-semibold text-slate-800">{feedback}</p>}
       </div>
 
       {grouped.length === 0 && (
-        <div className="glass-card p-5 text-sm text-slate-600">購物車目前是空的，先去活動頁加入商品。</div>
+        <div className="empty-panel">購物車目前是空的，先去活動頁加入商品。</div>
       )}
 
       {grouped.map(([campaignId, items]) => {
@@ -593,7 +658,7 @@ function CartView(props: {
         }, 0);
 
         return (
-          <article key={campaignId} className="glass-card p-5">
+          <article key={campaignId} className="section-frame">
             <div className="flex flex-wrap items-center justify-between gap-2">
               <h3 className="text-lg font-bold text-slate-900">{campaign?.title ?? "未知活動"}</h3>
               <div className="flex gap-2">
@@ -627,7 +692,7 @@ function CartView(props: {
                 const character = blindItem?.character ?? product?.character ?? "-";
 
                 return (
-                  <div key={item.id} className="rounded-xl border border-slate-200 px-3 py-2">
+                  <div key={item.id} className="row-card">
                     <div className="flex items-center justify-between gap-3">
                       <div>
                         <p className="font-semibold text-slate-900">{title}</p>
@@ -714,14 +779,15 @@ function MeView(props: { system: UseOrderSystemReturn }): JSX.Element {
     : [];
 
   return (
-    <section className="space-y-5">
-      <div className="glass-card p-5">
+    <section className="space-y-6">
+      <div className="section-frame">
+        <p className="section-kicker">My Center</p>
         <h2 className="text-2xl font-extrabold text-slate-900">個人主頁</h2>
         <p className="mt-2 text-sm text-slate-600">這裡會看到你下過的單與目前喊單狀態。</p>
       </div>
 
       <div className="grid gap-5 lg:grid-cols-2">
-        <div className="glass-card p-5">
+        <div className="section-frame">
           <h3 className="text-lg font-bold text-slate-900">我的訂單</h3>
           <div className="mt-3 space-y-3">
             {orders.length === 0 && <p className="text-sm text-slate-500">尚無訂單。</p>}
@@ -729,7 +795,7 @@ function MeView(props: { system: UseOrderSystemReturn }): JSX.Element {
               const campaign = campaignById.get(order.campaignId);
               const items = system.getOrderItems(order.id);
               return (
-                <article key={order.id} className="rounded-xl border border-slate-200 p-3">
+                <article key={order.id} className="row-card">
                   <div className="flex flex-wrap items-center justify-between gap-2">
                     <p className="font-semibold text-slate-900">{campaign?.title ?? "未知活動"}</p>
                     <span className="state-pill bg-slate-100 text-slate-700">{orderStatusLabel[order.status]}</span>
@@ -752,7 +818,7 @@ function MeView(props: { system: UseOrderSystemReturn }): JSX.Element {
           </div>
         </div>
 
-        <div className="glass-card p-5">
+        <div className="section-frame">
           <h3 className="text-lg font-bold text-slate-900">我的喊單紀錄</h3>
           <div className="mt-3 space-y-2">
             {myClaims.length === 0 && <p className="text-sm text-slate-500">尚無喊單紀錄。</p>}
@@ -765,7 +831,7 @@ function MeView(props: { system: UseOrderSystemReturn }): JSX.Element {
                 : product?.name ?? "未知商品";
 
               return (
-                <article key={claim.id} className="rounded-xl border border-slate-200 px-3 py-2 text-sm">
+                <article key={claim.id} className="row-card text-sm">
                   <p className="font-semibold text-slate-900">{label}</p>
                   <p className="text-xs text-slate-500">{campaign?.title ?? "未知活動"} / {formatDate(claim.createdAt)}</p>
                   <p className="text-xs text-slate-600">{formatClaimPrioritySummary(product, claim.roleTier)}</p>
@@ -1190,13 +1256,13 @@ function AdminSettingsPanel(props: { system: UseOrderSystemReturn }): JSX.Elemen
 
   return (
     <section className="space-y-5">
-      <div className="glass-card p-5">
+      <div className="section-frame">
         <h2 className="text-2xl font-extrabold text-slate-900">活動設定（管理員）</h2>
         <p className="mt-2 text-sm text-slate-600">一般商品固定全員可喊，只有盲盒拆分商品才使用固位限制。價格全面改為手動設定。</p>
         {feedback && <p className="mt-2 text-sm font-semibold text-slate-800">{feedback}</p>}
       </div>
 
-      <section className="glass-card p-5">
+      <section className="section-frame">
         <div className="flex flex-wrap items-center justify-between gap-3">
           <div>
             <h3 className="text-lg font-bold text-slate-900">商品分類管理</h3>
@@ -1247,7 +1313,7 @@ function AdminSettingsPanel(props: { system: UseOrderSystemReturn }): JSX.Elemen
       </section>
 
       <section className="grid gap-5 xl:grid-cols-2">
-        <div className="glass-card p-5">
+        <div className="section-frame">
           <h3 className="text-lg font-bold text-slate-900">Supabase 設定</h3>
           <p className="mt-2 text-sm text-slate-600">
             目前狀態：{isSupabaseEnabled ? "已設定環境變數" : "未設定環境變數（目前使用 Local Demo）"}
@@ -1274,7 +1340,7 @@ function AdminSettingsPanel(props: { system: UseOrderSystemReturn }): JSX.Elemen
           {supabaseFeedback && <p className="mt-2 text-sm font-semibold text-slate-800">{supabaseFeedback}</p>}
         </div>
 
-        <div className="glass-card p-5">
+        <div className="section-frame">
           <h3 className="text-lg font-bold text-slate-900">表單匯入商品（批次）</h3>
           <p className="mt-2 text-sm text-slate-600">一般商品、盲盒母商品、盲盒子項分開匯入，可用 CSV 或 JSON。</p>
           <p className="mt-1 text-xs text-slate-500">{importModeDescription[importMode]}</p>
@@ -1345,7 +1411,7 @@ function AdminSettingsPanel(props: { system: UseOrderSystemReturn }): JSX.Elemen
       </section>
 
       <div className="grid gap-5 xl:grid-cols-2">
-        <section className="glass-card p-5">
+        <section className="section-frame">
           <h3 className="text-lg font-bold text-slate-900">新增活動</h3>
           <div className="mt-3 space-y-3 text-sm">
             <input
@@ -1404,7 +1470,7 @@ function AdminSettingsPanel(props: { system: UseOrderSystemReturn }): JSX.Elemen
           </div>
         </section>
 
-        <section className="glass-card p-5">
+        <section className="section-frame">
           <h3 className="text-lg font-bold text-slate-900">新增商品（含圖片）</h3>
           <div className="mt-3 space-y-3 text-sm">
             <label className="block">
@@ -1590,7 +1656,7 @@ function AdminSettingsPanel(props: { system: UseOrderSystemReturn }): JSX.Elemen
         </section>
       </div>
 
-      <section className="glass-card p-5">
+      <section className="section-frame">
         <h3 className="text-lg font-bold text-slate-900">新增盲盒角色子項（含圖片）</h3>
         <div className="mt-3 grid gap-3 text-sm md:grid-cols-2">
           <label className="block md:col-span-2">
@@ -1754,7 +1820,7 @@ function AdminSettingsPanel(props: { system: UseOrderSystemReturn }): JSX.Elemen
 
       <section className="grid gap-4 md:grid-cols-2 xl:grid-cols-3">
         {system.state.campaigns.map((campaign) => (
-          <article key={campaign.id} className="glass-card p-5">
+          <article key={campaign.id} className="campaign-card">
             <div className="flex items-start justify-between gap-2">
               <h3 className="text-lg font-bold text-slate-900">{campaign.title}</h3>
               <button
@@ -2133,55 +2199,68 @@ function AdminConsoleView(props: {
   }, [system.state.claims, system.state.orders, system.state.payments, system.state.shipments, system.state.users]);
 
   return (
-    <section className="space-y-5">
-      <div className="glass-card p-5">
-        <div className="flex flex-wrap items-center justify-between gap-2">
-          <div>
-            <h2 className="text-2xl font-extrabold text-slate-900">管理員後台（獨立頁）</h2>
-            <p className="mt-2 text-sm text-slate-600">你可以在這裡查看所有帳號、所有訂單，並執行完整團主管理操作。</p>
-          </div>
-          <button
-            type="button"
-            className="rounded-xl border border-slate-200 bg-white px-4 py-2 text-sm font-semibold text-slate-700"
-            onClick={onBackToShop}
-          >
-            返回商城頁
-          </button>
+    <section className="admin-shell">
+      <aside className="admin-sidebar">
+        <div>
+          <p className="section-kicker">Admin Console</p>
+          <h2 className="mt-2 text-2xl font-extrabold text-slate-900">團主工作台</h2>
+          <p className="mt-2 text-sm text-slate-600">後台現在改成控制台結構，導航、統計與主工作區分開，不再所有東西都堆在同一列按鈕下面。</p>
         </div>
-        {feedback && <p className="mt-3 text-sm font-semibold text-slate-800">{feedback}</p>}
-      </div>
 
-      <div className="glass-card p-3">
-        <div className="flex flex-wrap gap-2">
+        <button
+          type="button"
+          className="cta-secondary mt-4 w-full"
+          onClick={onBackToShop}
+        >
+          返回商城頁
+        </button>
+
+        <div className="mt-6 space-y-2">
           {adminTabs.map((item) => (
             <button
               key={item.id}
               type="button"
-              className={`rounded-full border px-4 py-2 text-sm font-semibold ${
-                activeTab === item.id ? "border-slate-900 bg-slate-900 text-white" : "border-slate-200 bg-white text-slate-700"
-              }`}
+              className={activeTab === item.id ? "admin-nav-button admin-nav-button-active" : "admin-nav-button"}
               onClick={() => onChangeTab(item.id)}
             >
               {item.label}
             </button>
           ))}
         </div>
-      </div>
 
-      {activeTab === "dashboard" && (
-        <section className="space-y-4">
-          <div className="grid gap-3 md:grid-cols-2 xl:grid-cols-4">
-            <div className="glass-card p-4"><p className="text-xs text-slate-500">帳號總數</p><p className="mt-1 text-2xl font-extrabold text-slate-900">{dashboardStats.users}</p></div>
-            <div className="glass-card p-4"><p className="text-xs text-slate-500">管理員</p><p className="mt-1 text-2xl font-extrabold text-slate-900">{dashboardStats.admins}</p></div>
-            <div className="glass-card p-4"><p className="text-xs text-slate-500">待審喊單</p><p className="mt-1 text-2xl font-extrabold text-slate-900">{dashboardStats.claimsLocked}</p></div>
-            <div className="glass-card p-4"><p className="text-xs text-slate-500">已確認喊單</p><p className="mt-1 text-2xl font-extrabold text-slate-900">{dashboardStats.claimsConfirmed}</p></div>
-            <div className="glass-card p-4"><p className="text-xs text-slate-500">訂單數</p><p className="mt-1 text-2xl font-extrabold text-slate-900">{dashboardStats.orders}</p></div>
-            <div className="glass-card p-4"><p className="text-xs text-slate-500">待對帳付款</p><p className="mt-1 text-2xl font-extrabold text-slate-900">{dashboardStats.paymentsPending}</p></div>
-            <div className="glass-card p-4"><p className="text-xs text-slate-500">物流筆數</p><p className="mt-1 text-2xl font-extrabold text-slate-900">{dashboardStats.shipments}</p></div>
-            <div className="glass-card p-4"><p className="text-xs text-slate-500">訂單總金額</p><p className="mt-1 text-2xl font-extrabold text-slate-900">{twd(dashboardStats.totalOrderAmount)}</p></div>
+        <div className="mt-6 grid gap-3">
+          <InsightTile label="待審喊單" value={dashboardStats.claimsLocked} detail="優先處理" accent="rose" />
+          <InsightTile label="訂單總額" value={twd(dashboardStats.totalOrderAmount)} detail={`${dashboardStats.orders} 筆訂單`} accent="sky" />
+          <InsightTile label="會員數" value={dashboardStats.users} detail={`其中管理員 ${dashboardStats.admins} 位`} accent="amber" />
+        </div>
+      </aside>
+
+      <div className="space-y-5">
+        <div className="section-frame">
+          <p className="section-kicker">Active Panel</p>
+          <div className="flex flex-wrap items-end justify-between gap-3">
+            <div>
+              <h3 className="text-2xl font-extrabold text-slate-900">{adminTabs.find((item) => item.id === activeTab)?.label ?? "管理後台"}</h3>
+              <p className="mt-1 text-sm text-slate-600">你可以在這裡查看所有帳號、所有訂單，並執行完整團主管理操作。</p>
+            </div>
           </div>
+          {feedback && <p className="mt-3 text-sm font-semibold text-slate-800">{feedback}</p>}
+        </div>
 
-          <div className="glass-card p-5">
+        {activeTab === "dashboard" && (
+          <section className="space-y-4">
+            <div className="grid gap-3 md:grid-cols-2 xl:grid-cols-4">
+              <InsightTile label="帳號總數" value={dashboardStats.users} accent="violet" />
+              <InsightTile label="管理員" value={dashboardStats.admins} accent="amber" />
+              <InsightTile label="待審喊單" value={dashboardStats.claimsLocked} accent="rose" />
+              <InsightTile label="已確認喊單" value={dashboardStats.claimsConfirmed} accent="sky" />
+              <InsightTile label="訂單數" value={dashboardStats.orders} accent="violet" />
+              <InsightTile label="待對帳付款" value={dashboardStats.paymentsPending} accent="rose" />
+              <InsightTile label="物流筆數" value={dashboardStats.shipments} accent="amber" />
+              <InsightTile label="訂單總金額" value={twd(dashboardStats.totalOrderAmount)} accent="sky" />
+            </div>
+
+          <div className="section-frame">
             <h3 className="text-lg font-bold text-slate-900">最近付款（總覽快速對帳）</h3>
             <div className="mt-4 space-y-3">
               {recentPayments.length === 0 && <p className="text-sm text-slate-500">目前沒有付款資料。</p>}
@@ -2189,7 +2268,7 @@ function AdminConsoleView(props: {
                 const campaign = campaignById.get(payment.campaignId);
                 const user = userById.get(payment.userId);
                 return (
-                  <article key={payment.id} className="rounded-xl border border-slate-200 p-4">
+                  <article key={payment.id} className="row-card">
                     <div className="flex flex-wrap items-start justify-between gap-3">
                       <div>
                         <p className="text-base font-bold text-slate-900">{campaign?.title ?? "未知活動"}</p>
@@ -2217,16 +2296,16 @@ function AdminConsoleView(props: {
               })}
             </div>
           </div>
-        </section>
-      )}
+          </section>
+        )}
 
-      {activeTab === "members" && (
-        <section className="glass-card p-5">
+        {activeTab === "members" && (
+          <section className="section-frame">
           <h3 className="text-lg font-bold text-slate-900">帳號總覽</h3>
           <p className="mt-1 text-sm text-slate-600">可直接調整管理員權限與取貨率，並檢視每位會員訂單表現。</p>
           <div className="mt-4 space-y-3">
             {memberRows.map(({ user, orderCount, orderTotal, pendingClaims, slotSummary }) => (
-              <article key={user.id} className="rounded-xl border border-slate-200 p-4">
+              <article key={user.id} className="row-card">
                 <div className="flex flex-wrap items-start justify-between gap-3">
                   <div>
                     <p className="text-base font-bold text-slate-900">{user.fbNickname}</p>
@@ -2283,10 +2362,10 @@ function AdminConsoleView(props: {
             ))}
           </div>
         </section>
-      )}
+        )}
 
-      {activeTab === "claims" && (
-        <section className="glass-card p-5">
+        {activeTab === "claims" && (
+          <section className="section-frame">
           <h3 className="text-lg font-bold text-slate-900">全站喊單總表</h3>
           <p className="mt-1 text-sm text-slate-600">可篩選所有喊單並快速確認/取消。</p>
           <div className="mt-3 grid gap-3 md:grid-cols-4">
@@ -2341,7 +2420,7 @@ function AdminConsoleView(props: {
               const stock = claim.blindBoxItemId ? (blindItem?.stock ?? null) : (product?.stock ?? null);
 
               return (
-                <article key={claim.id} className="rounded-xl border border-slate-200 p-4">
+                <article key={claim.id} className="row-card">
                   <div className="flex flex-wrap items-start justify-between gap-3">
                     <div>
                       <p className="text-base font-bold text-slate-900">{label}</p>
@@ -2383,10 +2462,10 @@ function AdminConsoleView(props: {
             })}
           </div>
         </section>
-      )}
+        )}
 
-      {activeTab === "orders" && (
-        <section className="glass-card p-5">
+        {activeTab === "orders" && (
+          <section className="section-frame">
           <h3 className="text-lg font-bold text-slate-900">全站訂單</h3>
           <div className="mt-4 space-y-3">
             {allOrders.length === 0 && <p className="text-sm text-slate-500">目前沒有訂單。</p>}
@@ -2395,7 +2474,7 @@ function AdminConsoleView(props: {
               const user = userById.get(order.userId);
               const items = orderItemsByOrderId.get(order.id) ?? [];
               return (
-                <article key={order.id} className="rounded-xl border border-slate-200 p-4">
+                <article key={order.id} className="row-card">
                   <div className="flex flex-wrap items-start justify-between gap-3">
                     <div>
                       <p className="text-base font-bold text-slate-900">{campaign?.title ?? "未知活動"}</p>
@@ -2437,11 +2516,11 @@ function AdminConsoleView(props: {
             })}
           </div>
         </section>
-      )}
+        )}
 
-      {activeTab === "shipping" && (
-        <section className="space-y-4">
-          <div className="glass-card p-5">
+        {activeTab === "shipping" && (
+          <section className="space-y-4">
+            <div className="section-frame">
             <h3 className="text-lg font-bold text-slate-900">物流與賣貨便匯出</h3>
             <div className="mt-3 flex flex-wrap items-center gap-2">
               <select
@@ -2468,7 +2547,7 @@ function AdminConsoleView(props: {
             </div>
           </div>
 
-          <div className="glass-card p-5">
+          <div className="section-frame">
             <h3 className="text-lg font-bold text-slate-900">物流資料清單</h3>
             <div className="mt-4 space-y-3">
               {allShipments.length === 0 && <p className="text-sm text-slate-500">目前沒有物流資料。</p>}
@@ -2476,7 +2555,7 @@ function AdminConsoleView(props: {
                 const campaign = campaignById.get(shipment.campaignId);
                 const user = userById.get(shipment.userId);
                 return (
-                  <article key={shipment.id} className="rounded-xl border border-slate-200 p-4">
+                  <article key={shipment.id} className="row-card">
                     <p className="text-base font-bold text-slate-900">{campaign?.title ?? "未知活動"}</p>
                     <p className="text-xs text-slate-500">
                       會員：{user?.fbNickname ?? "未知會員"} / 付款：{paymentLabel[shipment.paymentMethod]} / 可 COD：{shipment.canUseCod ? "是" : "否"}
@@ -2490,9 +2569,10 @@ function AdminConsoleView(props: {
             </div>
           </div>
         </section>
-      )}
+        )}
 
-      {activeTab === "settings" && <AdminSettingsPanel system={system} />}
+        {activeTab === "settings" && <AdminSettingsPanel system={system} />}
+      </div>
     </section>
   );
 }
@@ -2554,6 +2634,11 @@ export default function App(): JSX.Element {
     if (!userId) return "未分配";
     return formatCharacterSlotSummary(system.state.characterSlots.filter((slot) => slot.userId === userId));
   }, [system.currentUser?.id, system.state.characterSlots]);
+  const headerCartCount = system.getMyCartItems().reduce((sum, item) => sum + item.qty, 0);
+  const headerOrderCount = system.getMyOrders().length;
+  const headerPendingClaims = system.currentUser
+    ? system.state.claims.filter((claim) => claim.userId === system.currentUser?.id && claim.status === "LOCKED").length
+    : 0;
 
   const navigateRoot = (route: RootRoute): void => {
     window.location.hash = route === "admin" ? "/admin" : "/";
@@ -2582,30 +2667,37 @@ export default function App(): JSX.Element {
           <motion.header
             initial={{ opacity: 0, y: 8 }}
             animate={{ opacity: 1, y: 0 }}
-            className="glass-card p-5"
+            className="hero-panel"
           >
-            <div className="flex flex-wrap items-start justify-between gap-4">
+            <div className="hero-grid">
               <div>
-                <p className="text-xs font-semibold uppercase tracking-[0.2em] text-slate-500">Tsukuyomi Admin Cosmos</p>
-                <h1 className="mt-1 text-3xl font-extrabold text-slate-900">超時空輝耀姬・管理後台</h1>
-                <p className="mt-2 text-sm text-slate-600">登入帳號：{system.currentUser.fbNickname}（{system.currentUser.email}）</p>
+                <p className="section-kicker">Tsukuyomi Admin Cosmos</p>
+                <h1 className="mt-2 text-4xl font-extrabold text-slate-900">超時空輝耀姬・管理後台</h1>
+                <p className="mt-3 text-sm text-slate-600">登入帳號：{system.currentUser.fbNickname}（{system.currentUser.email}）</p>
                 <p className="text-xs text-slate-500">資料模式：{isSupabaseEnabled ? "Supabase 遠端資料模式" : "Demo Local 模式"}</p>
               </div>
-              <div className="flex flex-wrap items-center gap-2">
-                <button
-                  type="button"
-                  className="rounded-xl border border-slate-200 bg-white px-4 py-2 text-sm font-semibold text-slate-700"
-                  onClick={() => navigateRoot("shop")}
-                >
-                  前往商城頁
-                </button>
-                <button
-                  onClick={system.logout}
-                  className="rounded-xl border border-rose-300 bg-rose-50 px-4 py-2 text-sm font-semibold text-rose-700"
-                  type="button"
-                >
-                  登出
-                </button>
+              <div className="space-y-3">
+                <div className="action-nav justify-end">
+                  <button
+                    type="button"
+                    className="nav-chip"
+                    onClick={() => navigateRoot("shop")}
+                  >
+                    前往商城頁
+                  </button>
+                  <button
+                    onClick={system.logout}
+                    className="nav-chip nav-chip-danger"
+                    type="button"
+                  >
+                    登出
+                  </button>
+                </div>
+                <div className="grid gap-3 sm:grid-cols-3">
+                  <InsightTile label="會員數" value={system.state.users.length} accent="violet" />
+                  <InsightTile label="待審喊單" value={system.state.claims.filter((claim) => claim.status === "LOCKED").length} accent="rose" />
+                  <InsightTile label="訂單數" value={system.state.orders.length} accent="sky" />
+                </div>
               </div>
             </div>
           </motion.header>
@@ -2618,12 +2710,12 @@ export default function App(): JSX.Element {
               onChangeTab={navigateAdminTab}
             />
           ) : (
-            <div className="glass-card p-5 text-sm text-slate-600">
+            <div className="section-frame text-sm text-slate-600">
               <p>你目前沒有管理員權限，無法進入後台。</p>
               <div className="mt-3 flex flex-wrap gap-2">
                 <button
                   type="button"
-                  className="rounded-lg border border-slate-300 bg-white px-3 py-1 text-xs font-semibold text-slate-700 hover:bg-slate-50"
+                  className="cta-secondary"
                   onClick={async () => {
                     const result = await system.refreshCurrentUserAdminFlag();
                     setPermissionSyncFeedback(result.message);
@@ -2633,7 +2725,7 @@ export default function App(): JSX.Element {
                 </button>
                 <button
                   type="button"
-                  className="rounded-lg border border-slate-200 bg-white px-3 py-1 text-xs font-semibold text-slate-700"
+                  className="cta-secondary"
                   onClick={() => navigateRoot("shop")}
                 >
                   回到商城
@@ -2653,13 +2745,13 @@ export default function App(): JSX.Element {
         <motion.header
           initial={{ opacity: 0, y: 8 }}
           animate={{ opacity: 1, y: 0 }}
-          className="glass-card p-5"
+          className="hero-panel"
         >
-          <div className="flex flex-wrap items-start justify-between gap-4">
+          <div className="hero-grid">
             <div>
-              <p className="text-xs font-semibold uppercase tracking-[0.2em] text-slate-500">Tsukuyomi Order Cosmos</p>
-              <h1 className="mt-1 text-3xl font-extrabold text-slate-900">超時空輝耀姬・活動導覽與拆分系統</h1>
-              <p className="mt-2 text-sm text-slate-600">你好，{system.currentUser.fbNickname}（{system.currentUser.email}）</p>
+              <p className="section-kicker">Tsukuyomi Order Cosmos</p>
+              <h1 className="mt-2 text-4xl font-extrabold text-slate-900">超時空輝耀姬・活動導覽與拆分系統</h1>
+              <p className="mt-3 text-sm text-slate-600">你好，{system.currentUser.fbNickname}（{system.currentUser.email}）</p>
               <p className="text-xs text-slate-500">
                 身分：{system.currentUser.isAdmin ? "管理員" : "會員"} / 角色固位：{currentUserSlotSummary} / 取貨率：
                 {system.currentUser.pickupRate}%
@@ -2684,7 +2776,14 @@ export default function App(): JSX.Element {
               )}
             </div>
 
-            <HeaderNav currentView={view} setView={setView} system={system} onGoAdmin={() => navigateAdminTab("dashboard")} />
+            <div className="space-y-3">
+              <HeaderNav currentView={view} setView={setView} system={system} onGoAdmin={() => navigateAdminTab("dashboard")} />
+              <div className="grid gap-3 sm:grid-cols-3">
+                <InsightTile label="可進活動" value={system.visibleCampaigns.length} accent="violet" />
+                <InsightTile label="購物車" value={headerCartCount} detail={`${headerOrderCount} 筆訂單`} accent="sky" />
+                <InsightTile label="待審喊單" value={headerPendingClaims} detail={`固位摘要：${currentUserSlotSummary}`} accent="rose" />
+              </div>
+            </div>
           </div>
         </motion.header>
 
@@ -2723,11 +2822,11 @@ export default function App(): JSX.Element {
         )}
 
         {view === "campaign" && !selectedCampaign && (
-          <div className="glass-card p-5 text-sm text-slate-600">請先從大主頁選擇活動。</div>
+          <div className="empty-panel">請先從大主頁選擇活動。</div>
         )}
 
         {view === "blindBox" && (!selectedCampaign || !selectedBlindProduct) && (
-          <div className="glass-card p-5 text-sm text-slate-600">請先從活動頁進入盲盒商品。</div>
+          <div className="empty-panel">請先從活動頁進入盲盒商品。</div>
         )}
 
         {view === "cart" && (

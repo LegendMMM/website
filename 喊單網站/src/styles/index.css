@@ -135,6 +135,212 @@ body {
   background-image: radial-gradient(circle at center, rgba(255, 255, 255, 0.16) 1px, transparent 1px);
 }
 
+.hero-panel {
+  @apply rounded-[2rem] border p-6 shadow-card;
+  border-color: rgba(236, 223, 255, 0.24);
+  background:
+    radial-gradient(circle at top right, rgba(147, 222, 255, 0.16), transparent 30%),
+    radial-gradient(circle at left top, rgba(255, 163, 222, 0.14), transparent 28%),
+    linear-gradient(145deg, rgba(31, 26, 61, 0.94), rgba(16, 17, 38, 0.9));
+  position: relative;
+  overflow: hidden;
+}
+
+.hero-panel::before {
+  content: "";
+  position: absolute;
+  inset: auto -8% -35% auto;
+  width: 260px;
+  height: 260px;
+  border-radius: 9999px;
+  background: radial-gradient(circle, rgba(151, 232, 255, 0.16), transparent 62%);
+  pointer-events: none;
+}
+
+.hero-grid {
+  @apply grid gap-6 lg:grid-cols-[minmax(0,1.35fr)_minmax(320px,0.85fr)] items-start;
+}
+
+.section-frame {
+  @apply rounded-[1.75rem] border p-5 shadow-card;
+  border-color: rgba(232, 220, 255, 0.2);
+  background:
+    linear-gradient(180deg, rgba(24, 25, 52, 0.9), rgba(15, 16, 34, 0.86));
+  backdrop-filter: blur(14px);
+}
+
+.section-kicker {
+  @apply text-xs font-semibold uppercase tracking-[0.24em];
+  color: #bfb5e9;
+}
+
+.action-nav {
+  @apply flex flex-wrap items-center gap-2;
+}
+
+.nav-chip {
+  @apply rounded-full border px-4 py-2 text-sm font-semibold;
+  border-color: rgba(232, 220, 255, 0.2);
+  background: rgba(18, 21, 44, 0.72);
+  color: #e5def8;
+}
+
+.nav-chip-active {
+  border-color: rgba(255, 232, 249, 0.46);
+  background: linear-gradient(100deg, rgba(247, 217, 255, 0.95), rgba(186, 203, 255, 0.95), rgba(151, 232, 255, 0.92));
+  color: #160f31;
+}
+
+.nav-chip-danger {
+  border-color: rgba(255, 174, 224, 0.32);
+  background: rgba(97, 34, 72, 0.28);
+  color: #ffe1f5;
+}
+
+.cta-primary {
+  @apply rounded-2xl px-4 py-3 text-sm font-semibold;
+  background: linear-gradient(100deg, rgba(247, 217, 255, 0.95), rgba(186, 203, 255, 0.95), rgba(151, 232, 255, 0.92));
+  color: #160f31;
+  border: 1px solid rgba(255, 236, 249, 0.46);
+  box-shadow: 0 18px 35px -22px rgba(145, 203, 255, 0.65);
+}
+
+.cta-secondary {
+  @apply rounded-2xl border px-4 py-3 text-sm font-semibold;
+  border-color: rgba(232, 220, 255, 0.2);
+  background: rgba(18, 21, 44, 0.72);
+  color: #e5def8;
+}
+
+.insight-tile {
+  @apply rounded-[1.5rem] border p-4;
+  border-color: rgba(236, 223, 255, 0.18);
+  background: linear-gradient(180deg, rgba(255, 255, 255, 0.06), rgba(255, 255, 255, 0.02));
+}
+
+.insight-label {
+  @apply text-xs font-semibold uppercase tracking-[0.2em];
+  color: #b9b0df;
+}
+
+.insight-value {
+  @apply mt-2 text-2xl font-extrabold;
+  color: #faf7ff;
+}
+
+.insight-detail {
+  @apply mt-1 text-xs;
+  color: #b8b1d8;
+}
+
+.insight-violet {
+  box-shadow: inset 0 0 0 1px rgba(206, 189, 255, 0.08), 0 20px 35px -28px rgba(164, 134, 255, 0.52);
+}
+
+.insight-sky {
+  box-shadow: inset 0 0 0 1px rgba(183, 227, 255, 0.08), 0 20px 35px -28px rgba(109, 207, 255, 0.45);
+}
+
+.insight-rose {
+  box-shadow: inset 0 0 0 1px rgba(255, 188, 227, 0.08), 0 20px 35px -28px rgba(255, 121, 185, 0.42);
+}
+
+.insight-amber {
+  box-shadow: inset 0 0 0 1px rgba(255, 218, 167, 0.08), 0 20px 35px -28px rgba(255, 195, 95, 0.36);
+}
+
+.campaign-card {
+  @apply rounded-[1.75rem] border p-5 shadow-card;
+  border-color: rgba(236, 223, 255, 0.2);
+  background:
+    linear-gradient(180deg, rgba(26, 28, 58, 0.94), rgba(16, 17, 36, 0.9));
+}
+
+.campaign-card-top {
+  @apply flex items-start justify-between gap-3;
+}
+
+.campaign-meta {
+  @apply grid gap-3 sm:grid-cols-2;
+}
+
+.campaign-meta-label {
+  @apply text-[11px] font-semibold uppercase tracking-[0.18em];
+  color: #a7a0c9;
+}
+
+.campaign-meta-value {
+  @apply mt-1 text-sm font-semibold;
+  color: #f5efff;
+}
+
+.series-rail {
+  @apply flex flex-col gap-2;
+}
+
+.series-chip {
+  @apply flex items-center justify-between rounded-2xl border px-4 py-3 text-left text-sm font-semibold;
+  border-color: rgba(232, 220, 255, 0.18);
+  background: rgba(21, 22, 44, 0.64);
+  color: #ddd7f7;
+}
+
+.series-chip-active {
+  border-color: rgba(255, 232, 249, 0.44);
+  background: linear-gradient(100deg, rgba(247, 217, 255, 0.95), rgba(186, 203, 255, 0.95), rgba(151, 232, 255, 0.92));
+  color: #160f31;
+}
+
+.filter-panel {
+  @apply rounded-[1.5rem] border p-4;
+  border-color: rgba(232, 220, 255, 0.18);
+  background: rgba(19, 20, 42, 0.7);
+}
+
+.product-stage-card {
+  @apply rounded-[1.75rem] border p-5 shadow-card;
+  border-color: rgba(236, 223, 255, 0.18);
+  background:
+    linear-gradient(180deg, rgba(28, 30, 61, 0.94), rgba(17, 18, 38, 0.88));
+}
+
+.empty-panel {
+  @apply rounded-[1.75rem] border px-5 py-8 text-sm;
+  border-color: rgba(232, 220, 255, 0.18);
+  background: rgba(15, 16, 34, 0.8);
+  color: #c9c3e7;
+}
+
+.admin-shell {
+  @apply grid gap-5 xl:grid-cols-[280px_minmax(0,1fr)];
+}
+
+.admin-sidebar {
+  @apply rounded-[1.75rem] border p-5 shadow-card h-fit xl:sticky xl:top-6;
+  border-color: rgba(236, 223, 255, 0.2);
+  background:
+    linear-gradient(180deg, rgba(26, 27, 57, 0.94), rgba(16, 17, 36, 0.9));
+}
+
+.admin-nav-button {
+  @apply w-full rounded-2xl border px-4 py-3 text-left text-sm font-semibold;
+  border-color: rgba(232, 220, 255, 0.18);
+  background: rgba(21, 22, 44, 0.64);
+  color: #ddd7f7;
+}
+
+.admin-nav-button-active {
+  border-color: rgba(255, 232, 249, 0.44);
+  background: linear-gradient(100deg, rgba(247, 217, 255, 0.95), rgba(186, 203, 255, 0.95), rgba(151, 232, 255, 0.92));
+  color: #160f31;
+}
+
+.row-card {
+  @apply rounded-[1.4rem] border p-4;
+  border-color: rgba(232, 220, 255, 0.18);
+  background: rgba(19, 20, 42, 0.68);
+}
+
 button {
   transition: all 0.22s ease;
 }
