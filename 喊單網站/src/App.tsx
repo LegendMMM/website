@@ -32,7 +32,7 @@ import {
 import { calculateUnitPrice } from "./lib/business-rules";
 import { downloadTextFile } from "./lib/download";
 import { upsertCampaigns, upsertProfiles } from "./lib/supabase-sync";
-import { isSupabaseEnabled, supabase, testSupabaseConnection, uploadImageToSupabaseStorage } from "./lib/supabase";
+import { isSupabaseEnabled, prepareImageForUpload, supabase, testSupabaseConnection, uploadImageToSupabaseStorage } from "./lib/supabase";
 import type {
   Campaign,
   CharacterName,
@@ -1293,37 +1293,49 @@ function AdminSettingsPanel(props: { system: UseOrderSystemReturn }): JSX.Elemen
   const resolveImageUrlForSubmit = async (
     file: File | null,
     manualUrl: string,
-    folder: "products" | "blind-items",
+  folder: "products" | "blind-items",
   ): Promise<{ ok: boolean; imageUrl: string | null; note: string }> => {
     const normalizedUrl = manualUrl.trim();
     if (!file) {
       return { ok: true, imageUrl: normalizedUrl || null, note: "" };
     }
 
-    if (!file.type.startsWith("image/")) {
-      return { ok: false, imageUrl: null, note: "只能上傳圖片檔。" };
+    const prepared = await prepareImageForUpload(file);
+    if (!prepared.ok) {
+      return { ok: false, imageUrl: null, note: prepared.message };
     }
 
-    if (file.size > 4 * 1024 * 1024) {
-      return { ok: false, imageUrl: null, note: "圖片請控制在 4MB 內。" };
+    if (prepared.file.size > 4 * 1024 * 1024) {
+      return { ok: false, imageUrl: null, note: `${prepared.message} 圖片處理後仍超過 4MB，請換一張更小的圖。` };
     }
 
     if (isSupabaseEnabled) {
-      const uploaded = await uploadImageToSupabaseStorage(file, folder);
+      const uploaded = await uploadImageToSupabaseStorage(prepared.file, folder);
       if (uploaded.ok) {
-        return { ok: true, imageUrl: uploaded.url, note: uploaded.message };
+        return {
+          ok: true,
+          imageUrl: uploaded.url,
+          note: [prepared.message, uploaded.message].filter(Boolean).join(" "),
+        };
       }
 
-      const embeddedUrl = await readFileAsDataUrl(file);
+      const embeddedUrl = await readFileAsDataUrl(prepared.file);
       return {
         ok: true,
         imageUrl: embeddedUrl,
-        note: `Supabase Storage 上傳失敗：${uploaded.message}。已改用嵌入式圖片。`,
+        note: [
+          prepared.message,
+          `Supabase Storage 上傳失敗：${uploaded.message}。已改用嵌入式圖片。`,
+        ].filter(Boolean).join(" "),
       };
     }
 
-    const embeddedUrl = await readFileAsDataUrl(file);
-    return { ok: true, imageUrl: embeddedUrl, note: "目前使用本地嵌入式圖片。" };
+    const embeddedUrl = await readFileAsDataUrl(prepared.file);
+    return {
+      ok: true,
+      imageUrl: embeddedUrl,
+      note: [prepared.message, "目前使用本地嵌入式圖片。"].filter(Boolean).join(" "),
+    };
   };
 
   const handleCreateProduct = async () => {
