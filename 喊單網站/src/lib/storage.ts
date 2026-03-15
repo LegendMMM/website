@@ -5,6 +5,10 @@ import type { CharacterTier, OrderSystemState, ProductSeries, ProductType } from
 
 const deepClone = <T>(value: T): T => JSON.parse(JSON.stringify(value));
 
+interface LoadStateOptions {
+  fallbackToSeed?: boolean;
+}
+
 function normalizeCharacterTier(value: unknown): CharacterTier | null {
   if (value === "FIXED_1" || value === "FIXED_2" || value === "FIXED_3" || value === "LEAK_PICK") {
     return value;
@@ -31,8 +35,12 @@ function normalizeNickname(value: unknown): string {
   return typeof value === "string" ? value.trim() : "";
 }
 
-function normalizeState(raw: unknown): OrderSystemState {
-  const fallback = deepClone(seedState);
+function resolveFallbackState(options: LoadStateOptions = {}): OrderSystemState {
+  return options.fallbackToSeed === false ? createEmptyState() : deepClone(seedState);
+}
+
+function normalizeState(raw: unknown, options: LoadStateOptions = {}): OrderSystemState {
+  const fallback = resolveFallbackState(options);
   if (!raw || typeof raw !== "object") return fallback;
 
   type LegacyProductRecord = Record<string, unknown> & {
@@ -180,14 +188,14 @@ function normalizeState(raw: unknown): OrderSystemState {
   };
 }
 
-export function loadState(): OrderSystemState {
+export function loadState(options: LoadStateOptions = {}): OrderSystemState {
   const raw = localStorage.getItem(STORAGE_KEY);
-  if (!raw) return deepClone(seedState);
+  if (!raw) return resolveFallbackState(options);
 
   try {
-    return normalizeState(JSON.parse(raw));
+    return normalizeState(JSON.parse(raw), options);
   } catch {
-    return deepClone(seedState);
+    return resolveFallbackState(options);
   }
 }
 

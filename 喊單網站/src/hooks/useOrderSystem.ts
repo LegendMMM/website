@@ -131,6 +131,8 @@ interface BlindBoxItemRuleUpdateInput {
 export interface UseOrderSystemReturn {
   state: OrderSystemState;
   currentUser: UserProfile | null;
+  isHydratingState: boolean;
+  hasStoredSession: boolean;
   visibleCampaigns: Campaign[];
   login: (identifier: string) => ActionResult;
   register: (input: RegisterInput) => ActionResult;
@@ -234,7 +236,7 @@ function logSupabaseSyncError(context: string, error: unknown): void {
 }
 
 export function useOrderSystem(): UseOrderSystemReturn {
-  const [state, setState] = useState<OrderSystemState>(() => (supabase ? createEmptyState() : loadState()));
+  const [state, setState] = useState<OrderSystemState>(() => loadState({ fallbackToSeed: !supabase }));
   const [sessionUserId, setSessionUserId] = useState<string | null>(() => loadSessionUserId());
   const [stateHydrated, setStateHydrated] = useState<boolean>(() => !supabase);
 
@@ -261,7 +263,6 @@ export function useOrderSystem(): UseOrderSystemReturn {
       .catch((error) => {
         logSupabaseSyncError("load initial state", error);
         if (cancelled) return;
-        setState(createEmptyState());
         setStateHydrated(true);
       });
 
@@ -274,6 +275,14 @@ export function useOrderSystem(): UseOrderSystemReturn {
     () => state.users.find((user) => user.id === sessionUserId) ?? null,
     [sessionUserId, state.users],
   );
+  const isHydratingState = Boolean(supabase) && !stateHydrated;
+  const hasStoredSession = sessionUserId !== null;
+
+  useEffect(() => {
+    if (!stateHydrated || !sessionUserId) return;
+    if (state.users.some((user) => user.id === sessionUserId)) return;
+    setSessionUserId(null);
+  }, [sessionUserId, state.users, stateHydrated]);
 
   const runSupabaseWrite = useCallback((context: string, job: () => Promise<void>) => {
     if (!supabase) return;
@@ -2036,6 +2045,8 @@ export function useOrderSystem(): UseOrderSystemReturn {
   return {
     state,
     currentUser,
+    isHydratingState,
+    hasStoredSession,
     visibleCampaigns,
     login,
     register,

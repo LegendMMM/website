@@ -494,7 +494,10 @@ function CampaignView(props: {
 
                 {product.type === "BLIND_BOX" && (
                   <>
-                    <p>購買方式：盲盒拆分，依子項角色判斷固位</p>
+                    <p>
+                      購買方式：盲盒拆分，
+                      {product.slotRestrictionEnabled ? "依子項角色判斷固位" : "此盲盒目前全員可喊"}
+                    </p>
                     <p>盲盒子項：{blindItemsCount} 項（進入拆分頁挑角色）</p>
                   </>
                 )}
@@ -570,9 +573,11 @@ function BlindBoxView(props: {
         <p className="mt-3 text-sm text-slate-600">這一頁才是真正要看固位的地方。會員是選角色子項，不是直接買母商品。</p>
         <div className="mt-4 flex flex-wrap gap-2 text-xs">
           <span className="state-pill bg-slate-100 text-slate-700">
-            {product.slotRestrictionEnabled ? "依子項角色固位排單" : "全員可喊"}
+            {product.slotRestrictionEnabled ? "此盲盒啟用固位限制" : "此盲盒全員可喊"}
           </span>
-          <span className="state-pill bg-slate-100 text-slate-700">活動釋出：{releaseStageLabel(campaign.releaseStage)}</span>
+          {product.slotRestrictionEnabled && (
+            <span className="state-pill bg-slate-100 text-slate-700">活動釋出：{releaseStageLabel(campaign.releaseStage)}</span>
+          )}
         </div>
         {feedback && <p className="mt-3 text-sm font-semibold text-slate-800">{feedback}</p>}
       </div>
@@ -602,13 +607,19 @@ function BlindBoxView(props: {
 
               <div className="meta-chip-row">
                 <span className="meta-chip">{item.character}</span>
-                <span className="meta-chip">固位 {myTier ? fixedTierLabel(myTier) : "未分配"}</span>
+                <span className="meta-chip">
+                  {product.slotRestrictionEnabled ? `固位 ${myTier ? fixedTierLabel(myTier) : "未分配"}` : "全員可喊"}
+                </span>
                 <span className="meta-chip">庫存 {item.stock ?? "不限"}</span>
                 <span className="meta-chip">上限 {item.maxPerUser ?? "不限"}</span>
               </div>
 
               <div className="mt-3 space-y-1 text-sm text-slate-600">
-                <p>你的角色固位：{myTier ? fixedTierLabel(myTier) : "未分配"}</p>
+                <p>
+                  {product.slotRestrictionEnabled
+                    ? `你的角色固位：${myTier ? fixedTierLabel(myTier) : "未分配"}`
+                    : "這個盲盒商品未啟用固位限制。"}
+                </p>
                 <p>你已加入：{inCartQty}</p>
               </div>
 
@@ -887,7 +898,6 @@ function AdminSettingsPanel(props: { system: UseOrderSystemReturn }): JSX.Elemen
   const [feedback, setFeedback] = useState("");
   const [supabaseFeedback, setSupabaseFeedback] = useState("");
   const [checkingSupabase, setCheckingSupabase] = useState(false);
-  const [selectedCharacter, setSelectedCharacter] = useState<CharacterName>("八千代");
 
   const [campaignTitle, setCampaignTitle] = useState("");
   const [campaignDescription, setCampaignDescription] = useState("");
@@ -900,8 +910,8 @@ function AdminSettingsPanel(props: { system: UseOrderSystemReturn }): JSX.Elemen
   const [newCategoryName, setNewCategoryName] = useState("");
   const [productName, setProductName] = useState("");
   const [productCharacter, setProductCharacter] = useState<CharacterName | "">("");
-  const [productSlotRestrictionEnabled, setProductSlotRestrictionEnabled] = useState(true);
-  const [productSlotRestrictedCharacter, setProductSlotRestrictedCharacter] = useState<CharacterName | "">("八千代");
+  const [productSlotRestrictionEnabled, setProductSlotRestrictionEnabled] = useState(false);
+  const [productSlotRestrictedCharacter, setProductSlotRestrictedCharacter] = useState<CharacterName | "">("");
   const [productImageUrl, setProductImageUrl] = useState("");
   const [productImageFile, setProductImageFile] = useState<File | null>(null);
   const [productImagePreviewUrl, setProductImagePreviewUrl] = useState<string | null>(null);
@@ -943,10 +953,7 @@ function AdminSettingsPanel(props: { system: UseOrderSystemReturn }): JSX.Elemen
     if (productType === "NORMAL") {
       setProductSlotRestrictionEnabled(false);
       setProductSlotRestrictedCharacter("");
-      return;
     }
-
-    setProductSlotRestrictionEnabled(true);
   }, [productType]);
 
   useEffect(() => {
@@ -980,10 +987,6 @@ function AdminSettingsPanel(props: { system: UseOrderSystemReturn }): JSX.Elemen
     setBlindImagePreviewUrl(objectUrl);
     return () => URL.revokeObjectURL(objectUrl);
   }, [blindImageFile]);
-
-  const members = system.state.users
-    .filter((user) => !user.isAdmin)
-    .sort((a, b) => new Date(a.createdAt).getTime() - new Date(b.createdAt).getTime());
 
   const selectedBlindItems = blindProductId
     ? system.getBlindBoxItemsByProduct(blindProductId)
@@ -1731,16 +1734,16 @@ function AdminSettingsPanel(props: { system: UseOrderSystemReturn }): JSX.Elemen
             {productType === "BLIND_BOX" ? (
               <div className="form-panel">
                 <p className="form-section-title">2. 固位規則</p>
-                <p className="form-section-copy">只有盲盒母商品才設定這一塊。一般商品固定全員可喊，不會跑固位規則。</p>
+                <p className="form-section-copy">這是單一盲盒母商品自己的開關，不會影響同活動內其他商品。一般商品固定全員可喊，不會跑固位規則。</p>
                 <label className="flex items-center gap-2 text-sm text-slate-700">
                   <input
                     type="checkbox"
                     checked={productSlotRestrictionEnabled}
                     onChange={(event) => setProductSlotRestrictionEnabled(event.target.checked)}
                   />
-                  啟用固位限制
+                  這一個盲盒商品啟用固位限制
                 </label>
-                <p className="mt-1 text-xs text-slate-500">盲盒拆分商品可依子項角色判斷固位，留空時自動使用子項角色。</p>
+                <p className="mt-1 text-xs text-slate-500">啟用後只會限制這一個盲盒母商品；留空時自動依各子項角色判斷。</p>
 
                 {productSlotRestrictionEnabled && (
                   <label className="mt-3 block">
@@ -1762,7 +1765,6 @@ function AdminSettingsPanel(props: { system: UseOrderSystemReturn }): JSX.Elemen
               <div className="form-panel text-sm text-slate-600">
                 <p className="form-section-title">2. 固位規則</p>
                 <p className="form-section-copy">一般商品屬於代購模式，固定全員可喊，不使用固位限制。</p>
-                一般商品屬於代購模式，固定全員可喊，不使用固位限制。
               </div>
             )}
 
@@ -2182,88 +2184,6 @@ function AdminSettingsPanel(props: { system: UseOrderSystemReturn }): JSX.Elemen
         ))}
       </section>
 
-      <div className="section-frame">
-        <div className="flex flex-wrap items-center justify-between gap-2">
-          <div>
-            <p className="section-kicker">Character Slots</p>
-            <h3 className="text-lg font-bold text-slate-900">角色固位分配</h3>
-          </div>
-          <button
-            type="button"
-            className="cta-secondary"
-            onClick={() => {
-              const result = system.adminAutoAssignCharacterSlots(selectedCharacter);
-              setFeedback(result.message);
-            }}
-          >
-            自動分配 {selectedCharacter}
-          </button>
-        </div>
-
-        <div className="admin-chip-group">
-          {CHARACTER_OPTIONS.map((character) => (
-            <button
-              key={character}
-              type="button"
-              className={selectedCharacter === character ? "admin-chip admin-chip-active" : "admin-chip"}
-              onClick={() => setSelectedCharacter(character)}
-            >
-              {character}
-            </button>
-          ))}
-        </div>
-
-        <div className="mt-4 space-y-2">
-          {members.map((member) => {
-            const tier = system.getUserCharacterTier(member.id, selectedCharacter);
-            return (
-              <div key={member.id} className="mini-preview-card flex flex-wrap items-center justify-between gap-2">
-                <div>
-                  <p className="text-sm font-semibold text-slate-900">{member.fbNickname}</p>
-                  <p className="text-xs text-slate-500">{selectedCharacter} 目前：{tier ? fixedTierLabel(tier) : "無（預設）"}</p>
-                </div>
-                <div className="flex flex-wrap gap-1">
-                  {characterTierOptions.map((optionTier) => (
-                    <button
-                      key={optionTier}
-                      type="button"
-                      className={`rounded border px-2 py-1 text-xs ${
-                        tier === optionTier ? "border-slate-900 bg-slate-900 text-white" : "border-slate-200"
-                      }`}
-                      onClick={() => {
-                        const result = system.adminAssignCharacterSlot({
-                          userId: member.id,
-                          character: selectedCharacter,
-                          tier: optionTier,
-                        });
-                        setFeedback(result.message);
-                      }}
-                    >
-                      {fixedTierLabel(optionTier)}
-                    </button>
-                  ))}
-                  <button
-                    type="button"
-                    className={`rounded border px-2 py-1 text-xs ${
-                      tier === null ? "border-slate-900 bg-slate-900 text-white" : "border-slate-200"
-                    }`}
-                    onClick={() => {
-                      const result = system.adminAssignCharacterSlot({
-                        userId: member.id,
-                        character: selectedCharacter,
-                        tier: null,
-                      });
-                      setFeedback(result.message);
-                    }}
-                  >
-                    無
-                  </button>
-                </div>
-              </div>
-            );
-          })}
-        </div>
-      </div>
     </section>
   );
 }
@@ -2276,6 +2196,7 @@ function AdminConsoleView(props: {
 }): JSX.Element {
   const { system, onBackToShop, activeTab, onChangeTab } = props;
   const [feedback, setFeedback] = useState("");
+  const [selectedCharacter, setSelectedCharacter] = useState<CharacterName>("八千代");
   const [exportCampaignId, setExportCampaignId] = useState(system.state.campaigns[0]?.id ?? "");
   const [claimCampaignFilter, setClaimCampaignFilter] = useState<string>("ALL");
   const [claimStatusFilter, setClaimStatusFilter] = useState<ClaimStatusFilter>("ALL");
@@ -2507,68 +2428,158 @@ function AdminConsoleView(props: {
         )}
 
         {activeTab === "members" && (
-          <section className="section-frame">
-          <h3 className="text-lg font-bold text-slate-900">帳號總覽</h3>
-          <p className="mt-1 text-sm text-slate-600">可直接調整管理員權限與取貨率，並檢視每位會員訂單表現。</p>
-          <div className="mt-4 space-y-3">
-            {memberRows.map(({ user, orderCount, orderTotal, pendingClaims, slotSummary }) => (
-              <article key={user.id} className="row-card">
-                <div className="flex flex-wrap items-start justify-between gap-3">
-                  <div>
-                    <p className="text-base font-bold text-slate-900">{user.fbNickname}</p>
-                    <p className="text-xs text-slate-500">{user.email}</p>
-                    <p className="mt-1 text-xs text-slate-500">
-                      身分：{user.isAdmin ? "管理員" : "會員"} / 角色固位：{slotSummary} / 取貨率：{user.pickupRate}%
-                    </p>
-                    <p className="text-xs text-slate-500">
-                      訂單 {orderCount} 筆 / 累計 {twd(orderTotal)} / 待審喊單 {pendingClaims}
-                    </p>
-                  </div>
-                  <div className="flex flex-wrap gap-2">
-                    <button
-                      type="button"
-                      className="rounded-lg border border-slate-200 px-3 py-1.5 text-xs font-semibold"
-                      onClick={async () => {
-                        const result = await system.adminSetUserAdmin(user.id, !user.isAdmin);
-                        setFeedback(result.message);
-                      }}
-                      disabled={user.id === system.currentUser?.id}
-                    >
-                      {user.isAdmin ? "取消管理員" : "設為管理員"}
-                    </button>
-                    <button
-                      type="button"
-                      className="rounded-lg border border-slate-200 px-3 py-1.5 text-xs font-semibold"
-                      onClick={() => {
-                        const value = window.prompt("請輸入新的取貨率（0-100）", String(user.pickupRate));
-                        if (value === null) return;
-                        const result = system.adminUpdateUserPickupRate(user.id, Number(value));
-                        setFeedback(result.message);
-                      }}
-                    >
-                      調整取貨率
-                    </button>
-                    <button
-                      type="button"
-                      className="rounded-lg border border-rose-300 bg-rose-50 px-3 py-1.5 text-xs font-semibold text-rose-700 disabled:opacity-60"
-                      disabled={user.id === system.currentUser?.id}
-                      onClick={async () => {
-                        const ok = window.confirm(
-                          `確定要刪除 ${user.fbNickname}？\n這會移除該帳號與其相關的購物車/喊單/訂單/物流資料。`,
-                        );
-                        if (!ok) return;
-                        const result = await system.adminDeleteUser(user.id);
-                        setFeedback(result.message);
-                      }}
-                    >
-                      刪除帳號
-                    </button>
-                  </div>
+          <section className="space-y-4">
+            <div className="section-frame">
+              <h3 className="text-lg font-bold text-slate-900">帳號總覽</h3>
+              <p className="mt-1 text-sm text-slate-600">可直接調整管理員權限與取貨率，並檢視每位會員訂單表現。</p>
+              <div className="mt-4 space-y-3">
+                {memberRows.map(({ user, orderCount, orderTotal, pendingClaims, slotSummary }) => (
+                  <article key={user.id} className="row-card">
+                    <div className="flex flex-wrap items-start justify-between gap-3">
+                      <div>
+                        <p className="text-base font-bold text-slate-900">{user.fbNickname}</p>
+                        <p className="text-xs text-slate-500">{user.email}</p>
+                        <p className="mt-1 text-xs text-slate-500">
+                          身分：{user.isAdmin ? "管理員" : "會員"} / 角色固位：{slotSummary} / 取貨率：{user.pickupRate}%
+                        </p>
+                        <p className="text-xs text-slate-500">
+                          訂單 {orderCount} 筆 / 累計 {twd(orderTotal)} / 待審喊單 {pendingClaims}
+                        </p>
+                      </div>
+                      <div className="flex flex-wrap gap-2">
+                        <button
+                          type="button"
+                          className="rounded-lg border border-slate-200 px-3 py-1.5 text-xs font-semibold"
+                          onClick={async () => {
+                            const result = await system.adminSetUserAdmin(user.id, !user.isAdmin);
+                            setFeedback(result.message);
+                          }}
+                          disabled={user.id === system.currentUser?.id}
+                        >
+                          {user.isAdmin ? "取消管理員" : "設為管理員"}
+                        </button>
+                        <button
+                          type="button"
+                          className="rounded-lg border border-slate-200 px-3 py-1.5 text-xs font-semibold"
+                          onClick={() => {
+                            const value = window.prompt("請輸入新的取貨率（0-100）", String(user.pickupRate));
+                            if (value === null) return;
+                            const result = system.adminUpdateUserPickupRate(user.id, Number(value));
+                            setFeedback(result.message);
+                          }}
+                        >
+                          調整取貨率
+                        </button>
+                        <button
+                          type="button"
+                          className="rounded-lg border border-rose-300 bg-rose-50 px-3 py-1.5 text-xs font-semibold text-rose-700 disabled:opacity-60"
+                          disabled={user.id === system.currentUser?.id}
+                          onClick={async () => {
+                            const ok = window.confirm(
+                              `確定要刪除 ${user.fbNickname}？\n這會移除該帳號與其相關的購物車/喊單/訂單/物流資料。`,
+                            );
+                            if (!ok) return;
+                            const result = await system.adminDeleteUser(user.id);
+                            setFeedback(result.message);
+                          }}
+                        >
+                          刪除帳號
+                        </button>
+                      </div>
+                    </div>
+                  </article>
+                ))}
+              </div>
+            </div>
+
+            <div className="section-frame">
+              <div className="flex flex-wrap items-center justify-between gap-2">
+                <div>
+                  <p className="section-kicker">Character Slots</p>
+                  <h3 className="text-lg font-bold text-slate-900">角色固位分配</h3>
+                  <p className="mt-1 text-sm text-slate-600">角色固位屬於會員資料，直接放在會員頁管理，不再混進活動與商品設定。</p>
                 </div>
-              </article>
-            ))}
-          </div>
-        </section>
+                <button
+                  type="button"
+                  className="cta-secondary"
+                  onClick={() => {
+                    const result = system.adminAutoAssignCharacterSlots(selectedCharacter);
+                    setFeedback(result.message);
+                  }}
+                >
+                  自動分配 {selectedCharacter}
+                </button>
+              </div>
+
+              <div className="admin-chip-group mt-4">
+                {CHARACTER_OPTIONS.map((character) => (
+                  <button
+                    key={character}
+                    type="button"
+                    className={selectedCharacter === character ? "admin-chip admin-chip-active" : "admin-chip"}
+                    onClick={() => setSelectedCharacter(character)}
+                  >
+                    {character}
+                  </button>
+                ))}
+              </div>
+
+              <div className="mt-4 space-y-2">
+                {memberRows.map(({ user }) => {
+                  const tier = system.getUserCharacterTier(user.id, selectedCharacter);
+                  return (
+                    <div key={`${user.id}:${selectedCharacter}`} className="mini-preview-card flex flex-wrap items-center justify-between gap-2">
+                      <div>
+                        <p className="text-sm font-semibold text-slate-900">
+                          {user.fbNickname}
+                          {user.isAdmin && <span className="ml-2 text-xs text-slate-500">管理員</span>}
+                        </p>
+                        <p className="text-xs text-slate-500">{user.email}</p>
+                        <p className="text-xs text-slate-500">{selectedCharacter} 目前：{tier ? fixedTierLabel(tier) : "無（預設）"}</p>
+                      </div>
+                      <div className="flex flex-wrap gap-1">
+                        {characterTierOptions.map((optionTier) => (
+                          <button
+                            key={optionTier}
+                            type="button"
+                            className={`rounded border px-2 py-1 text-xs ${
+                              tier === optionTier ? "border-slate-900 bg-slate-900 text-white" : "border-slate-200"
+                            }`}
+                            onClick={() => {
+                              const result = system.adminAssignCharacterSlot({
+                                userId: user.id,
+                                character: selectedCharacter,
+                                tier: optionTier,
+                              });
+                              setFeedback(result.message);
+                            }}
+                          >
+                            {fixedTierLabel(optionTier)}
+                          </button>
+                        ))}
+                        <button
+                          type="button"
+                          className={`rounded border px-2 py-1 text-xs ${
+                            tier === null ? "border-slate-900 bg-slate-900 text-white" : "border-slate-200"
+                          }`}
+                          onClick={() => {
+                            const result = system.adminAssignCharacterSlot({
+                              userId: user.id,
+                              character: selectedCharacter,
+                              tier: null,
+                            });
+                            setFeedback(result.message);
+                          }}
+                        >
+                          無
+                        </button>
+                      </div>
+                    </div>
+                  );
+                })}
+              </div>
+            </div>
+          </section>
         )}
 
         {activeTab === "claims" && (
@@ -2858,6 +2869,22 @@ export default function App(): JSX.Element {
     setRootRoute("admin");
     setAdminTab(tab);
   };
+
+  if (!system.currentUser && system.isHydratingState) {
+    return (
+      <main className="site-shell grid min-h-screen place-items-center px-4 py-12 grid-bg">
+        <section className="hero-panel max-w-xl text-center">
+          <p className="section-kicker">Syncing Workspace</p>
+          <h1 className="mt-2 text-3xl font-extrabold text-slate-900">
+            {system.hasStoredSession ? "正在恢復登入狀態" : "正在同步遠端資料"}
+          </h1>
+          <p className="mt-3 text-sm text-slate-600">
+            Supabase 資料仍在載入，先不要把你丟回登入畫面。等帳號與活動資料到位後會直接進站。
+          </p>
+        </section>
+      </main>
+    );
+  }
 
   if (!system.currentUser) {
     return (
