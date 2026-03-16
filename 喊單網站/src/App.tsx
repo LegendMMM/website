@@ -49,6 +49,7 @@ type PageView = "home" | "storeDemo" | "campaign" | "blindBox" | "cart" | "me";
 type RootRoute = "shop" | "admin";
 type AdminTab = "dashboard" | "members" | "claims" | "orders" | "shipping" | "settings";
 type ClaimStatusFilter = "ALL" | "LOCKED" | "CONFIRMED" | "CANCELLED_BY_ADMIN";
+type DemoTheme = "poster" | "paper" | "seal";
 type ImportMode =
   | "NORMAL_PRODUCT_CSV"
   | "NORMAL_PRODUCT_JSON"
@@ -87,6 +88,11 @@ const stageOptions: ReleaseStage[] = ["FIXED_1_ONLY", "FIXED_1_2", "FIXED_1_2_3"
 const characterTierOptions: CharacterTier[] = ["FIXED_1", "FIXED_2", "FIXED_3", "LEAK_PICK"];
 const productTypeOptions: ProductType[] = ["NORMAL", "BLIND_BOX"];
 const orderStatusOptions: OrderStatus[] = ["PLACED", "PAID", "CANCELLED"];
+const demoThemeOptions: Array<{ id: DemoTheme; label: string; note: string }> = [
+  { id: "poster", label: "舞台海報", note: "高對比、戲劇感、主視覺先行" },
+  { id: "paper", label: "和紙目錄", note: "展覽冊頁、留白、選品通販感" },
+  { id: "seal", label: "月殿御札", note: "章印、封條、儀式感與名冊感" },
+];
 const adminTabs: Array<{ id: AdminTab; label: string }> = [
   { id: "dashboard", label: "總覽" },
   { id: "members", label: "會員" },
@@ -349,6 +355,7 @@ function StorefrontDemoView(props: {
   onOpenBlindBox: (campaign: Campaign, product: Product) => void;
 }): JSX.Element {
   const { system, onOpenCampaign, onOpenBlindBox } = props;
+  const [demoTheme, setDemoTheme] = useState<DemoTheme>("poster");
 
   const featuredCampaignCards = useMemo(() => {
     const realCards = system.visibleCampaigns.slice(0, 3).map((campaign, index) => ({
@@ -504,22 +511,25 @@ function StorefrontDemoView(props: {
   }, [spotlightBlindEntry, system]);
 
   const heroPrimaryCampaign = featuredCampaignCards[0] ?? null;
+  const activeThemeMeta = demoThemeOptions.find((item) => item.id === demoTheme) ?? demoThemeOptions[0];
+  const themeLeadCopy = {
+    poster: "把首頁做成主視覺海報與章節入口，讓買家一進站就知道本期世界觀、主打角色與該從哪一個活動開始逛。",
+    paper: "把首頁做成同人展物販小冊。版面清楚、字距呼吸大、商品像被編輯選過，而不是從資料庫直接吐出來。",
+    seal: "把首頁做成帶章印與封條的月殿名冊。規則感與儀式感會更強，適合固位與盲盒拆分這種有秩序的購買流程。",
+  }[demoTheme];
 
   return (
-    <section className="princess-demo-shell">
-      <section className="princess-hero">
-        <div className="princess-hero-copy">
-          <p className="princess-kicker">Chronicle of Kaguya</p>
-          <h2 className="princess-title">超時空輝耀姬 特設店鋪 DEMO</h2>
-          <p className="princess-copy">
-            這一版不是控制台式商城，而是角色特設站。主視覺先建立情緒，再把活動、分類與商品帶進一條明確的購買路徑。
-            前台要像在逛作品官網，不是像在看資料表。
-          </p>
+    <section className={`storefront-demo storefront-demo--${demoTheme}`}>
+      <section className="demo-shell-stage">
+        <div className="demo-hero-copy">
+          <p className="demo-kicker">Kaguya Storefront Study</p>
+          <h2 className="demo-title">超時空輝耀姬 前台視覺 DEMO</h2>
+          <p className="demo-copy">{themeLeadCopy}</p>
 
-          <div className="princess-hero-actions">
+          <div className="demo-hero-actions">
             <button
               type="button"
-              className="princess-cta"
+              className="demo-primary-action"
               onClick={() => heroPrimaryCampaign?.campaign && onOpenCampaign(heroPrimaryCampaign.campaign)}
               disabled={!heroPrimaryCampaign?.campaign}
             >
@@ -527,7 +537,7 @@ function StorefrontDemoView(props: {
             </button>
             <button
               type="button"
-              className="princess-ghost"
+              className="demo-secondary-action"
               onClick={() => {
                 if (spotlightBlindEntry?.campaign) {
                   onOpenBlindBox(spotlightBlindEntry.campaign, spotlightBlindEntry.product);
@@ -539,63 +549,79 @@ function StorefrontDemoView(props: {
             </button>
           </div>
 
-          <div className="princess-stat-grid">
-            <article className="princess-stat-card">
-              <p className="princess-stat-label">主打檔期</p>
-              <p className="princess-stat-value">{system.visibleCampaigns.length || 3}</p>
-              <p className="princess-stat-detail">首頁應優先呈現進行中的世界觀場景</p>
+          <div className="demo-stat-grid">
+            <article className="demo-stat-card">
+              <p className="demo-stat-label">主打檔期</p>
+              <p className="demo-stat-value">{system.visibleCampaigns.length || 3}</p>
+              <p className="demo-stat-detail">先呈現進行中的世界觀場景與入場順序</p>
             </article>
-            <article className="princess-stat-card">
-              <p className="princess-stat-label">系列層級</p>
-              <p className="princess-stat-value">{demoSeries.length}</p>
-              <p className="princess-stat-detail">分類應像櫥窗導覽，不該只是管理標籤</p>
+            <article className="demo-stat-card">
+              <p className="demo-stat-label">系列層級</p>
+              <p className="demo-stat-value">{demoSeries.length}</p>
+              <p className="demo-stat-detail">分類應像櫥窗導覽，不是後台篩選器</p>
             </article>
-            <article className="princess-stat-card">
-              <p className="princess-stat-label">拆分劇場</p>
-              <p className="princess-stat-value">{spotlightBlindItems.length}</p>
-              <p className="princess-stat-detail">固位與撿漏只在盲盒場景集中閱讀</p>
+            <article className="demo-stat-card">
+              <p className="demo-stat-label">拆分劇場</p>
+              <p className="demo-stat-value">{spotlightBlindItems.length}</p>
+              <p className="demo-stat-detail">固位與撿漏只在盲盒場景集中閱讀</p>
             </article>
           </div>
         </div>
 
-        <div className="princess-hero-stage">
-          <div className="princess-stage-orbit princess-stage-orbit-large" />
-          <div className="princess-stage-orbit princess-stage-orbit-small" />
-          <div className="princess-stage-card">
-            <p className="princess-stage-kicker">Featured Arc</p>
+        <aside className="demo-variant-panel">
+          <div className="demo-variant-heading">
+            <p className="demo-kicker">Visual Studies</p>
+            <h3>切換版本</h3>
+            <p>{activeThemeMeta.note}</p>
+          </div>
+          <div className="demo-variant-switcher">
+            {demoThemeOptions.map((option) => (
+              <button
+                key={option.id}
+                type="button"
+                className={demoTheme === option.id ? "demo-theme-chip demo-theme-chip-active" : "demo-theme-chip"}
+                onClick={() => setDemoTheme(option.id)}
+              >
+                <span>{option.label}</span>
+                <small>{option.note}</small>
+              </button>
+            ))}
+          </div>
+          <div className="demo-stage-note">
+            <p className="demo-kicker">Featured Arc</p>
             <h3>{heroPrimaryCampaign?.title ?? "星虹月蝕祭"}</h3>
-            <p>{heroPrimaryCampaign?.description ?? "主視覺旁邊應該放一塊真正的活動摘要卡，讓人知道先看哪個入口、何時截止、目前釋出到哪一階段。"}</p>
-            <div className="princess-stage-meta">
+            <p>{heroPrimaryCampaign?.description ?? "主視覺旁邊要放本期檔期摘要，直接告訴買家這一檔在賣什麼、目前開到哪個階段。"}</p>
+            <div className="demo-stage-meta">
               <span>{heroPrimaryCampaign?.subtitle ?? "主視覺檔期"}</span>
               <span>{heroPrimaryCampaign?.release ?? "固一＋固二"}</span>
               <span>{heroPrimaryCampaign?.deadline ?? "2026/03/31 23:59"}</span>
             </div>
           </div>
-        </div>
+        </aside>
       </section>
 
-      <section className="princess-section">
-        <div className="princess-section-heading">
+      <section className="demo-surface">
+        <div className="demo-section-heading">
           <div>
-            <p className="princess-kicker">Campaign Chapters</p>
+            <p className="demo-kicker">Campaign Chapters</p>
             <h3>把活動做成章節入口，而不是一排資訊卡</h3>
           </div>
           <p>每個活動都像一個篇章。首頁先給一個情緒濃度高的入口，再給次層支線與補完場，讓買家有逛特設站的感覺。</p>
         </div>
 
-        <div className="princess-campaign-grid">
+        <div className="demo-campaign-grid">
           {featuredCampaignCards.map((card) => (
-            <article key={card.id} className="princess-feature-card">
-              <p className="princess-feature-kicker">{card.subtitle}</p>
+            <article key={card.id} className="demo-campaign-card">
+              <p className="demo-card-kicker">{card.subtitle}</p>
               <h4>{card.title}</h4>
               <p>{card.description}</p>
-              <div className="princess-feature-meta">
+              <div className="demo-campaign-meta">
                 <span>{card.release}</span>
                 <span>{card.deadline}</span>
               </div>
               <button
                 type="button"
-                className="princess-feature-link"
+                className="demo-link-action"
                 onClick={() => card.campaign && onOpenCampaign(card.campaign)}
                 disabled={!card.campaign}
               >
@@ -606,61 +632,61 @@ function StorefrontDemoView(props: {
         </div>
       </section>
 
-      <section className="princess-section">
-        <div className="princess-section-heading">
+      <section className="demo-surface">
+        <div className="demo-section-heading">
           <div>
-            <p className="princess-kicker">Moon Shelves</p>
+            <p className="demo-kicker">Moon Shelves</p>
             <h3>分類應該像選品櫥窗，不是後台篩選器的延伸</h3>
           </div>
           <p>這些分類在前台不是資料欄位，而是氛圍入口。每個標籤都應該帶出該系列的角色、材質和收藏感。</p>
         </div>
 
-        <div className="princess-ribbon-row">
+        <div className="demo-ribbon-row">
           {demoSeries.map((series) => (
-            <span key={series} className="princess-ribbon-chip">{series}</span>
+            <span key={series} className="demo-ribbon-chip">{series}</span>
           ))}
         </div>
 
-        <div className="princess-showcase-grid">
+        <div className="demo-product-grid">
           {featuredProducts.map(({ campaign, product }, index) => {
             const highlightLabel = product.type === "BLIND_BOX" ? "Blind Box Theatre" : index === 0 ? "Main Pickup" : "Select Item";
             return (
-              <article key={product.id} className="princess-product-card">
-                <div className="princess-product-media">
+              <article key={product.id} className="demo-product-card">
+                <div className="demo-product-media">
                   {product.imageUrl ? (
                     <img src={product.imageUrl} alt={product.name} loading="lazy" />
                   ) : (
-                    <div className="princess-product-fallback">
+                    <div className="demo-product-fallback">
                       <span>{product.series || "Collection"}</span>
                     </div>
                   )}
-                  <span className="princess-product-badge">{highlightLabel}</span>
+                  <span className="demo-product-badge">{highlightLabel}</span>
                 </div>
 
-                <div className="princess-product-copy">
-                  <div className="princess-product-head">
+                <div className="demo-product-copy">
+                  <div className="demo-product-head">
                     <div>
-                      <p className="princess-product-code">{product.sku}</p>
+                      <p className="demo-card-kicker">{product.sku}</p>
                       <h4>{product.name}</h4>
                     </div>
                     <strong>{twd(product.price)}</strong>
                   </div>
 
-                  <p className="princess-product-meta">
+                  <p className="demo-product-meta">
                     {product.series} / {product.type === "BLIND_BOX" ? "拆分劇場" : "一般選品"}
                     {product.character ? ` / ${product.character}` : ""}
                   </p>
-                  <p className="princess-product-note">
+                  <p className="demo-product-note">
                     {product.type === "BLIND_BOX"
                       ? product.slotRestrictionEnabled ? "這類商品應該直接進入角色拆分頁閱讀資格與釋出階段。" : "這類盲盒目前可先做全員可喊版型。"
                       : product.slotRestrictionEnabled ? "一般商品若啟用固位，前台也要把限制角色講清楚。" : "一般商品在這個版本會更像周邊通販，而不是資料列表。"}
                   </p>
 
-                  <div className="princess-product-actions">
+                  <div className="demo-product-actions">
                     {product.type === "BLIND_BOX" ? (
                       <button
                         type="button"
-                        className="princess-inline-cta"
+                        className="demo-inline-action"
                         onClick={() => campaign && onOpenBlindBox(campaign, product)}
                         disabled={!campaign}
                       >
@@ -669,7 +695,7 @@ function StorefrontDemoView(props: {
                     ) : (
                       <button
                         type="button"
-                        className="princess-inline-cta"
+                        className="demo-inline-action"
                         onClick={() => campaign && onOpenCampaign(campaign)}
                         disabled={!campaign}
                       >
@@ -684,21 +710,21 @@ function StorefrontDemoView(props: {
         </div>
       </section>
 
-      <section className="princess-spotlight">
-        <div className="princess-spotlight-copy">
-          <p className="princess-kicker">Blind Box Theatre</p>
+      <section className="demo-spotlight">
+        <div className="demo-spotlight-copy">
+          <p className="demo-kicker">Blind Box Theatre</p>
           <h3>盲盒拆分應該像獨立劇場，不要混在一般商品流裡</h3>
           <p>
             這一區專門承接固位與撿漏邏輯。使用者在這裡只看角色、時段、資格與庫存，不需要再被一般代購商品的訊息干擾。
           </p>
-          <div className="princess-spotlight-pills">
+          <div className="demo-spotlight-pills">
             <span>時段釋出清楚可讀</span>
             <span>角色固位集中展示</span>
             <span>加入購物車前先講資格</span>
           </div>
           <button
             type="button"
-            className="princess-cta"
+            className="demo-primary-action"
             onClick={() => spotlightBlindEntry?.campaign && onOpenBlindBox(spotlightBlindEntry.campaign, spotlightBlindEntry.product)}
             disabled={!spotlightBlindEntry?.campaign}
           >
@@ -706,50 +732,50 @@ function StorefrontDemoView(props: {
           </button>
         </div>
 
-        <div className="princess-character-grid">
+        <div className="demo-character-grid">
           {spotlightBlindItems.map((item) => (
-            <article key={item.id} className="princess-character-card">
-              <div className="princess-character-portrait">
+            <article key={item.id} className="demo-character-card">
+              <div className="demo-character-portrait">
                 {item.imageUrl ? (
                   <img src={item.imageUrl} alt={item.name} loading="lazy" />
                 ) : (
-                  <div className="princess-product-fallback">
+                  <div className="demo-product-fallback">
                     <span>{item.character}</span>
                   </div>
                 )}
               </div>
               <div>
-                <p className="princess-character-name">{item.name}</p>
-                <p className="princess-character-role">{item.character}</p>
+                <p className="demo-character-name">{item.name}</p>
+                <p className="demo-character-role">{item.character}</p>
               </div>
-              <p className="princess-character-note">{item.note}</p>
-              <strong className="princess-character-price">{twd(item.price)}</strong>
+              <p className="demo-character-note">{item.note}</p>
+              <strong className="demo-character-price">{twd(item.price)}</strong>
             </article>
           ))}
         </div>
       </section>
 
-      <section className="princess-section">
-        <div className="princess-section-heading">
+      <section className="demo-surface">
+        <div className="demo-section-heading">
           <div>
-            <p className="princess-kicker">Purchase Flow</p>
+            <p className="demo-kicker">Purchase Flow</p>
             <h3>前台節奏應該更像一條儀式流程</h3>
           </div>
           <p>用戶不該一進站就面對所有規則，而是先被導入主視覺，再進系列，再進商品，最後才在必要處看固位。</p>
         </div>
 
-        <div className="princess-flow-grid">
-          <article className="princess-flow-card">
+        <div className="demo-flow-grid">
+          <article className="demo-flow-card">
             <span>01</span>
             <h4>先進主視覺活動</h4>
             <p>首頁只做章節入口，讓買家先知道現在主打哪一檔、該從哪裡開始逛。</p>
           </article>
-          <article className="princess-flow-card">
+          <article className="demo-flow-card">
             <span>02</span>
             <h4>再依系列挑商品</h4>
             <p>分類像櫥窗。一般商品以展示感和價格為主，購物動線要明顯，不要像讀清單。</p>
           </article>
-          <article className="princess-flow-card">
+          <article className="demo-flow-card">
             <span>03</span>
             <h4>盲盒才展開規則</h4>
             <p>只有進到拆分劇場，才開始讀固位、時段與角色資格，讓複雜度集中在正確位置。</p>
