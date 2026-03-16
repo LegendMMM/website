@@ -576,17 +576,6 @@ body {
   position: relative;
 }
 
-.shop-front .product-stage-card::before,
-.shop-front .row-card::before {
-  content: "";
-  position: absolute;
-  left: 0;
-  top: 0;
-  width: 3rem;
-  height: 1px;
-  background: var(--front-paper-line-strong);
-}
-
 .shop-front .campaign-card-top {
   align-items: baseline;
 }
