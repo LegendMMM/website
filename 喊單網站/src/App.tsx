@@ -1,6 +1,7 @@
-import { useEffect, useMemo, useRef, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 import { motion } from "framer-motion";
 import { AuthCard } from "./components/AuthCard";
+import MoonlitSpecialMenuOverlay from "./components/MoonlitSpecialMenuOverlay";
 import type { UseOrderSystemReturn } from "./hooks/useOrderSystem";
 import { useOrderSystem } from "./hooks/useOrderSystem";
 import kaguyaLogoHeader from "./assets/kaguya-logo-header.webp";
@@ -161,103 +162,6 @@ function InsightTile(props: {
       <p className="insight-value">{value}</p>
       {detail && <p className="insight-detail">{detail}</p>}
     </article>
-  );
-}
-
-function HeaderNav(props: {
-  currentView: PageView;
-  setView: (view: PageView) => void;
-  system: UseOrderSystemReturn;
-  onGoAdmin: () => void;
-}): JSX.Element {
-  const { currentView, setView, system, onGoAdmin } = props;
-  const [menuOpen, setMenuOpen] = useState(false);
-  const menuRef = useRef<HTMLDivElement | null>(null);
-  const cartCount = system.currentUser
-    ? system.getMyCartItems().reduce((sum, item) => sum + item.qty, 0)
-    : 0;
-
-  useEffect(() => {
-    const handlePointerDown = (event: MouseEvent): void => {
-      if (!menuRef.current) return;
-      if (menuRef.current.contains(event.target as Node)) return;
-      setMenuOpen(false);
-    };
-
-    const handleEscape = (event: KeyboardEvent): void => {
-      if (event.key === "Escape") setMenuOpen(false);
-    };
-
-    document.addEventListener("mousedown", handlePointerDown);
-    document.addEventListener("keydown", handleEscape);
-    return () => {
-      document.removeEventListener("mousedown", handlePointerDown);
-      document.removeEventListener("keydown", handleEscape);
-    };
-  }, []);
-
-  const currentViewLabel: Record<PageView, string> = {
-    home: "大主頁",
-    campaign: "活動頁",
-    blindBox: "盲盒拆分",
-    cart: "購物車",
-    me: "個人主頁",
-  };
-
-  const itemClass = (view: PageView): string =>
-    currentView === view ? "header-menu-item header-menu-item-active" : "header-menu-item";
-
-  const handleSelectView = (view: PageView): void => {
-    setView(view);
-    setMenuOpen(false);
-  };
-
-  return (
-    <div ref={menuRef} className="header-menu">
-      <button
-        type="button"
-        className={`header-menu-trigger ${menuOpen ? "header-menu-trigger-open" : ""}`}
-        onClick={() => setMenuOpen((prev) => !prev)}
-        aria-expanded={menuOpen}
-        aria-haspopup="menu"
-      >
-        <span className="header-menu-copy">
-          <span className="header-menu-kicker">Quick Menu</span>
-          <strong>{currentViewLabel[currentView]}</strong>
-        </span>
-        <span className="header-menu-caret" aria-hidden="true">{menuOpen ? "−" : "+"}</span>
-      </button>
-
-      {menuOpen && (
-        <div className="header-menu-panel" role="menu" aria-label="站內功能選單">
-          <button className={itemClass("home")} type="button" onClick={() => handleSelectView("home")}>大主頁</button>
-          <button className={itemClass("cart")} type="button" onClick={() => handleSelectView("cart")}>購物車 ({cartCount})</button>
-          <button className={itemClass("me")} type="button" onClick={() => handleSelectView("me")}>個人主頁</button>
-          {system.currentUser?.isAdmin && (
-            <button
-              className="header-menu-item"
-              type="button"
-              onClick={() => {
-                onGoAdmin();
-                setMenuOpen(false);
-              }}
-            >
-              管理後台
-            </button>
-          )}
-          <button
-            onClick={() => {
-              system.logout();
-              setMenuOpen(false);
-            }}
-            className="header-menu-item header-menu-item-danger"
-            type="button"
-          >
-            登出
-          </button>
-        </div>
-      )}
-    </div>
   );
 }
 
@@ -3693,7 +3597,31 @@ export default function App(): JSX.Element {
   }
 
   return (
-    <main className="site-shell shop-front min-h-screen px-4 py-6 md:px-8 lg:px-12">
+    <main className="site-shell shop-front min-h-screen px-4 pb-6 pt-24 md:px-8 md:pb-8 md:pt-28 lg:px-12 lg:pb-10 lg:pt-28">
+      <MoonlitSpecialMenuOverlay
+        theme="light"
+        currentView={view}
+        campaignCount={system.visibleCampaigns.length}
+        cartCount={headerCartCount}
+        orderCount={headerOrderCount}
+        pendingClaims={headerPendingClaims}
+        isAdmin={system.currentUser.isAdmin}
+        hasCampaign={Boolean(selectedCampaign)}
+        hasBlindBox={Boolean(selectedBlindProduct)}
+        onGoHome={() => setView("home")}
+        onGoCampaign={() => {
+          if (!selectedCampaign) return;
+          setView("campaign");
+        }}
+        onGoBlindBox={() => {
+          if (!selectedBlindProduct) return;
+          setView("blindBox");
+        }}
+        onGoCart={() => setView("cart")}
+        onGoMe={() => setView("me")}
+        onGoAdmin={() => navigateAdminTab("dashboard")}
+        onLogout={system.logout}
+      />
       <div className="front-shell mx-auto max-w-7xl space-y-5">
         <motion.header
           initial={{ opacity: 0, y: 8 }}
@@ -3707,19 +3635,16 @@ export default function App(): JSX.Element {
               <p className="mt-3 text-sm text-slate-600">你好，{system.currentUser.fbNickname}</p>
               <p className="text-sm text-slate-500">
                 先選活動，再依系列挑商品；一般商品可直接加購，盲盒拆分則在子頁查看角色資格與可喊狀態。
-                {system.currentUser.isAdmin ? " 你目前以前台視角瀏覽，若要調整資料可從右上角切換管理後台。" : ""}
+                {system.currentUser.isAdmin ? " 你目前以前台視角瀏覽，若要調整資料可從上方 MENU 切換管理後台。" : ""}
               </p>
             </div>
 
             <div className="space-y-3 front-header-side">
-              <div className="front-header-utility">
-                <img
-                  src={kaguyaLogoHeader}
-                  alt="超時空輝耀姬"
-                  className="hero-kaguya-logo-inline"
-                />
-                <HeaderNav currentView={view} setView={setView} system={system} onGoAdmin={() => navigateAdminTab("dashboard")} />
-              </div>
+              <img
+                src={kaguyaLogoHeader}
+                alt="超時空輝耀姬"
+                className="hero-kaguya-logo-inline"
+              />
               <div className="front-header-meta">
                 <span>可進活動 {system.visibleCampaigns.length} 檔</span>
                 <span>購物車 {headerCartCount} 件</span>
