@@ -3339,6 +3339,7 @@ function AdminConsoleView(props: {
         </button>
 
         <div className="mt-6 space-y-2">
+          <div className="admin-nav-list space-y-2">
           {adminTabs.map((item) => (
             <button
               key={item.id}
@@ -3349,9 +3350,10 @@ function AdminConsoleView(props: {
               {item.label}
             </button>
           ))}
+          </div>
         </div>
 
-        <div className="mt-6 grid gap-3">
+        <div className="admin-sidebar-stats mt-6 grid gap-3">
           <InsightTile label="待審喊單" value={dashboardStats.claimsLocked} detail="優先處理" accent="rose" />
           <InsightTile label="訂單總額" value={twd(dashboardStats.totalOrderAmount)} detail={`${dashboardStats.orders} 筆訂單`} accent="sky" />
           <InsightTile label="會員數" value={dashboardStats.users} detail={`其中管理員 ${dashboardStats.admins} 位`} accent="amber" />
@@ -3372,7 +3374,7 @@ function AdminConsoleView(props: {
 
         {activeTab === "dashboard" && (
           <section className="space-y-4">
-            <div className="grid gap-3 md:grid-cols-2 xl:grid-cols-4">
+            <div className="admin-dashboard-grid grid gap-3 md:grid-cols-2 xl:grid-cols-4">
               <InsightTile label="帳號總數" value={dashboardStats.users} accent="violet" />
               <InsightTile label="管理員" value={dashboardStats.admins} accent="amber" />
               <InsightTile label="待審喊單" value={dashboardStats.claimsLocked} accent="rose" />
@@ -3957,8 +3959,8 @@ export default function App(): JSX.Element {
 
   if (rootRoute === "admin") {
     return (
-      <main className="site-shell min-h-screen px-4 py-6 md:px-8 lg:px-12">
-        <div className="mx-auto max-w-7xl space-y-5">
+      <main className="site-shell admin-front min-h-screen px-4 py-6 md:px-8 lg:px-12">
+        <div className="front-shell mx-auto max-w-7xl space-y-5">
           <motion.header
             initial={{ opacity: 0, y: 8 }}
             animate={{ opacity: 1, y: 0 }}
@@ -3968,11 +3970,11 @@ export default function App(): JSX.Element {
               <div>
                 <p className="section-kicker">Tsukuyomi Admin Cosmos</p>
                 <h1 className="mt-2 text-4xl font-extrabold text-slate-900">超時空輝耀姬・管理後台</h1>
-                <p className="mt-3 text-sm text-slate-600">登入帳號：{system.currentUser.fbNickname}（{system.currentUser.email}）</p>
-                <p className="text-xs text-slate-500">資料模式：{isSupabaseEnabled ? "Supabase 遠端資料模式" : "Demo Local 模式"}</p>
+                <p className="admin-account-copy mt-3 text-sm text-slate-600">登入帳號：{system.currentUser.fbNickname}（{system.currentUser.email}）</p>
+                <p className="admin-meta-note text-xs text-slate-500">資料模式：{isSupabaseEnabled ? "Supabase 遠端資料模式" : "Demo Local 模式"}</p>
               </div>
               <div className="space-y-3">
-                <div className="action-nav justify-end">
+                <div className="action-nav admin-hero-actions justify-end">
                   <button
                     type="button"
                     className="nav-chip"
@@ -3988,7 +3990,7 @@ export default function App(): JSX.Element {
                     登出
                   </button>
                 </div>
-                <div className="grid gap-3 sm:grid-cols-3">
+                <div className="admin-hero-stats grid gap-3 sm:grid-cols-3">
                   <InsightTile label="會員數" value={system.state.users.length} accent="violet" />
                   <InsightTile label="待審喊單" value={system.state.claims.filter((claim) => claim.status === "LOCKED").length} accent="rose" />
                   <InsightTile label="訂單數" value={system.state.orders.length} accent="sky" />
