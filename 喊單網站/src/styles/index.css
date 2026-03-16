@@ -545,7 +545,8 @@ body {
   border: 0;
   border-top: 1px solid var(--front-paper-line);
   border-radius: 0;
-  background: transparent;
+  background:
+    linear-gradient(180deg, rgba(255, 251, 243, 0.52), rgba(255, 251, 243, 0.12));
   box-shadow: none;
 }
 
@@ -738,6 +739,87 @@ body {
 
 .shop-front .hover\:bg-slate-700:hover {
   background: #8f2f36 !important;
+}
+
+@media (max-width: 767px) {
+  .shop-front .hero-panel {
+    padding: 1.15rem 0 1rem;
+  }
+
+  .shop-front .hero-grid {
+    gap: 1rem;
+  }
+
+  .shop-front .hero-panel h1 {
+    font-size: clamp(2rem, 8.2vw, 2.6rem);
+    line-height: 1.08;
+  }
+
+  .shop-front .action-nav {
+    justify-content: flex-start;
+    gap: 0.65rem 1rem;
+  }
+
+  .shop-front .front-header-meta {
+    display: grid;
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+    gap: 0.55rem 0.9rem;
+    padding-top: 0.75rem;
+  }
+
+  .shop-front .front-summary-strip {
+    gap: 0.55rem;
+    padding-top: 0.75rem;
+  }
+
+  .shop-front .section-frame,
+  .shop-front .campaign-card,
+  .shop-front .product-stage-card,
+  .shop-front .row-card,
+  .shop-front .empty-panel,
+  .shop-front .filter-panel {
+    padding: 1rem 0;
+  }
+
+  .shop-front .campaign-meta {
+    grid-template-columns: 1fr;
+  }
+
+  .shop-front .product-figure img,
+  .shop-front .product-figure [aria-label="no-image"] {
+    height: 180px !important;
+  }
+
+  .shop-front .front-toolbar {
+    gap: 0.65rem;
+  }
+
+  .shop-front .front-toolbar .cta-secondary {
+    width: 100%;
+    text-align: left;
+  }
+
+  .shop-front .cart-item-row {
+    align-items: flex-start;
+    flex-direction: column;
+  }
+
+  .shop-front .cart-item-actions {
+    width: 100%;
+    flex-wrap: wrap;
+    justify-content: flex-start;
+  }
+}
+
+@media (max-width: 479px) {
+  .shop-front .front-header-meta {
+    grid-template-columns: 1fr;
+  }
+
+  .shop-front .product-figure img,
+  .shop-front .product-figure [aria-label="no-image"] {
+    height: 164px !important;
+  }
 }
 
 .storefront-demo {

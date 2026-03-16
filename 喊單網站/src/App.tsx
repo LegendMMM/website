@@ -882,7 +882,7 @@ function CampaignView(props: {
   return (
     <section className="space-y-6">
       <div className="hero-panel">
-        <div className="flex flex-wrap items-center justify-between gap-2">
+        <div className="front-toolbar flex flex-wrap items-center justify-between gap-2">
           <button className="cta-secondary" type="button" onClick={onBack}>返回活動導覽</button>
           <button className="cta-secondary" type="button" onClick={onGoCart}>前往購物車</button>
         </div>
@@ -981,7 +981,7 @@ function CampaignView(props: {
             <div className="empty-panel">此系列目前沒有符合條件的商品。</div>
           )}
 
-      <div className="grid gap-4 md:grid-cols-2 2xl:grid-cols-3">
+      <div className="front-product-grid grid gap-4 md:grid-cols-2 2xl:grid-cols-3">
         {visibleProducts.map((product) => {
           const myQty = cartMap.get(`${product.id}::none`)?.qty ?? 0;
           const normalAccess = product.type === "NORMAL"
@@ -1099,7 +1099,7 @@ function BlindBoxView(props: {
   return (
     <section className="space-y-6">
       <div className="hero-panel">
-        <div className="flex flex-wrap items-center justify-between gap-2">
+        <div className="front-toolbar flex flex-wrap items-center justify-between gap-2">
           <button className="cta-secondary" type="button" onClick={onBack}>返回活動商品</button>
           <button className="cta-secondary" type="button" onClick={onGoCart}>前往購物車</button>
         </div>
@@ -1120,7 +1120,7 @@ function BlindBoxView(props: {
 
       {items.length === 0 && <div className="empty-panel">此盲盒尚未建立任何角色子項。</div>}
 
-      <div className="grid gap-4 md:grid-cols-2 xl:grid-cols-3">
+      <div className="blind-item-grid grid gap-4 md:grid-cols-2 xl:grid-cols-3">
         {items.map((item) => {
           const access = system.getProductAccessForCurrentUser(campaign.id, product.id, item.id);
           const myTier = system.currentUser ? system.getUserCharacterTier(system.currentUser.id, item.character) : null;
@@ -1275,13 +1275,13 @@ function CartView(props: {
 
                 return (
                   <div key={item.id} className="row-card">
-                    <div className="flex items-center justify-between gap-3">
+                    <div className="cart-item-row flex items-center justify-between gap-3">
                       <div>
                         <p className="font-semibold text-slate-900">{title}</p>
                         <p className="text-xs text-slate-500">角色：{character}</p>
                       </div>
 
-                      <div className="flex items-center gap-2">
+                      <div className="cart-item-actions flex items-center gap-2">
                         <button
                           type="button"
                           className="rounded-lg border px-2 py-1 text-xs"
@@ -3913,11 +3913,6 @@ export default function App(): JSX.Element {
     [selectedBlindProductId, system.state.products],
   );
 
-  const currentUserSlotSummary = useMemo(() => {
-    const userId = system.currentUser?.id;
-    if (!userId) return "未分配";
-    return formatCharacterSlotSummary(system.state.characterSlots.filter((slot) => slot.userId === userId));
-  }, [system.currentUser?.id, system.state.characterSlots]);
   const headerCartCount = system.getMyCartItems().reduce((sum, item) => sum + item.qty, 0);
   const headerOrderCount = system.getMyOrders().length;
   const headerPendingClaims = system.currentUser
@@ -4051,22 +4046,11 @@ export default function App(): JSX.Element {
             <div>
               <p className="section-kicker">Tsukuyomi Order Cosmos</p>
               <h1 className="mt-2 text-4xl font-extrabold text-slate-900">超時空輝耀姬・活動導覽與拆分系統</h1>
-              {system.currentUser.isAdmin ? (
-                <>
-                  <p className="mt-3 text-sm text-slate-600">登入帳號：{system.currentUser.fbNickname}（{system.currentUser.email}）</p>
-                  <p className="text-xs text-slate-500">
-                    身分：管理員 / 角色固位：{currentUserSlotSummary} / 取貨率：{system.currentUser.pickupRate}%
-                  </p>
-                  <p className="text-xs text-slate-500">
-                    資料模式：{isSupabaseEnabled ? "Supabase 遠端資料模式" : "Demo Local 模式（未設定 Supabase）"}
-                  </p>
-                </>
-              ) : (
-                <>
-                  <p className="mt-3 text-sm text-slate-600">你好，{system.currentUser.fbNickname}</p>
-                  <p className="text-sm text-slate-500">先選活動，再依系列挑商品；盲盒拆分會在子頁顯示角色資格與可喊狀態。</p>
-                </>
-              )}
+              <p className="mt-3 text-sm text-slate-600">你好，{system.currentUser.fbNickname}</p>
+              <p className="text-sm text-slate-500">
+                先選活動，再依系列挑商品；一般商品可直接加購，盲盒拆分則在子頁查看角色資格與可喊狀態。
+                {system.currentUser.isAdmin ? " 你目前以前台視角瀏覽，若要調整資料可從右上角切換管理後台。" : ""}
+              </p>
             </div>
 
             <div className="space-y-3 front-header-side">
