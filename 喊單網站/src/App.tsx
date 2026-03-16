@@ -45,11 +45,10 @@ import type {
   ReleaseStage,
 } from "./types/domain";
 
-type PageView = "home" | "storeDemo" | "campaign" | "blindBox" | "cart" | "me";
+type PageView = "home" | "campaign" | "blindBox" | "cart" | "me";
 type RootRoute = "shop" | "admin";
 type AdminTab = "dashboard" | "members" | "claims" | "orders" | "shipping" | "settings";
 type ClaimStatusFilter = "ALL" | "LOCKED" | "CONFIRMED" | "CANCELLED_BY_ADMIN";
-type DemoTheme = "poster" | "paper" | "seal";
 type ImportMode =
   | "NORMAL_PRODUCT_CSV"
   | "NORMAL_PRODUCT_JSON"
@@ -88,11 +87,6 @@ const stageOptions: ReleaseStage[] = ["FIXED_1_ONLY", "FIXED_1_2", "FIXED_1_2_3"
 const characterTierOptions: CharacterTier[] = ["FIXED_1", "FIXED_2", "FIXED_3", "LEAK_PICK"];
 const productTypeOptions: ProductType[] = ["NORMAL", "BLIND_BOX"];
 const orderStatusOptions: OrderStatus[] = ["PLACED", "PAID", "CANCELLED"];
-const demoThemeOptions: Array<{ id: DemoTheme; label: string; note: string }> = [
-  { id: "poster", label: "舞台海報", note: "整頁展開、幾乎無框、以文字和橫幅帶動動線" },
-  { id: "paper", label: "和紙目錄", note: "直角方格、展覽冊頁、留白與編輯感" },
-  { id: "seal", label: "月殿御札", note: "少量圓角工具框、章印、封條與名冊感" },
-];
 const adminTabs: Array<{ id: AdminTab; label: string }> = [
   { id: "dashboard", label: "總覽" },
   { id: "members", label: "會員" },
@@ -357,448 +351,9 @@ function HomeView(props: {
   );
 }
 
-function StorefrontDemoView(props: {
-  system: UseOrderSystemReturn;
-  onOpenCampaign: (campaign: Campaign) => void;
-  onOpenBlindBox: (campaign: Campaign, product: Product) => void;
-}): JSX.Element {
-  const { system, onOpenCampaign, onOpenBlindBox } = props;
-  const [demoTheme, setDemoTheme] = useState<DemoTheme>("poster");
-
-  const featuredCampaignCards = useMemo(() => {
-    const realCards = system.visibleCampaigns.slice(0, 3).map((campaign, index) => ({
-      id: campaign.id,
-      title: campaign.title,
-      subtitle: index === 0 ? "主視覺檔期" : index === 1 ? "期間限定支線" : "收藏補完場",
-      description: campaign.description || "這一檔的世界觀、角色貨量與購買節奏，應該先在這裡講清楚。",
-      release: releaseStageLabel(campaign.releaseStage),
-      deadline: formatDate(campaign.deadlineAt),
-      campaign,
-    }));
-
-    if (realCards.length > 0) {
-      return realCards;
-    }
-
-    return [
-      {
-        id: "demo-campaign-1",
-        title: "星虹月蝕祭",
-        subtitle: "主視覺檔期",
-        description: "首頁第一屏應該像角色特設站，先告訴買家本期主打、節奏與入場方式。",
-        release: "固一＋固二",
-        deadline: "2026/03/31 23:59",
-        campaign: null,
-      },
-      {
-        id: "demo-campaign-2",
-        title: "夜航收藏室",
-        subtitle: "期間限定支線",
-        description: "小型副場可放在第二層，作為補貨、加購或餘量釋出的入口。",
-        release: "全面開放",
-        deadline: "2026/04/03 23:59",
-        campaign: null,
-      },
-      {
-        id: "demo-campaign-3",
-        title: "月海盲盒拆分",
-        subtitle: "收藏補完場",
-        description: "盲盒拆分最好像一個獨立劇場，讓人知道這一區才要開始看角色固位。",
-        release: "固一",
-        deadline: "2026/04/06 23:59",
-        campaign: null,
-      },
-    ];
-  }, [system.visibleCampaigns]);
-
-  const featuredProducts = useMemo(() => {
-    const entries = system.visibleCampaigns.flatMap((campaign) =>
-      system.getProductsByCampaign(campaign.id).map((product) => ({ campaign, product })),
-    );
-
-    if (entries.length > 0) {
-      return entries.slice(0, 6);
-    }
-
-    return [
-      {
-        campaign: null,
-        product: {
-          id: "demo-product-1",
-          campaignId: "demo",
-          name: "輝耀姬銀箔壓克力牌",
-          sku: "PRD-DEMO-001",
-          series: "聖裝系列",
-          type: "NORMAL" as ProductType,
-          character: "輝耀姬" as CharacterName,
-          imageUrl: null,
-          price: 240,
-          stock: 8,
-          maxPerUser: 2,
-          slotRestrictionEnabled: false,
-          slotRestrictedCharacter: null,
-        },
-      },
-      {
-        campaign: null,
-        product: {
-          id: "demo-product-2",
-          campaignId: "demo",
-          name: "星軌吊飾套組",
-          sku: "PRD-DEMO-002",
-          series: "Q版系列",
-          type: "NORMAL" as ProductType,
-          character: "八千代" as CharacterName,
-          imageUrl: null,
-          price: 180,
-          stock: null,
-          maxPerUser: null,
-          slotRestrictionEnabled: false,
-          slotRestrictedCharacter: null,
-        },
-      },
-      {
-        campaign: null,
-        product: {
-          id: "demo-product-3",
-          campaignId: "demo",
-          name: "月讀迷你立牌盲盒",
-          sku: "PRD-DEMO-003",
-          series: "盲盒劇場",
-          type: "BLIND_BOX" as ProductType,
-          character: null,
-          imageUrl: null,
-          price: 150,
-          stock: null,
-          maxPerUser: null,
-          slotRestrictionEnabled: true,
-          slotRestrictedCharacter: null,
-        },
-      },
-    ];
-  }, [system]);
-
-  const demoSeries = useMemo(() => {
-    const series = Array.from(
-      new Set(featuredProducts.map(({ product }) => product.series || "未分類").filter(Boolean)),
-    );
-
-    if (series.length > 0) {
-      return series.slice(0, 5);
-    }
-
-    return ["聖裝系列", "Q版系列", "盲盒劇場", "收藏周邊", "限定復刻"];
-  }, [featuredProducts]);
-
-  const spotlightBlindEntry = useMemo(() => (
-    featuredProducts.find((entry) => entry.product.type === "BLIND_BOX")
-    ?? null
-  ), [featuredProducts]);
-
-  const spotlightBlindItems = useMemo(() => {
-    if (spotlightBlindEntry?.campaign && spotlightBlindEntry.product.type === "BLIND_BOX") {
-      const items = system.getBlindBoxItemsByProduct(spotlightBlindEntry.product.id).slice(0, 4);
-      if (items.length > 0) {
-        return items.map((item) => ({
-          id: item.id,
-          name: item.name,
-          character: item.character,
-          imageUrl: item.imageUrl,
-          price: calculateUnitPrice(spotlightBlindEntry.product, item),
-          note: spotlightBlindEntry.product.slotRestrictionEnabled ? "依角色固位入場" : "全員可喊",
-        }));
-      }
-    }
-
-    return [
-      { id: "demo-blind-1", name: "月輪輝耀姬", character: "輝耀姬" as CharacterName, imageUrl: null, price: 150, note: "第一批僅開固一" },
-      { id: "demo-blind-2", name: "流星八千代", character: "八千代" as CharacterName, imageUrl: null, price: 150, note: "第二批開至固二" },
-      { id: "demo-blind-3", name: "極光彩葉", character: "彩葉" as CharacterName, imageUrl: null, price: 150, note: "全面開放後撿漏可進" },
-      { id: "demo-blind-4", name: "聖紋輝耀姬", character: "輝耀姬" as CharacterName, imageUrl: null, price: 150, note: "拆分頁集中看資格" },
-    ];
-  }, [spotlightBlindEntry, system]);
-
-  const heroPrimaryCampaign = featuredCampaignCards[0] ?? null;
-  const activeThemeMeta = demoThemeOptions.find((item) => item.id === demoTheme) ?? demoThemeOptions[0];
-  const themeLeadCopy = {
-    poster: "把首頁做成主視覺海報與章節入口。整體像特設頁，不用大方塊分區，主要靠標題、橫幅、圖片和段落節奏把人一路帶下去。",
-    paper: "把首頁做成同人展物販小冊。內容貼在版面上，只有必要資訊才進直角框，商品像被編輯選過，而不是從資料庫直接吐出來。",
-    seal: "把首頁做成帶章印與封條的月殿名冊。大部分內容仍是整頁鋪開，只有工具與狀態才用少量圓角框標示。",
-  }[demoTheme];
-
-  return (
-    <section className={`storefront-demo storefront-demo--${demoTheme}`}>
-      <section className="demo-shell-stage">
-        <div className="demo-hero-copy">
-          <p className="demo-kicker">Kaguya Storefront Study</p>
-          <h2 className="demo-title">超時空輝耀姬 前台視覺 DEMO</h2>
-          <p className="demo-copy">{themeLeadCopy}</p>
-
-          <div className="demo-hero-actions">
-            <button
-              type="button"
-              className="demo-primary-action"
-              onClick={() => heroPrimaryCampaign?.campaign && onOpenCampaign(heroPrimaryCampaign.campaign)}
-              disabled={!heroPrimaryCampaign?.campaign}
-            >
-              {heroPrimaryCampaign?.campaign ? "進入本期主視覺活動" : "這裡可接主視覺活動 CTA"}
-            </button>
-            <button
-              type="button"
-              className="demo-secondary-action"
-              onClick={() => {
-                if (spotlightBlindEntry?.campaign) {
-                  onOpenBlindBox(spotlightBlindEntry.campaign, spotlightBlindEntry.product);
-                }
-              }}
-              disabled={!spotlightBlindEntry?.campaign}
-            >
-              查看盲盒拆分劇場
-            </button>
-          </div>
-
-          <div className="demo-stat-grid">
-            <article className="demo-stat-card">
-              <p className="demo-stat-label">主打檔期</p>
-              <p className="demo-stat-value">{system.visibleCampaigns.length || 3}</p>
-              <p className="demo-stat-detail">先呈現進行中的世界觀場景與入場順序</p>
-            </article>
-            <article className="demo-stat-card">
-              <p className="demo-stat-label">系列層級</p>
-              <p className="demo-stat-value">{demoSeries.length}</p>
-              <p className="demo-stat-detail">分類應像櫥窗導覽，不是後台篩選器</p>
-            </article>
-            <article className="demo-stat-card">
-              <p className="demo-stat-label">拆分劇場</p>
-              <p className="demo-stat-value">{spotlightBlindItems.length}</p>
-              <p className="demo-stat-detail">固位與撿漏只在盲盒場景集中閱讀</p>
-            </article>
-          </div>
-        </div>
-
-        <aside className="demo-variant-panel">
-          <div className="demo-variant-heading">
-            <p className="demo-kicker">Visual Studies</p>
-            <h3>切換版本</h3>
-            <p>{activeThemeMeta.note}</p>
-          </div>
-          <div className="demo-variant-switcher">
-            {demoThemeOptions.map((option) => (
-              <button
-                key={option.id}
-                type="button"
-                className={demoTheme === option.id ? "demo-theme-chip demo-theme-chip-active" : "demo-theme-chip"}
-                onClick={() => setDemoTheme(option.id)}
-              >
-                <span>{option.label}</span>
-                <small>{option.note}</small>
-              </button>
-            ))}
-          </div>
-          <div className="demo-stage-note">
-            <p className="demo-kicker">Featured Arc</p>
-            <h3>{heroPrimaryCampaign?.title ?? "星虹月蝕祭"}</h3>
-            <p>{heroPrimaryCampaign?.description ?? "主視覺旁邊要放本期檔期摘要，直接告訴買家這一檔在賣什麼、目前開到哪個階段。"}</p>
-            <div className="demo-stage-meta">
-              <span>{heroPrimaryCampaign?.subtitle ?? "主視覺檔期"}</span>
-              <span>{heroPrimaryCampaign?.release ?? "固一＋固二"}</span>
-              <span>{heroPrimaryCampaign?.deadline ?? "2026/03/31 23:59"}</span>
-            </div>
-          </div>
-        </aside>
-      </section>
-
-      <section className="demo-surface demo-surface--chapters">
-        <div className="demo-section-heading">
-          <div>
-            <span className="demo-section-index">I</span>
-            <p className="demo-kicker">Campaign Chapters</p>
-            <h3>把活動做成章節入口，而不是一排資訊卡</h3>
-          </div>
-          <p>每個活動都像一個篇章。首頁先給一個情緒濃度高的入口，再給次層支線與補完場，讓買家有逛特設站的感覺。</p>
-        </div>
-
-        <div className="demo-campaign-grid">
-          {featuredCampaignCards.map((card) => (
-            <article key={card.id} className="demo-campaign-card">
-              <p className="demo-card-kicker">{card.subtitle}</p>
-              <h4>{card.title}</h4>
-              <p>{card.description}</p>
-              <div className="demo-campaign-meta">
-                <span>{card.release}</span>
-                <span>{card.deadline}</span>
-              </div>
-              <button
-                type="button"
-                className="demo-link-action"
-                onClick={() => card.campaign && onOpenCampaign(card.campaign)}
-                disabled={!card.campaign}
-              >
-                {card.campaign ? "進入活動" : "這裡可接活動頁"}
-              </button>
-            </article>
-          ))}
-        </div>
-      </section>
-
-      <section className="demo-surface demo-surface--shelves">
-        <div className="demo-section-heading">
-          <div>
-            <span className="demo-section-index">II</span>
-            <p className="demo-kicker">Moon Shelves</p>
-            <h3>分類應該像選品櫥窗，不是後台篩選器的延伸</h3>
-          </div>
-          <p>這些分類在前台不是資料欄位，而是氛圍入口。每個標籤都應該帶出該系列的角色、材質和收藏感。</p>
-        </div>
-
-        <div className="demo-ribbon-row">
-          {demoSeries.map((series) => (
-            <span key={series} className="demo-ribbon-chip">{series}</span>
-          ))}
-        </div>
-
-        <div className="demo-product-grid">
-          {featuredProducts.map(({ campaign, product }, index) => {
-            const highlightLabel = product.type === "BLIND_BOX" ? "Blind Box Theatre" : index === 0 ? "Main Pickup" : "Select Item";
-            return (
-              <article key={product.id} className="demo-product-card">
-                <div className="demo-product-media">
-                  {product.imageUrl ? (
-                    <img src={product.imageUrl} alt={product.name} loading="lazy" />
-                  ) : (
-                    <div className="demo-product-fallback">
-                      <span>{product.series || "Collection"}</span>
-                    </div>
-                  )}
-                  <span className="demo-product-badge">{highlightLabel}</span>
-                </div>
-
-                <div className="demo-product-copy">
-                  <div className="demo-product-head">
-                    <div>
-                      <p className="demo-card-kicker">{product.sku}</p>
-                      <h4>{product.name}</h4>
-                    </div>
-                    <strong>{twd(product.price)}</strong>
-                  </div>
-
-                  <p className="demo-product-meta">
-                    {product.series} / {product.type === "BLIND_BOX" ? "拆分劇場" : "一般選品"}
-                    {product.character ? ` / ${product.character}` : ""}
-                  </p>
-                  <p className="demo-product-note">
-                    {product.type === "BLIND_BOX"
-                      ? product.slotRestrictionEnabled ? "這類商品應該直接進入角色拆分頁閱讀資格與釋出階段。" : "這類盲盒目前可先做全員可喊版型。"
-                      : product.slotRestrictionEnabled ? "一般商品若啟用固位，前台也要把限制角色講清楚。" : "一般商品在這個版本會更像周邊通販，而不是資料列表。"}
-                  </p>
-
-                  <div className="demo-product-actions">
-                    {product.type === "BLIND_BOX" ? (
-                      <button
-                        type="button"
-                        className="demo-inline-action"
-                        onClick={() => campaign && onOpenBlindBox(campaign, product)}
-                        disabled={!campaign}
-                      >
-                        進入拆分頁
-                      </button>
-                    ) : (
-                      <button
-                        type="button"
-                        className="demo-inline-action"
-                        onClick={() => campaign && onOpenCampaign(campaign)}
-                        disabled={!campaign}
-                      >
-                        前往活動購買
-                      </button>
-                    )}
-                  </div>
-                </div>
-              </article>
-            );
-          })}
-        </div>
-      </section>
-
-      <section className="demo-spotlight demo-spotlight--blind">
-        <div className="demo-spotlight-copy">
-          <span className="demo-section-index">III</span>
-          <p className="demo-kicker">Blind Box Theatre</p>
-          <h3>盲盒拆分應該像獨立劇場，不要混在一般商品流裡</h3>
-          <p>
-            這一區專門承接固位與撿漏邏輯。使用者在這裡只看角色、時段、資格與庫存，不需要再被一般代購商品的訊息干擾。
-          </p>
-          <div className="demo-spotlight-pills">
-            <span>時段釋出清楚可讀</span>
-            <span>角色固位集中展示</span>
-            <span>加入購物車前先講資格</span>
-          </div>
-          <button
-            type="button"
-            className="demo-primary-action"
-            onClick={() => spotlightBlindEntry?.campaign && onOpenBlindBox(spotlightBlindEntry.campaign, spotlightBlindEntry.product)}
-            disabled={!spotlightBlindEntry?.campaign}
-          >
-            打開盲盒拆分 DEMO
-          </button>
-        </div>
-
-        <div className="demo-character-grid">
-          {spotlightBlindItems.map((item) => (
-            <article key={item.id} className="demo-character-card">
-              <div className="demo-character-portrait">
-                {item.imageUrl ? (
-                  <img src={item.imageUrl} alt={item.name} loading="lazy" />
-                ) : (
-                  <div className="demo-product-fallback">
-                    <span>{item.character}</span>
-                  </div>
-                )}
-              </div>
-              <div>
-                <p className="demo-character-name">{item.name}</p>
-                <p className="demo-character-role">{item.character}</p>
-              </div>
-              <p className="demo-character-note">{item.note}</p>
-              <strong className="demo-character-price">{twd(item.price)}</strong>
-            </article>
-          ))}
-        </div>
-      </section>
-
-      <section className="demo-surface demo-surface--flow">
-        <div className="demo-section-heading">
-          <div>
-            <span className="demo-section-index">IV</span>
-            <p className="demo-kicker">Purchase Flow</p>
-            <h3>前台節奏應該更像一條儀式流程</h3>
-          </div>
-          <p>用戶不該一進站就面對所有規則，而是先被導入主視覺，再進系列，再進商品，最後才在必要處看固位。</p>
-        </div>
-
-        <div className="demo-flow-grid">
-          <article className="demo-flow-card">
-            <span>01</span>
-            <h4>先進主視覺活動</h4>
-            <p>首頁只做章節入口，讓買家先知道現在主打哪一檔、該從哪裡開始逛。</p>
-          </article>
-          <article className="demo-flow-card">
-            <span>02</span>
-            <h4>再依系列挑商品</h4>
-            <p>分類像櫥窗。一般商品以展示感和價格為主，購物動線要明顯，不要像讀清單。</p>
-          </article>
-          <article className="demo-flow-card">
-            <span>03</span>
-            <h4>盲盒才展開規則</h4>
-            <p>只有進到拆分劇場，才開始讀固位、時段與角色資格，讓複雜度集中在正確位置。</p>
-          </article>
-        </div>
-      </section>
-    </section>
-  );
-}
 
 function CampaignView(props: {
+
   system: UseOrderSystemReturn;
   campaign: Campaign;
   onGoCart: () => void;
@@ -3121,7 +2676,6 @@ function AdminSettingsPanel(props: { system: UseOrderSystemReturn }): JSX.Elemen
     </section>
   );
 }
-
 function AdminConsoleView(props: {
   system: UseOrderSystemReturn;
   onBackToShop: () => void;
@@ -3131,7 +2685,8 @@ function AdminConsoleView(props: {
   const { system, onBackToShop, activeTab, onChangeTab } = props;
   const [feedback, setFeedback] = useState("");
   const [selectedCharacter, setSelectedCharacter] = useState<CharacterName>("八千代");
-  const [memberKeyword, setMemberKeyword] = useState("");
+  const [memberOverviewKeyword, setMemberOverviewKeyword] = useState("");
+  const [slotMemberKeyword, setSlotMemberKeyword] = useState("");
   const [selectedMemberIds, setSelectedMemberIds] = useState<string[]>([]);
   const [bulkCharacterTier, setBulkCharacterTier] = useState<BulkCharacterTierValue>("FIXED_1");
   const [pickupRateDrafts, setPickupRateDrafts] = useState<Record<string, string>>({});
@@ -3161,12 +2716,17 @@ function AdminConsoleView(props: {
     [system.state.blindBoxItems],
   );
   const orderItemsByOrderId = useMemo(() => {
-    const map = new Map<string, ReturnType<typeof system.getOrderItems>>();
-    system.state.orders.forEach((order) => {
-      map.set(order.id, system.getOrderItems(order.id));
+    const map = new Map<string, typeof system.state.orderItems>();
+    system.state.orderItems.forEach((item) => {
+      const existing = map.get(item.orderId);
+      if (existing) {
+        existing.push(item);
+        return;
+      }
+      map.set(item.orderId, [item]);
     });
     return map;
-  }, [system, system.state.orders, system.state.orderItems]);
+  }, [system.state.orderItems]);
 
   const allClaims = useMemo(
     () => [...system.state.claims].sort((a, b) => new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime()),
@@ -3185,6 +2745,41 @@ function AdminConsoleView(props: {
     [system.state.shipments],
   );
   const recentPayments = useMemo(() => allPayments.slice(0, 8), [allPayments]);
+
+  const userOrderStatsById = useMemo(() => {
+    const map = new Map<string, { orderCount: number; orderTotal: number }>();
+    system.state.orders.forEach((order) => {
+      const existing = map.get(order.userId) ?? { orderCount: 0, orderTotal: 0 };
+      existing.orderCount += 1;
+      existing.orderTotal += order.totalAmount;
+      map.set(order.userId, existing);
+    });
+    return map;
+  }, [system.state.orders]);
+
+  const pendingClaimsByUserId = useMemo(() => {
+    const map = new Map<string, number>();
+    system.state.claims.forEach((claim) => {
+      if (claim.status !== "LOCKED") return;
+      map.set(claim.userId, (map.get(claim.userId) ?? 0) + 1);
+    });
+    return map;
+  }, [system.state.claims]);
+
+  const slotSummaryByUserId = useMemo(() => {
+    const groupedSlots = new Map<string, CharacterSlot[]>();
+    system.state.characterSlots.forEach((slot) => {
+      const existing = groupedSlots.get(slot.userId);
+      if (existing) {
+        existing.push(slot);
+        return;
+      }
+      groupedSlots.set(slot.userId, [slot]);
+    });
+    return new Map(
+      Array.from(groupedSlots.entries()).map(([userId, slots]) => [userId, formatCharacterSlotSummary(slots)]),
+    );
+  }, [system.state.characterSlots]);
 
   const visibleClaims = useMemo(() => {
     const keyword = claimKeyword.trim().toLowerCase();
@@ -3220,49 +2815,39 @@ function AdminConsoleView(props: {
     userById,
   ]);
 
-  const memberRows = useMemo(() => {
-    const slotsByUser = new Map<string, CharacterSlot[]>();
-    system.state.characterSlots.forEach((slot) => {
-      const existing = slotsByUser.get(slot.userId);
-      if (existing) {
-        existing.push(slot);
-        return;
-      }
-      slotsByUser.set(slot.userId, [slot]);
-    });
-
-    return system.state.users
+  const memberRows = useMemo(() => (
+    system.state.users
       .map((user) => {
-        const orders = system.state.orders.filter((order) => order.userId === user.id);
-        const orderTotal = orders.reduce((sum, order) => sum + order.totalAmount, 0);
-        const pendingClaims = system.state.claims.filter(
-          (claim) => claim.userId === user.id && claim.status === "LOCKED",
-        ).length;
-        const slotSummary = formatCharacterSlotSummary(slotsByUser.get(user.id) ?? []);
+        const orderStats = userOrderStatsById.get(user.id) ?? { orderCount: 0, orderTotal: 0 };
         return {
           user,
-          orderCount: orders.length,
-          orderTotal,
-          pendingClaims,
-          slotSummary,
+          orderCount: orderStats.orderCount,
+          orderTotal: orderStats.orderTotal,
+          pendingClaims: pendingClaimsByUserId.get(user.id) ?? 0,
+          slotSummary: slotSummaryByUserId.get(user.id) ?? "未分配",
         };
       })
-      .sort((a, b) => Number(b.user.isAdmin) - Number(a.user.isAdmin) || a.user.fbNickname.localeCompare(b.user.fbNickname));
-  }, [system.state.characterSlots, system.state.claims, system.state.orders, system.state.users]);
+      .sort((a, b) => Number(b.user.isAdmin) - Number(a.user.isAdmin) || a.user.fbNickname.localeCompare(b.user.fbNickname))
+  ), [pendingClaimsByUserId, slotSummaryByUserId, system.state.users, userOrderStatsById]);
 
   const filteredMemberRows = useMemo(() => {
-    const keyword = memberKeyword.trim().toLowerCase();
+    const keyword = memberOverviewKeyword.trim().toLowerCase();
     if (!keyword) return memberRows;
     return memberRows.filter(({ user }) => (
       user.fbNickname.toLowerCase().includes(keyword)
       || user.email.toLowerCase().includes(keyword)
     ));
-  }, [memberKeyword, memberRows]);
+  }, [memberOverviewKeyword, memberRows]);
 
-  const slotAssignableRows = useMemo(
-    () => filteredMemberRows.filter(({ user }) => !user.isAdmin),
-    [filteredMemberRows],
-  );
+  const slotAssignableRows = useMemo(() => {
+    const keyword = slotMemberKeyword.trim().toLowerCase();
+    return memberRows.filter(({ user }) => {
+      if (user.isAdmin) return false;
+      if (!keyword) return true;
+      return user.fbNickname.toLowerCase().includes(keyword)
+        || user.email.toLowerCase().includes(keyword);
+    });
+  }, [memberRows, slotMemberKeyword]);
 
   useEffect(() => {
     const availableIds = new Set(slotAssignableRows.map(({ user }) => user.id));
@@ -3433,8 +3018,8 @@ function AdminConsoleView(props: {
                 <input
                   className="w-full rounded-xl border border-slate-200 px-3 py-2 text-sm"
                   placeholder="搜尋會員暱稱或 Email"
-                  value={memberKeyword}
-                  onChange={(event) => setMemberKeyword(event.target.value)}
+                  value={memberOverviewKeyword}
+                  onChange={(event) => setMemberOverviewKeyword(event.target.value)}
                 />
               </div>
               <div className="mt-4 space-y-3">
@@ -3559,8 +3144,8 @@ function AdminConsoleView(props: {
                 <input
                   className="w-full rounded-xl border border-slate-200 px-3 py-2 text-sm"
                   placeholder="搜尋要分配固位的會員"
-                  value={memberKeyword}
-                  onChange={(event) => setMemberKeyword(event.target.value)}
+                  value={slotMemberKeyword}
+                  onChange={(event) => setSlotMemberKeyword(event.target.value)}
                 />
                 <select
                   className="rounded-xl border border-slate-200 px-3 py-2 text-sm"
@@ -4074,22 +3659,6 @@ export default function App(): JSX.Element {
               setSelectedCampaignId(campaign.id);
               setSelectedBlindProductId("");
               setView("campaign");
-            }}
-          />
-        )}
-
-        {view === "storeDemo" && (
-          <StorefrontDemoView
-            system={system}
-            onOpenCampaign={(campaign) => {
-              setSelectedCampaignId(campaign.id);
-              setSelectedBlindProductId("");
-              setView("campaign");
-            }}
-            onOpenBlindBox={(campaign, product) => {
-              setSelectedCampaignId(campaign.id);
-              setSelectedBlindProductId(product.id);
-              setView("blindBox");
             }}
           />
         )}

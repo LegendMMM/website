@@ -453,7 +453,7 @@ export function useOrderSystem(): UseOrderSystemReturn {
   }, [currentUser, syncAdminFlagFromSupabase]);
 
   const visibleCampaigns = useMemo(
-    () => state.campaigns.filter((campaign) => campaign.status === "OPEN"),
+    () => state.campaigns.filter((campaign) => campaignOpen(campaign)),
     [state.campaigns],
   );
 
