@@ -514,6 +514,105 @@ body {
   opacity: 0.12;
 }
 
+.shop-front .front-header-utility {
+  display: flex;
+  align-items: flex-start;
+  justify-content: flex-end;
+  gap: 1rem;
+}
+
+.shop-front .hero-kaguya-logo-inline {
+  width: min(100%, 17rem);
+  max-width: 100%;
+  flex: 1 1 auto;
+  min-width: 10rem;
+  user-select: none;
+}
+
+.shop-front .header-menu {
+  position: relative;
+  flex: 0 0 auto;
+}
+
+.shop-front .header-menu-trigger {
+  display: inline-flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 0.9rem;
+  min-width: 10.5rem;
+  padding: 0.8rem 0.95rem 0.75rem;
+  border: 1px solid var(--front-paper-line);
+  background: rgba(255, 251, 243, 0.9);
+  color: var(--front-paper-text);
+  text-align: left;
+}
+
+.shop-front .header-menu-trigger-open {
+  border-color: var(--front-paper-line-strong);
+}
+
+.shop-front .header-menu-copy {
+  display: grid;
+  gap: 0.18rem;
+}
+
+.shop-front .header-menu-kicker {
+  font-size: 0.66rem;
+  letter-spacing: 0.16em;
+  text-transform: uppercase;
+  color: var(--front-paper-accent-soft);
+}
+
+.shop-front .header-menu-copy strong {
+  font-size: 0.98rem;
+  font-weight: 800;
+}
+
+.shop-front .header-menu-caret {
+  font-size: 1.1rem;
+  line-height: 1;
+  color: var(--front-paper-accent);
+}
+
+.shop-front .header-menu-panel {
+  position: absolute;
+  top: calc(100% + 0.5rem);
+  right: 0;
+  z-index: 8;
+  display: grid;
+  gap: 0.15rem;
+  min-width: 13rem;
+  padding: 0.45rem;
+  border: 1px solid var(--front-paper-line);
+  background: rgba(255, 251, 243, 0.98);
+  box-shadow: 0 18px 48px -36px rgba(81, 52, 28, 0.32);
+}
+
+.shop-front .header-menu-item {
+  display: block;
+  width: 100%;
+  padding: 0.75rem 0.8rem;
+  border: 0;
+  border-bottom: 1px solid rgba(124, 89, 53, 0.12);
+  background: transparent;
+  color: var(--front-paper-text);
+  font-size: 0.92rem;
+  font-weight: 700;
+  text-align: left;
+}
+
+.shop-front .header-menu-item:last-child {
+  border-bottom: 0;
+}
+
+.shop-front .header-menu-item-active {
+  color: var(--front-paper-accent);
+}
+
+.shop-front .header-menu-item-danger {
+  color: #8a2e34;
+}
+
 .shop-front .hero-grid {
   gap: 1.3rem;
   align-items: end;
@@ -651,6 +750,40 @@ body {
 .admin-front .action-nav {
   justify-content: flex-end;
   gap: 1rem;
+}
+
+.admin-shell {
+  display: grid;
+  gap: 1.25rem;
+  grid-template-columns: minmax(0, 280px) minmax(0, 1fr);
+}
+
+.admin-sidebar {
+  height: fit-content;
+  position: sticky;
+  top: 1.5rem;
+}
+
+.admin-nav-button {
+  display: block;
+  text-align: left;
+  font-size: 0.92rem;
+  font-weight: 700;
+}
+
+.shop-front button,
+.admin-front button {
+  transition: transform 0.22s ease, color 0.22s ease, border-color 0.22s ease, background-color 0.22s ease;
+}
+
+.shop-front button:hover:not(:disabled),
+.admin-front button:hover:not(:disabled) {
+  transform: translateY(-1px);
+}
+
+.shop-front button:disabled,
+.admin-front button:disabled {
+  opacity: 0.62;
 }
 
 .shop-front .nav-chip,
@@ -806,6 +939,11 @@ body {
   box-shadow: 0 0 0 2px rgba(127, 34, 48, 0.08);
 }
 
+.shop-front ::placeholder,
+.admin-front ::placeholder {
+  color: var(--front-paper-subtle);
+}
+
 .shop-front .text-slate-900,
 .admin-front .text-slate-900 {
   color: #35271a !important;
@@ -954,7 +1092,6 @@ body {
     grid-template-columns: 1fr;
   }
 
-  .shop-front .hero-kaguya-mark,
   .admin-front .hero-kaguya-mark {
     position: static;
     display: block;
@@ -962,6 +1099,29 @@ body {
     max-width: 100%;
     margin: 0 auto 0.85rem;
     opacity: 0.22;
+  }
+
+  .shop-front .front-header-utility {
+    flex-direction: column;
+    align-items: stretch;
+    gap: 0.8rem;
+  }
+
+  .shop-front .hero-kaguya-logo-inline {
+    width: min(100%, 15rem);
+    align-self: flex-end;
+  }
+
+  .shop-front .header-menu {
+    align-self: flex-end;
+  }
+
+  .shop-front .header-menu-trigger {
+    min-width: 9.5rem;
+  }
+
+  .shop-front .header-menu-panel {
+    min-width: min(78vw, 14rem);
   }
 
   .shop-front .hero-panel h1 {
@@ -1009,6 +1169,10 @@ body {
   .shop-front .product-figure img,
   .shop-front .product-figure [aria-label="no-image"] {
     height: 180px !important;
+  }
+
+  .shop-front .hero-kaguya-logo-inline {
+    width: min(100%, 12rem);
   }
 
   .shop-front .front-toolbar {
@@ -1081,121 +1245,4 @@ body {
   .shop-front .product-figure [aria-label="no-image"] {
     height: 164px !important;
   }
-}
-
-.admin-shell {
-  @apply grid gap-5 xl:grid-cols-[280px_minmax(0,1fr)];
-}
-
-.admin-sidebar {
-  @apply rounded-[1.75rem] border p-5 shadow-card h-fit xl:sticky xl:top-6;
-  border-color: rgba(236, 223, 255, 0.2);
-  background:
-    linear-gradient(180deg, rgba(26, 27, 57, 0.94), rgba(16, 17, 36, 0.9));
-}
-
-.admin-nav-button {
-  @apply w-full rounded-2xl border px-4 py-3 text-left text-sm font-semibold;
-  border-color: rgba(232, 220, 255, 0.18);
-  background: rgba(21, 22, 44, 0.64);
-  color: #ddd7f7;
-}
-
-.admin-nav-button-active {
-  border-color: rgba(255, 232, 249, 0.44);
-  background: linear-gradient(100deg, rgba(247, 217, 255, 0.95), rgba(186, 203, 255, 0.95), rgba(151, 232, 255, 0.92));
-  color: #160f31;
-}
-
-.row-card {
-  @apply rounded-[1.4rem] border p-4;
-  border-color: rgba(232, 220, 255, 0.18);
-  background: rgba(19, 20, 42, 0.68);
-}
-
-button {
-  transition: all 0.22s ease;
-}
-
-button:hover:not(:disabled) {
-  transform: translateY(-1px);
-}
-
-button:disabled {
-  opacity: 0.62;
-}
-
-input,
-select,
-textarea {
-  background: rgba(18, 21, 44, 0.72);
-  color: #f1eeff;
-  border-color: rgba(218, 205, 255, 0.26) !important;
-}
-
-::placeholder {
-  color: #b3afd9;
-}
-
-input:focus,
-select:focus,
-textarea:focus {
-  outline: none;
-  box-shadow: 0 0 0 3px rgba(214, 170, 255, 0.18);
-}
-
-.site-shell:not(.shop-front) .text-slate-900 {
-  color: #f4efff !important;
-}
-
-.site-shell:not(.shop-front) .text-slate-800 {
-  color: #e8e0ff !important;
-}
-
-.site-shell:not(.shop-front) .text-slate-700 {
-  color: #d7d1f3 !important;
-}
-
-.site-shell:not(.shop-front) .text-slate-600 {
-  color: #c5bfe4 !important;
-}
-
-.site-shell:not(.shop-front) .text-slate-500 {
-  color: #a8a4cd !important;
-}
-
-.site-shell:not(.shop-front) .border-slate-200,
-.site-shell:not(.shop-front) .border-slate-300 {
-  border-color: rgba(227, 214, 255, 0.26) !important;
-}
-
-.site-shell:not(.shop-front) .bg-slate-50,
-.site-shell:not(.shop-front) .bg-slate-100 {
-  background-color: rgba(179, 166, 228, 0.14) !important;
-}
-
-.site-shell:not(.shop-front) .bg-white,
-.site-shell:not(.shop-front) [class*="bg-white/"] {
-  background-color: rgba(21, 22, 44, 0.68) !important;
-}
-
-.site-shell:not(.shop-front) .bg-slate-900 {
-  background: linear-gradient(100deg, rgba(247, 217, 255, 0.95), rgba(186, 203, 255, 0.95), rgba(151, 232, 255, 0.92)) !important;
-  border-color: rgba(247, 217, 255, 0.46) !important;
-}
-
-.site-shell:not(.shop-front) .hover\:bg-slate-700:hover {
-  background: linear-gradient(100deg, rgba(255, 226, 255, 0.98), rgba(199, 213, 255, 0.98), rgba(166, 238, 255, 0.96)) !important;
-}
-
-.site-shell:not(.shop-front) .bg-rose-50 {
-  background-color: rgba(255, 156, 210, 0.18) !important;
-}
-
-.site-shell:not(.shop-front) .border-rose-300 {
-  border-color: rgba(255, 174, 224, 0.38) !important;
-}
-
-.site-shell:not(.shop-front) .text-rose-700 {
-  color: #ffd7ef !important;
 }

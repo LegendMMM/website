@@ -1,9 +1,9 @@
-import { useEffect, useMemo, useState } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
 import { motion } from "framer-motion";
 import { AuthCard } from "./components/AuthCard";
 import type { UseOrderSystemReturn } from "./hooks/useOrderSystem";
 import { useOrderSystem } from "./hooks/useOrderSystem";
-import kaguyaLogoTransparent from "./assets/kaguya-logo-transparent.webp";
+import kaguyaLogoHeader from "./assets/kaguya-logo-header.webp";
 import { CHARACTER_OPTIONS, DEFAULT_PRODUCT_CATEGORIES } from "./lib/constants";
 import {
   BLIND_ITEM_IMPORT_CSV_TEMPLATE,
@@ -171,28 +171,92 @@ function HeaderNav(props: {
   onGoAdmin: () => void;
 }): JSX.Element {
   const { currentView, setView, system, onGoAdmin } = props;
+  const [menuOpen, setMenuOpen] = useState(false);
+  const menuRef = useRef<HTMLDivElement | null>(null);
   const cartCount = system.currentUser
     ? system.getMyCartItems().reduce((sum, item) => sum + item.qty, 0)
     : 0;
 
-  const buttonClass = (view: PageView): string =>
-    currentView === view ? "nav-chip nav-chip-active" : "nav-chip";
+  useEffect(() => {
+    const handlePointerDown = (event: MouseEvent): void => {
+      if (!menuRef.current) return;
+      if (menuRef.current.contains(event.target as Node)) return;
+      setMenuOpen(false);
+    };
+
+    const handleEscape = (event: KeyboardEvent): void => {
+      if (event.key === "Escape") setMenuOpen(false);
+    };
+
+    document.addEventListener("mousedown", handlePointerDown);
+    document.addEventListener("keydown", handleEscape);
+    return () => {
+      document.removeEventListener("mousedown", handlePointerDown);
+      document.removeEventListener("keydown", handleEscape);
+    };
+  }, []);
+
+  const currentViewLabel: Record<PageView, string> = {
+    home: "大主頁",
+    campaign: "活動頁",
+    blindBox: "盲盒拆分",
+    cart: "購物車",
+    me: "個人主頁",
+  };
+
+  const itemClass = (view: PageView): string =>
+    currentView === view ? "header-menu-item header-menu-item-active" : "header-menu-item";
+
+  const handleSelectView = (view: PageView): void => {
+    setView(view);
+    setMenuOpen(false);
+  };
 
   return (
-    <div className="action-nav">
-      <button className={buttonClass("home")} type="button" onClick={() => setView("home")}>大主頁</button>
-      <button className={buttonClass("cart")} type="button" onClick={() => setView("cart")}>購物車 ({cartCount})</button>
-      <button className={buttonClass("me")} type="button" onClick={() => setView("me")}>個人主頁</button>
-      {system.currentUser?.isAdmin && (
-        <button className="nav-chip" type="button" onClick={onGoAdmin}>管理後台</button>
-      )}
+    <div ref={menuRef} className="header-menu">
       <button
-        onClick={system.logout}
-        className="nav-chip nav-chip-danger"
         type="button"
+        className={`header-menu-trigger ${menuOpen ? "header-menu-trigger-open" : ""}`}
+        onClick={() => setMenuOpen((prev) => !prev)}
+        aria-expanded={menuOpen}
+        aria-haspopup="menu"
       >
-        登出
+        <span className="header-menu-copy">
+          <span className="header-menu-kicker">Quick Menu</span>
+          <strong>{currentViewLabel[currentView]}</strong>
+        </span>
+        <span className="header-menu-caret" aria-hidden="true">{menuOpen ? "−" : "+"}</span>
       </button>
+
+      {menuOpen && (
+        <div className="header-menu-panel" role="menu" aria-label="站內功能選單">
+          <button className={itemClass("home")} type="button" onClick={() => handleSelectView("home")}>大主頁</button>
+          <button className={itemClass("cart")} type="button" onClick={() => handleSelectView("cart")}>購物車 ({cartCount})</button>
+          <button className={itemClass("me")} type="button" onClick={() => handleSelectView("me")}>個人主頁</button>
+          {system.currentUser?.isAdmin && (
+            <button
+              className="header-menu-item"
+              type="button"
+              onClick={() => {
+                onGoAdmin();
+                setMenuOpen(false);
+              }}
+            >
+              管理後台
+            </button>
+          )}
+          <button
+            onClick={() => {
+              system.logout();
+              setMenuOpen(false);
+            }}
+            className="header-menu-item header-menu-item-danger"
+            type="button"
+          >
+            登出
+          </button>
+        </div>
+      )}
     </div>
   );
 }
@@ -3553,7 +3617,7 @@ export default function App(): JSX.Element {
             className="hero-panel"
           >
             <img
-              src={kaguyaLogoTransparent}
+              src={kaguyaLogoHeader}
               alt=""
               aria-hidden="true"
               className="hero-kaguya-mark hero-kaguya-mark-admin"
@@ -3636,12 +3700,6 @@ export default function App(): JSX.Element {
           animate={{ opacity: 1, y: 0 }}
           className="hero-panel"
         >
-          <img
-            src={kaguyaLogoTransparent}
-            alt=""
-            aria-hidden="true"
-            className="hero-kaguya-mark"
-          />
           <div className="hero-grid">
             <div>
               <p className="section-kicker">Tsukuyomi Order Cosmos</p>
@@ -3654,7 +3712,14 @@ export default function App(): JSX.Element {
             </div>
 
             <div className="space-y-3 front-header-side">
-              <HeaderNav currentView={view} setView={setView} system={system} onGoAdmin={() => navigateAdminTab("dashboard")} />
+              <div className="front-header-utility">
+                <img
+                  src={kaguyaLogoHeader}
+                  alt="超時空輝耀姬"
+                  className="hero-kaguya-logo-inline"
+                />
+                <HeaderNav currentView={view} setView={setView} system={system} onGoAdmin={() => navigateAdminTab("dashboard")} />
+              </div>
               <div className="front-header-meta">
                 <span>可進活動 {system.visibleCampaigns.length} 檔</span>
                 <span>購物車 {headerCartCount} 件</span>
