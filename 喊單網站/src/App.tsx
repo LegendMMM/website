@@ -186,7 +186,6 @@ function HeaderNav(props: {
   return (
     <div className="action-nav">
       <button className={buttonClass("home")} type="button" onClick={() => setView("home")}>大主頁</button>
-      <button className={buttonClass("storeDemo")} type="button" onClick={() => setView("storeDemo")}>主題 DEMO</button>
       <button className={buttonClass("cart")} type="button" onClick={() => setView("cart")}>購物車 ({cartCount})</button>
       <button className={buttonClass("me")} type="button" onClick={() => setView("me")}>個人主頁</button>
       {system.currentUser?.isAdmin && (
@@ -270,9 +269,8 @@ function parseOptionalNonNegativeNumber(value: string, label: string): { ok: tru
 function HomeView(props: {
   system: UseOrderSystemReturn;
   onOpenCampaign: (campaign: Campaign) => void;
-  onOpenDemo: () => void;
 }): JSX.Element {
-  const { system, onOpenCampaign, onOpenDemo } = props;
+  const { system, onOpenCampaign } = props;
   const cartCount = system.getMyCartItems().reduce((sum, item) => sum + item.qty, 0);
   const myOrdersCount = system.getMyOrders().length;
   const myPendingClaims = system.currentUser
@@ -284,24 +282,34 @@ function HomeView(props: {
       <div className="hero-panel">
         <div className="hero-grid">
           <div>
-            <p className="section-kicker">Shop Entry</p>
+            <p className="section-kicker">本期導覽</p>
             <h2 className="text-3xl font-extrabold text-slate-900">先選活動，再進入對應系列挑商品</h2>
             <p className="mt-3 max-w-2xl text-sm text-slate-600">
-              一般商品預設全員可喊，但團主也可針對單品開啟固位限制；盲盒商品則可依整盒設定是否走角色拆分與固位判定。首頁應該是導覽入口，不是直接把所有內容丟成一片卡片牆。
+              一般商品直接挑款加入購物車；盲盒商品則進入拆分頁後，再依角色與釋出階段確認是否能喊。首頁只負責帶你進正確的活動入口。
             </p>
-            <div className="mt-5 flex flex-wrap gap-3">
-              <button type="button" className="cta-primary" onClick={onOpenDemo}>查看輝耀姬店鋪 DEMO</button>
-              {system.visibleCampaigns[0] && (
-                <button type="button" className="cta-secondary" onClick={() => onOpenCampaign(system.visibleCampaigns[0])}>
-                  直接進入本期活動
-                </button>
-              )}
+            <div className="front-guide-list mt-5">
+              <p>一般商品：直接購買</p>
+              <p>盲盒商品：進拆分頁看角色與資格</p>
+              <p>喊單成立後，仍需等待團主確認</p>
             </div>
           </div>
-          <div className="grid gap-3 sm:grid-cols-3 lg:grid-cols-1 xl:grid-cols-3">
-            <InsightTile label="可進活動" value={system.visibleCampaigns.length} detail="目前開放中的團務" accent="violet" />
-            <InsightTile label="購物車" value={cartCount} detail="待送出的商品數" accent="sky" />
-            <InsightTile label="待審喊單" value={myPendingClaims} detail={`已下單 ${myOrdersCount} 筆`} accent="rose" />
+          <div className="front-summary-strip">
+            <div className="front-summary-item">
+              <span>進行中活動</span>
+              <strong>{system.visibleCampaigns.length}</strong>
+            </div>
+            <div className="front-summary-item">
+              <span>購物車</span>
+              <strong>{cartCount}</strong>
+            </div>
+            <div className="front-summary-item">
+              <span>我的訂單</span>
+              <strong>{myOrdersCount}</strong>
+            </div>
+            <div className="front-summary-item">
+              <span>待審喊單</span>
+              <strong>{myPendingClaims}</strong>
+            </div>
           </div>
         </div>
       </div>
@@ -309,9 +317,9 @@ function HomeView(props: {
       <div className="section-frame">
         <div className="flex flex-wrap items-end justify-between gap-3">
           <div>
-            <p className="section-kicker">Campaigns</p>
+            <p className="section-kicker">活動章節</p>
             <h3 className="text-2xl font-extrabold text-slate-900">活動導覽</h3>
-            <p className="mt-1 text-sm text-slate-600">從活動切進去後再用分類和篩選縮小範圍，操作會比現在直接掃整頁快很多。</p>
+            <p className="mt-1 text-sm text-slate-600">先看活動，再進入該活動底下的系列與商品。這樣不會一進站就被大量資訊淹沒。</p>
           </div>
         </div>
       </div>
@@ -320,7 +328,7 @@ function HomeView(props: {
         {system.visibleCampaigns.map((campaign) => (
           <article key={campaign.id} className="campaign-card">
             <div className="campaign-card-top">
-              <p className="section-kicker">Campaign</p>
+              <p className="section-kicker">本期活動</p>
               <span className="state-pill bg-slate-100 text-slate-700">{releaseStageLabel(campaign.releaseStage)}</span>
             </div>
             <h3 className="mt-4 text-2xl font-extrabold text-slate-900">{campaign.title}</h3>
@@ -879,7 +887,7 @@ function CampaignView(props: {
           <button className="cta-secondary" type="button" onClick={onGoCart}>前往購物車</button>
         </div>
 
-        <p className="section-kicker mt-6">Campaign Workspace</p>
+        <p className="section-kicker mt-6">本期活動</p>
         <h2 className="mt-2 text-3xl font-extrabold text-slate-900">{campaign.title}</h2>
         <p className="mt-3 max-w-3xl text-sm text-slate-600">{campaign.description}</p>
 
@@ -887,7 +895,7 @@ function CampaignView(props: {
           <span className="state-pill bg-slate-100 text-slate-700">釋出：{releaseStageLabel(campaign.releaseStage)}</span>
           <span className="state-pill bg-slate-100 text-slate-700">截止：{formatDate(campaign.deadlineAt)}</span>
         </div>
-        <p className="mt-4 text-sm text-slate-700">左側先切分類與篩選，右側才看商品。這樣比把篩選器塞在商品上方更快。</p>
+        <p className="mt-4 text-sm text-slate-700">先用左側切換系列，再從右側看商品。一般商品可直接加入購物車，盲盒則進拆分頁挑角色。</p>
 
         {feedback && <p className="mt-3 text-sm font-semibold text-slate-800">{feedback}</p>}
       </div>
@@ -896,7 +904,7 @@ function CampaignView(props: {
         <aside className="section-frame h-fit lg:sticky lg:top-6">
           <div className="flex items-start justify-between gap-3">
             <div>
-              <p className="section-kicker">Filter</p>
+              <p className="section-kicker">系列導覽</p>
               <h3 className="text-base font-bold text-slate-900">系列與篩選</h3>
             </div>
             <div className="rounded-full border border-slate-200 px-3 py-1 text-xs text-slate-500">
@@ -923,7 +931,7 @@ function CampaignView(props: {
               搜尋關鍵字
               <input
                 className="mt-1 w-full rounded-xl border px-3 py-2"
-                placeholder="商品名 / SKU / 角色"
+                placeholder="商品名 / 角色"
                 value={keyword}
                 onChange={(event) => setKeyword(event.target.value)}
               />
@@ -952,15 +960,15 @@ function CampaignView(props: {
             </label>
           </div>
 
-          <div className="mt-5 rounded-2xl border border-slate-200 bg-white/60 p-4 text-xs text-slate-600">
+            <div className="mt-5 rounded-2xl border border-slate-200 bg-white/60 p-4 text-xs text-slate-600">
             <p className="font-semibold text-slate-800">選購提醒</p>
-            <p className="mt-2">一般商品預設全員可喊，但團主可對單品另開固位限制；盲盒商品請進拆分頁挑角色。</p>
+            <p className="mt-2">一般商品可直接加購；若該商品另有固位限制，頁面會明確標示。盲盒商品請進拆分頁看角色資格。</p>
           </div>
         </aside>
 
         <div className="space-y-3">
           <div className="section-frame">
-            <p className="section-kicker">Series</p>
+            <p className="section-kicker">本期選品</p>
             <div className="flex flex-wrap items-end justify-between gap-3">
               <div>
                 <h3 className="text-2xl font-extrabold text-slate-900">{selectedSeries || "未選擇分類"}</h3>
@@ -993,7 +1001,6 @@ function CampaignView(props: {
 
               <div className="mt-4 flex items-start justify-between gap-3">
                 <div>
-                  <p className="text-xs text-slate-500">{product.sku}</p>
                   <h3 className="text-xl font-extrabold text-slate-900">{product.name}</h3>
                   <p className="text-xs text-slate-500">{product.series} / {productTypeLabel(product.type)}</p>
                 </div>
@@ -1001,7 +1008,6 @@ function CampaignView(props: {
               </div>
 
               <div className="meta-chip-row">
-                <span className="meta-chip">SKU {product.sku}</span>
                 <span className="meta-chip">{product.series}</span>
                 {product.type === "NORMAL" && <span className="meta-chip">庫存 {product.stock ?? "不限"}</span>}
                 {product.type === "BLIND_BOX" && <span className="meta-chip">子項 {blindItemsCount} 項</span>}
@@ -1098,9 +1104,9 @@ function BlindBoxView(props: {
           <button className="cta-secondary" type="button" onClick={onGoCart}>前往購物車</button>
         </div>
 
-        <p className="section-kicker mt-6">Blind Box Split</p>
+        <p className="section-kicker mt-6">盲盒拆分</p>
         <h2 className="mt-2 text-3xl font-extrabold text-slate-900">{product.name}</h2>
-        <p className="mt-3 text-sm text-slate-600">這一頁才是真正要看固位的地方。會員是選角色子項，不是直接買母商品。</p>
+        <p className="mt-3 text-sm text-slate-600">這一頁才需要看角色、固位與釋出時段。你在這裡選的是角色子項，不是整盒母商品。</p>
         <div className="mt-4 flex flex-wrap gap-2 text-xs">
           <span className="state-pill bg-slate-100 text-slate-700">
             {product.slotRestrictionEnabled ? "此盲盒啟用固位限制" : "此盲盒全員可喊"}
@@ -1130,7 +1136,6 @@ function BlindBoxView(props: {
                 </div>
               </div>
               <div className="mt-3">
-                <p className="text-xs text-slate-500">{item.sku}</p>
                 <h3 className="text-xl font-extrabold text-slate-900">{item.name}</h3>
                 <p className="text-sm text-slate-500">角色：{item.character}</p>
               </div>
@@ -1215,7 +1220,7 @@ function CartView(props: {
   return (
     <section className="space-y-6">
       <div className="section-frame">
-        <p className="section-kicker">Cart</p>
+        <p className="section-kicker">購物清單</p>
         <h2 className="text-2xl font-extrabold text-slate-900">購物車</h2>
         <p className="mt-2 text-sm text-slate-600">單一商品或盲盒子項都可多件，且各自受上限與庫存限制。</p>
         {feedback && <p className="mt-2 text-sm font-semibold text-slate-800">{feedback}</p>}
@@ -1358,7 +1363,7 @@ function MeView(props: { system: UseOrderSystemReturn }): JSX.Element {
   return (
     <section className="space-y-6">
       <div className="section-frame">
-        <p className="section-kicker">My Center</p>
+        <p className="section-kicker">我的紀錄</p>
         <h2 className="text-2xl font-extrabold text-slate-900">個人主頁</h2>
         <p className="mt-2 text-sm text-slate-600">這裡會看到你下過的單與目前喊單狀態。</p>
       </div>
@@ -4035,7 +4040,7 @@ export default function App(): JSX.Element {
   }
 
   return (
-    <main className="site-shell min-h-screen px-4 py-6 md:px-8 lg:px-12">
+    <main className="site-shell shop-front min-h-screen px-4 py-6 md:px-8 lg:px-12">
       <div className="mx-auto max-w-7xl space-y-5">
         <motion.header
           initial={{ opacity: 0, y: 8 }}
@@ -4064,12 +4069,13 @@ export default function App(): JSX.Element {
               )}
             </div>
 
-            <div className="space-y-3">
+            <div className="space-y-3 front-header-side">
               <HeaderNav currentView={view} setView={setView} system={system} onGoAdmin={() => navigateAdminTab("dashboard")} />
-              <div className="grid gap-3 sm:grid-cols-3">
-                <InsightTile label="可進活動" value={system.visibleCampaigns.length} accent="violet" />
-                <InsightTile label="購物車" value={headerCartCount} detail={`${headerOrderCount} 筆訂單`} accent="sky" />
-                <InsightTile label="待審喊單" value={headerPendingClaims} detail="等待管理員確認" accent="rose" />
+              <div className="front-header-meta">
+                <span>可進活動 {system.visibleCampaigns.length} 檔</span>
+                <span>購物車 {headerCartCount} 件</span>
+                <span>已下單 {headerOrderCount} 筆</span>
+                <span>待審喊單 {headerPendingClaims} 筆</span>
               </div>
             </div>
           </div>
@@ -4078,7 +4084,6 @@ export default function App(): JSX.Element {
         {view === "home" && (
           <HomeView
             system={system}
-            onOpenDemo={() => setView("storeDemo")}
             onOpenCampaign={(campaign) => {
               setSelectedCampaignId(campaign.id);
               setSelectedBlindProductId("");
