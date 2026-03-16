@@ -1149,9 +1149,9 @@ body {
 }
 
 .storefront-demo--paper {
-  padding: 1.15rem;
-  border: 1px solid var(--demo-border);
-  box-shadow: var(--demo-shadow);
+  padding: 0.5rem 0;
+  border: 0;
+  box-shadow: none;
 }
 
 .storefront-demo--paper .demo-shell-stage,
@@ -1174,18 +1174,12 @@ body {
 
 .storefront-demo--paper .demo-hero-copy,
 .storefront-demo--paper .demo-surface,
-.storefront-demo--paper .demo-spotlight {
-  position: relative;
-}
-
-.storefront-demo--paper .demo-hero-copy::after,
-.storefront-demo--paper .demo-surface::after,
-.storefront-demo--paper .demo-spotlight::after {
-  content: "";
-  position: absolute;
-  inset: 8px;
-  border: 1px solid color-mix(in srgb, var(--demo-border) 70%, transparent);
-  pointer-events: none;
+.storefront-demo--paper .demo-spotlight,
+.storefront-demo--paper .demo-variant-panel {
+  padding-left: 0;
+  padding-right: 0;
+  border: 0;
+  background: transparent;
 }
 
 .storefront-demo--paper .demo-product-grid {
@@ -1196,6 +1190,137 @@ body {
   .storefront-demo--paper .demo-product-grid {
     grid-template-columns: repeat(3, minmax(0, 1fr));
   }
+}
+
+.storefront-demo--paper .demo-shell-stage {
+  padding-bottom: 1.4rem;
+  border-bottom: 1px solid color-mix(in srgb, var(--demo-border) 75%, transparent);
+}
+
+.storefront-demo--paper .demo-variant-panel {
+  align-content: start;
+  border-left: 1px solid color-mix(in srgb, var(--demo-border) 70%, transparent);
+  padding-left: 1.4rem;
+}
+
+@media (max-width: 1099px) {
+  .storefront-demo--paper .demo-variant-panel {
+    border-left: 0;
+    border-top: 1px solid color-mix(in srgb, var(--demo-border) 70%, transparent);
+    padding-left: 0;
+    padding-top: 1rem;
+  }
+}
+
+.storefront-demo--paper .demo-section-heading,
+.storefront-demo--paper .demo-stage-note {
+  padding-bottom: 0.9rem;
+  border-bottom: 1px solid color-mix(in srgb, var(--demo-border) 72%, transparent);
+}
+
+.storefront-demo--paper .demo-surface,
+.storefront-demo--paper .demo-spotlight {
+  gap: 1.6rem;
+}
+
+.storefront-demo--paper .demo-theme-chip {
+  display: inline-flex;
+  align-items: baseline;
+  gap: 0.5rem;
+  width: auto;
+  padding: 0 0 0.4rem;
+  border: 0;
+  border-bottom: 1px solid color-mix(in srgb, var(--demo-border) 72%, transparent);
+  background: transparent;
+  border-radius: 0;
+}
+
+.storefront-demo--paper .demo-theme-chip-active {
+  background: transparent;
+  color: #7f2230;
+  border-bottom: 2px solid #7f2230;
+}
+
+.storefront-demo--paper .demo-theme-chip-active small {
+  color: rgba(127, 34, 48, 0.7);
+}
+
+.storefront-demo--paper .demo-stage-meta span,
+.storefront-demo--paper .demo-campaign-meta span,
+.storefront-demo--paper .demo-ribbon-chip,
+.storefront-demo--paper .demo-spotlight-pills span {
+  border: 0;
+  border-bottom: 1px solid color-mix(in srgb, var(--demo-border) 72%, transparent);
+  background: transparent;
+  border-radius: 0;
+  padding: 0 0 0.35rem;
+}
+
+.storefront-demo--paper .demo-stat-card,
+.storefront-demo--paper .demo-campaign-card,
+.storefront-demo--paper .demo-product-card,
+.storefront-demo--paper .demo-character-card,
+.storefront-demo--paper .demo-flow-card {
+  border: 0;
+  border-top: 1px solid color-mix(in srgb, var(--demo-border) 72%, transparent);
+  background: transparent;
+  padding-left: 0;
+  padding-right: 0;
+}
+
+.storefront-demo--paper .demo-stat-grid,
+.storefront-demo--paper .demo-campaign-grid,
+.storefront-demo--paper .demo-flow-grid,
+.storefront-demo--paper .demo-character-grid {
+  gap: 0.85rem 1.25rem;
+}
+
+.storefront-demo--paper .demo-product-grid {
+  gap: 1.8rem 1.6rem;
+}
+
+.storefront-demo--paper .demo-product-card {
+  border-top: 0;
+}
+
+.storefront-demo--paper .demo-product-media {
+  border-bottom: 0;
+}
+
+.storefront-demo--paper .demo-product-copy {
+  padding: 0.9rem 0 0;
+}
+
+.storefront-demo--paper .demo-product-badge {
+  top: auto;
+  bottom: 1rem;
+  left: 1rem;
+  border: 0;
+  border-bottom: 1px solid color-mix(in srgb, var(--demo-border) 72%, transparent);
+  background: rgba(255, 251, 243, 0.82);
+  border-radius: 0;
+  padding: 0 0 0.35rem;
+}
+
+.storefront-demo--paper .demo-inline-action,
+.storefront-demo--paper .demo-link-action,
+.storefront-demo--paper .demo-primary-action,
+.storefront-demo--paper .demo-secondary-action {
+  border: 0;
+  border-bottom: 1px solid color-mix(in srgb, var(--demo-border) 72%, transparent);
+  background: transparent;
+  border-radius: 0;
+  padding: 0 0 0.35rem;
+}
+
+.storefront-demo--paper .demo-primary-action,
+.storefront-demo--paper .demo-inline-action {
+  color: #7f2230;
+}
+
+.storefront-demo--paper .demo-link-action,
+.storefront-demo--paper .demo-secondary-action {
+  color: var(--demo-text);
 }
 
 .storefront-demo--seal {

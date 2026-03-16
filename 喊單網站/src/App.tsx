@@ -4042,28 +4042,21 @@ export default function App(): JSX.Element {
             <div>
               <p className="section-kicker">Tsukuyomi Order Cosmos</p>
               <h1 className="mt-2 text-4xl font-extrabold text-slate-900">超時空輝耀姬・活動導覽與拆分系統</h1>
-              <p className="mt-3 text-sm text-slate-600">你好，{system.currentUser.fbNickname}（{system.currentUser.email}）</p>
-              <p className="text-xs text-slate-500">
-                身分：{system.currentUser.isAdmin ? "管理員" : "會員"} / 角色固位：{currentUserSlotSummary} / 取貨率：
-                {system.currentUser.pickupRate}%
-              </p>
-              <p className="text-xs text-slate-500">
-                資料模式：{isSupabaseEnabled ? "Supabase 遠端資料模式" : "Demo Local 模式（未設定 Supabase）"}
-              </p>
-              {!system.currentUser.isAdmin && isSupabaseEnabled && (
-                <div className="mt-2 flex flex-wrap items-center gap-2">
-                  <button
-                    type="button"
-                    className="rounded-lg border border-slate-300 bg-white px-3 py-1 text-xs font-semibold text-slate-700 hover:bg-slate-50"
-                    onClick={async () => {
-                      const result = await system.refreshCurrentUserAdminFlag();
-                      setPermissionSyncFeedback(result.message);
-                    }}
-                  >
-                    重新同步管理員權限
-                  </button>
-                  {permissionSyncFeedback && <p className="text-xs text-slate-500">{permissionSyncFeedback}</p>}
-                </div>
+              {system.currentUser.isAdmin ? (
+                <>
+                  <p className="mt-3 text-sm text-slate-600">登入帳號：{system.currentUser.fbNickname}（{system.currentUser.email}）</p>
+                  <p className="text-xs text-slate-500">
+                    身分：管理員 / 角色固位：{currentUserSlotSummary} / 取貨率：{system.currentUser.pickupRate}%
+                  </p>
+                  <p className="text-xs text-slate-500">
+                    資料模式：{isSupabaseEnabled ? "Supabase 遠端資料模式" : "Demo Local 模式（未設定 Supabase）"}
+                  </p>
+                </>
+              ) : (
+                <>
+                  <p className="mt-3 text-sm text-slate-600">你好，{system.currentUser.fbNickname}</p>
+                  <p className="text-sm text-slate-500">先選活動，再依系列挑商品；盲盒拆分會在子頁顯示角色資格與可喊狀態。</p>
+                </>
               )}
             </div>
 
@@ -4072,7 +4065,7 @@ export default function App(): JSX.Element {
               <div className="grid gap-3 sm:grid-cols-3">
                 <InsightTile label="可進活動" value={system.visibleCampaigns.length} accent="violet" />
                 <InsightTile label="購物車" value={headerCartCount} detail={`${headerOrderCount} 筆訂單`} accent="sky" />
-                <InsightTile label="待審喊單" value={headerPendingClaims} detail={`固位摘要：${currentUserSlotSummary}`} accent="rose" />
+                <InsightTile label="待審喊單" value={headerPendingClaims} detail="等待管理員確認" accent="rose" />
               </div>
             </div>
           </div>
