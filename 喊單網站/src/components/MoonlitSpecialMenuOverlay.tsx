@@ -1,34 +1,24 @@
 import { useEffect, useMemo, useState } from "react";
 import kaguyaLogoHeader from "../assets/kaguya-logo-header.webp";
+import tsukimiYachiyoImage from "../assets/tsukimi-yachiyo.webp";
 import "../styles/moonlit-special-menu-overlay.css";
 
 type MenuTheme = "light" | "dark";
 type SiteMenuView = "home" | "campaign" | "blindBox" | "cart" | "me";
-type MenuAccent = "sky" | "pink" | "gold";
 
 interface MenuEntry {
   id: string;
   zhLabel: string;
-  enLabel: string;
-  accent: MenuAccent;
   active?: boolean;
-  disabled?: boolean;
   onSelect: () => void;
 }
 
 interface MoonlitSpecialMenuOverlayProps {
   theme?: MenuTheme;
   currentView: SiteMenuView;
-  campaignCount: number;
   cartCount: number;
-  orderCount: number;
-  pendingClaims: number;
   isAdmin: boolean;
-  hasCampaign: boolean;
-  hasBlindBox: boolean;
   onGoHome: () => void;
-  onGoCampaign: () => void;
-  onGoBlindBox: () => void;
   onGoCart: () => void;
   onGoMe: () => void;
   onGoAdmin?: () => void;
@@ -59,24 +49,13 @@ function CloseIcon(): JSX.Element {
   );
 }
 
-function AccentOrb(props: { accent: MenuAccent }): JSX.Element {
-  return <span className={`moonlit-menu-nav-orb moonlit-menu-nav-orb-${props.accent}`} aria-hidden="true" />;
-}
-
 export default function MoonlitSpecialMenuOverlay(props: MoonlitSpecialMenuOverlayProps): JSX.Element {
   const {
     theme = "light",
     currentView,
-    campaignCount,
     cartCount,
-    orderCount,
-    pendingClaims,
     isAdmin,
-    hasCampaign,
-    hasBlindBox,
     onGoHome,
-    onGoCampaign,
-    onGoBlindBox,
     onGoCart,
     onGoMe,
     onGoAdmin,
@@ -122,43 +101,19 @@ export default function MoonlitSpecialMenuOverlay(props: MoonlitSpecialMenuOverl
     const baseEntries: MenuEntry[] = [
       {
         id: "home",
-        zhLabel: "首頁導覽",
-        enLabel: "HOME",
-        accent: "pink",
+        zhLabel: "首頁",
         active: currentView === "home",
         onSelect: onGoHome,
       },
       {
-        id: "campaign",
-        zhLabel: "活動頁面",
-        enLabel: "CAMPAIGN",
-        accent: "sky",
-        active: currentView === "campaign",
-        disabled: !hasCampaign,
-        onSelect: onGoCampaign,
-      },
-      {
-        id: "blindBox",
-        zhLabel: "盲盒拆分",
-        enLabel: "BLIND BOX",
-        accent: "gold",
-        active: currentView === "blindBox",
-        disabled: !hasBlindBox,
-        onSelect: onGoBlindBox,
-      },
-      {
         id: "cart",
         zhLabel: "購物清單",
-        enLabel: `CART ${cartCount}`,
-        accent: "sky",
         active: currentView === "cart",
         onSelect: onGoCart,
       },
       {
         id: "me",
         zhLabel: "個人主頁",
-        enLabel: "PROFILE",
-        accent: "gold",
         active: currentView === "me",
         onSelect: onGoMe,
       },
@@ -168,8 +123,6 @@ export default function MoonlitSpecialMenuOverlay(props: MoonlitSpecialMenuOverl
       baseEntries.push({
         id: "admin",
         zhLabel: "管理後台",
-        enLabel: "ADMIN",
-        accent: "pink",
         onSelect: onGoAdmin,
       });
     }
@@ -177,8 +130,6 @@ export default function MoonlitSpecialMenuOverlay(props: MoonlitSpecialMenuOverl
     baseEntries.push({
       id: "logout",
       zhLabel: "登出站點",
-      enLabel: "SIGN OUT",
-      accent: "pink",
       onSelect: onLogout,
     });
 
@@ -186,12 +137,8 @@ export default function MoonlitSpecialMenuOverlay(props: MoonlitSpecialMenuOverl
   }, [
     cartCount,
     currentView,
-    hasBlindBox,
-    hasCampaign,
     isAdmin,
     onGoAdmin,
-    onGoBlindBox,
-    onGoCampaign,
     onGoCart,
     onGoHome,
     onGoMe,
@@ -203,10 +150,7 @@ export default function MoonlitSpecialMenuOverlay(props: MoonlitSpecialMenuOverl
     [activeItem, entries],
   );
 
-  const tickerMessage = `目前可進活動 ${campaignCount} 檔，購物車 ${cartCount} 件，已下單 ${orderCount} 筆，待審喊單 ${pendingClaims} 筆。`;
-
   const handleSelect = (entry: MenuEntry): void => {
-    if (entry.disabled) return;
     entry.onSelect();
     setMenuOpen(false);
   };
@@ -262,29 +206,15 @@ export default function MoonlitSpecialMenuOverlay(props: MoonlitSpecialMenuOverl
 
             <section className="moonlit-menu-overlay-main">
               <div className="moonlit-menu-showcase">
-                <span className="moonlit-menu-showcase-overline">PERSONAL SPECIAL SITE</span>
-                <h2 className="moonlit-menu-showcase-title">超時空輝耀姬</h2>
-                <p className="moonlit-menu-showcase-copy">
-                  月夜特設站導覽。從這裡切換首頁、活動頁、盲盒拆分與購物清單，不再是一般後台導航。
-                </p>
-
                 <div className="moonlit-menu-stage-visual" aria-hidden="true">
-                  <span className="moonlit-menu-stage-wordmark">KAGUYA</span>
-                  <div className="moonlit-menu-stage-disc">
-                    <div className="moonlit-menu-stage-disc-core" />
-                    <div className="moonlit-menu-stage-disc-ring moonlit-menu-stage-disc-ring-a" />
-                    <div className="moonlit-menu-stage-disc-ring moonlit-menu-stage-disc-ring-b" />
-                    <div className="moonlit-menu-stage-disc-band moonlit-menu-stage-disc-band-a" />
-                    <div className="moonlit-menu-stage-disc-band moonlit-menu-stage-disc-band-b" />
-                    <span className="moonlit-menu-stage-star moonlit-menu-stage-star-a" />
-                    <span className="moonlit-menu-stage-star moonlit-menu-stage-star-b" />
-                    <span className="moonlit-menu-stage-star moonlit-menu-stage-star-c" />
-                  </div>
+                  <span className="moonlit-menu-stage-wordmark">YACHIYO</span>
+                  <img src={tsukimiYachiyoImage} alt="月見八千代" className="moonlit-menu-character-image" />
                 </div>
 
-                <div className="moonlit-menu-profile-bar">
-                  <span>PROFILE</span>
-                  <strong>月夜特設站 / 日系視覺 / 流程重構</strong>
+                <div className="moonlit-menu-character-profile">
+                  <span className="moonlit-menu-character-kicker">CHARACTER</span>
+                  <strong>月見八千代</strong>
+                  <p>月夜特設站展示角色。</p>
                 </div>
               </div>
 
@@ -297,29 +227,19 @@ export default function MoonlitSpecialMenuOverlay(props: MoonlitSpecialMenuOverl
                       <button
                         key={entry.id}
                         type="button"
-                        className={`moonlit-menu-nav-item ${isActive ? "is-active" : ""} ${entry.disabled ? "is-disabled" : ""}`}
+                        className={`moonlit-menu-nav-item ${isActive ? "is-active" : ""}`}
                         style={{ animationDelay: `${120 + index * 55}ms` }}
                         onMouseEnter={() => setActiveItem(entry.id)}
                         onFocus={() => setActiveItem(entry.id)}
                         onClick={() => handleSelect(entry)}
-                        disabled={entry.disabled}
                       >
-                        <span className="moonlit-menu-nav-special">{isActive ? "SPECIAL" : ""}</span>
                         <span className="moonlit-menu-nav-vertical">{entry.zhLabel}</span>
-                        <span className="moonlit-menu-nav-en">{entry.enLabel}</span>
-                        <AccentOrb accent={entry.accent} />
                       </button>
                     );
                   })}
                 </div>
               </div>
             </section>
-
-            <footer className="moonlit-menu-ticker">
-              <span className="moonlit-menu-ticker-pill">HOT NEWS</span>
-              <span className="moonlit-menu-ticker-date">2026 03.17</span>
-              <p>{tickerMessage}</p>
-            </footer>
           </div>
         </div>
       )}

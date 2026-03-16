@@ -3597,26 +3597,13 @@ export default function App(): JSX.Element {
   }
 
   return (
-    <main className="site-shell shop-front min-h-screen px-4 pb-6 pt-24 md:px-8 md:pb-8 md:pt-28 lg:px-12 lg:pb-10 lg:pt-28">
+    <main className="site-shell shop-front min-h-screen px-4 pb-6 pt-20 md:px-8 md:pb-8 md:pt-20 lg:px-12 lg:pb-10 lg:pt-20">
       <MoonlitSpecialMenuOverlay
         theme="light"
         currentView={view}
-        campaignCount={system.visibleCampaigns.length}
         cartCount={headerCartCount}
-        orderCount={headerOrderCount}
-        pendingClaims={headerPendingClaims}
         isAdmin={system.currentUser.isAdmin}
-        hasCampaign={Boolean(selectedCampaign)}
-        hasBlindBox={Boolean(selectedBlindProduct)}
         onGoHome={() => setView("home")}
-        onGoCampaign={() => {
-          if (!selectedCampaign) return;
-          setView("campaign");
-        }}
-        onGoBlindBox={() => {
-          if (!selectedBlindProduct) return;
-          setView("blindBox");
-        }}
         onGoCart={() => setView("cart")}
         onGoMe={() => setView("me")}
         onGoAdmin={() => navigateAdminTab("dashboard")}

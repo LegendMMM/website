@@ -5,11 +5,7 @@
   --menu-paper-border: rgba(73, 59, 82, 0.12);
   --menu-text: #2f2520;
   --menu-muted: #7b6c63;
-  --menu-soft-line: rgba(64, 48, 38, 0.16);
   --menu-red: #ff6d67;
-  --menu-pink: #f6a8bb;
-  --menu-cyan: #74d8f0;
-  --menu-gold: #dec79d;
 }
 
 .moonlit-menu-shell-dark {
@@ -17,7 +13,6 @@
   --menu-paper-border: rgba(255, 255, 255, 0.18);
   --menu-text: #fbf8f1;
   --menu-muted: rgba(251, 248, 241, 0.76);
-  --menu-soft-line: rgba(255, 255, 255, 0.22);
 }
 
 .moonlit-menu-bar {
@@ -260,58 +255,28 @@
 
 .moonlit-menu-overlay-main {
   display: grid;
-  grid-template-columns: minmax(0, 1.1fr) minmax(18rem, 0.9fr);
+  grid-template-columns: minmax(0, 1.18fr) minmax(16rem, 0.82fr);
   gap: 2rem;
   align-items: center;
 }
 
 .moonlit-menu-showcase {
   position: relative;
-  min-height: 38rem;
-  padding-left: 3rem;
+  min-height: 42rem;
+  padding-left: 2rem;
   animation: moonlit-menu-showcase-in 580ms cubic-bezier(0.2, 0.8, 0.2, 1) both;
-}
-
-.moonlit-menu-showcase-overline {
-  display: inline-block;
-  margin-bottom: 1rem;
-  font-size: 0.82rem;
-  letter-spacing: 0.36em;
-  text-transform: uppercase;
-  color: var(--menu-muted);
-}
-
-.moonlit-menu-showcase-title {
-  position: relative;
-  z-index: 2;
-  margin: 0;
-  font-family: "Noto Serif TC", serif;
-  font-size: clamp(3rem, 6.8vw, 6.4rem);
-  line-height: 0.96;
-  color: #2a201c;
-}
-
-.moonlit-menu-showcase-copy {
-  position: relative;
-  z-index: 2;
-  max-width: 30rem;
-  margin: 1rem 0 0;
-  font-size: 1rem;
-  line-height: 1.9;
-  color: var(--menu-muted);
 }
 
 .moonlit-menu-stage-visual {
   position: relative;
-  min-height: 30rem;
-  margin-top: 1rem;
+  min-height: 36rem;
 }
 
 .moonlit-menu-stage-wordmark {
   position: absolute;
-  right: -1rem;
-  bottom: 5rem;
-  font-size: clamp(5.5rem, 14vw, 12rem);
+  left: -0.8rem;
+  bottom: 3rem;
+  font-size: clamp(5.4rem, 13vw, 11.5rem);
   font-weight: 800;
   line-height: 0.9;
   letter-spacing: 0.02em;
@@ -319,105 +284,51 @@
   user-select: none;
 }
 
-.moonlit-menu-stage-disc {
+.moonlit-menu-character-image {
   position: absolute;
-  left: 2rem;
-  top: 2rem;
-  width: min(32rem, 78%);
-  aspect-ratio: 1 / 1.14;
+  left: 4rem;
+  bottom: 0;
+  width: min(34rem, 80%);
+  max-height: 38rem;
+  object-fit: contain;
   animation: moonlit-menu-float 7s ease-in-out infinite;
 }
 
-.moonlit-menu-stage-disc-core {
+.moonlit-menu-character-profile {
   position: absolute;
-  inset: 18% 18% 10%;
-  border-radius: 50%;
-  background:
-    radial-gradient(circle at 38% 34%, rgba(255, 255, 255, 0.96), rgba(255, 245, 227, 0.96) 38%, rgba(250, 225, 154, 0.8) 72%, rgba(255, 255, 255, 0) 100%);
-  box-shadow:
-    0 0 0 1px rgba(255, 255, 255, 0.66) inset,
-    0 24px 60px -24px rgba(232, 196, 109, 0.38),
-    0 0 64px rgba(255, 243, 210, 0.56);
-}
-
-.moonlit-menu-stage-disc-ring {
-  position: absolute;
-  border-radius: 50%;
-  border: 1px solid rgba(116, 216, 240, 0.24);
-}
-
-.moonlit-menu-stage-disc-ring-a {
-  inset: 8%;
-}
-
-.moonlit-menu-stage-disc-ring-b {
-  inset: 17%;
-  border-color: rgba(48, 38, 34, 0.08);
-}
-
-.moonlit-menu-stage-disc-band {
-  position: absolute;
-  left: 10%;
-  right: 10%;
-  height: 1rem;
-  border-radius: 999px;
-  border: 1px solid rgba(116, 216, 240, 0.18);
-  opacity: 0.78;
-}
-
-.moonlit-menu-stage-disc-band-a {
-  top: 36%;
-  transform: rotate(-18deg);
-}
-
-.moonlit-menu-stage-disc-band-b {
-  bottom: 28%;
-  border-color: rgba(246, 168, 187, 0.2);
-  transform: rotate(15deg);
-}
-
-.moonlit-menu-stage-star {
-  position: absolute;
-  width: 0.42rem;
-  height: 0.42rem;
-  border-radius: 999px;
-  background: rgba(255, 255, 255, 0.96);
-  box-shadow: 0 0 14px rgba(255, 255, 255, 0.9);
-}
-
-.moonlit-menu-stage-star-a { top: 24%; left: 14%; }
-.moonlit-menu-stage-star-b { top: 36%; right: 16%; }
-.moonlit-menu-stage-star-c { bottom: 18%; left: 30%; }
-
-.moonlit-menu-profile-bar {
-  position: absolute;
-  left: 0;
-  right: 4rem;
-  bottom: 0.5rem;
-  display: flex;
-  align-items: center;
-  gap: 1rem;
-  padding: 0.65rem 1rem;
+  left: 0.8rem;
+  bottom: 0.6rem;
+  display: grid;
+  gap: 0.28rem;
+  max-width: 22rem;
+  padding: 0.82rem 1rem;
   border-radius: 999px;
   border: 1px solid rgba(49, 39, 35, 0.24);
   background: rgba(255, 255, 255, 0.78);
   box-shadow: 0 18px 40px -32px rgba(49, 39, 35, 0.32);
 }
 
-.moonlit-menu-profile-bar span {
-  font-size: 0.88rem;
-  color: #353131;
-  opacity: 0.82;
+.moonlit-menu-character-kicker {
+  font-size: 0.72rem;
+  letter-spacing: 0.22em;
+  color: #8c7d75;
+  text-transform: uppercase;
 }
 
-.moonlit-menu-profile-bar strong {
-  font-size: 1rem;
+.moonlit-menu-character-profile strong {
+  font-size: 1.15rem;
   color: #2f2520;
+}
+
+.moonlit-menu-character-profile p {
+  margin: 0;
+  font-size: 0.9rem;
+  color: #6f6158;
 }
 
 .moonlit-menu-nav-zone {
   position: relative;
-  padding: 3rem 0 4rem;
+  padding: 5rem 0 1rem;
   animation: moonlit-menu-nav-in 580ms cubic-bezier(0.2, 0.8, 0.2, 1) both;
 }
 
@@ -455,122 +366,40 @@
   z-index: 1;
   display: flex;
   justify-content: flex-end;
-  gap: clamp(0.7rem, 1.6vw, 1.5rem);
+  gap: clamp(1rem, 2vw, 2rem);
   padding-top: 1.4rem;
 }
 
 .moonlit-menu-nav-item {
-  display: grid;
-  justify-items: center;
-  align-content: start;
-  gap: 0.95rem;
-  min-height: 22rem;
-  padding: 0 0.3rem;
+  display: block;
+  min-height: 20rem;
+  padding: 0;
   border: 0;
   background: transparent;
   color: #2d2623;
   text-align: center;
   cursor: pointer;
-  opacity: 0.84;
-  transition: transform 180ms ease, opacity 180ms ease, color 180ms ease;
+  opacity: 0.72;
+  transition: color 180ms ease, opacity 180ms ease;
 }
 
 .moonlit-menu-nav-item:hover {
-  transform: translateY(-4px);
   opacity: 1;
+  color: var(--menu-red);
 }
 
 .moonlit-menu-nav-item.is-active {
   opacity: 1;
-  color: #1f1b19;
-}
-
-.moonlit-menu-nav-item.is-disabled {
-  cursor: default;
-  opacity: 0.3;
-  transform: none;
-}
-
-.moonlit-menu-nav-special {
-  min-height: 1.2rem;
-  font-size: 0.72rem;
-  letter-spacing: 0.12em;
   color: var(--menu-red);
-  writing-mode: vertical-rl;
-  text-orientation: mixed;
 }
 
 .moonlit-menu-nav-vertical {
   font-family: "Noto Serif TC", serif;
-  font-size: clamp(2rem, 2.8vw, 3.1rem);
+  display: block;
+  font-size: clamp(2.2rem, 3vw, 3.5rem);
   line-height: 1.06;
   writing-mode: vertical-rl;
   text-orientation: mixed;
-}
-
-.moonlit-menu-nav-en {
-  font-size: 0.78rem;
-  letter-spacing: 0.24em;
-  color: var(--menu-muted);
-}
-
-.moonlit-menu-nav-orb {
-  width: 0.95rem;
-  height: 0.95rem;
-  border-radius: 999px;
-  box-shadow: 0 0 0 0.7rem rgba(255, 255, 255, 0.48);
-}
-
-.moonlit-menu-nav-orb-sky {
-  background: radial-gradient(circle at 35% 35%, #def8ff, var(--menu-cyan));
-}
-
-.moonlit-menu-nav-orb-pink {
-  background: radial-gradient(circle at 35% 35%, #ffe0ea, var(--menu-pink));
-}
-
-.moonlit-menu-nav-orb-gold {
-  background: radial-gradient(circle at 35% 35%, #fff1d7, var(--menu-gold));
-}
-
-.moonlit-menu-ticker {
-  display: grid;
-  grid-template-columns: auto auto 1fr;
-  align-items: center;
-  gap: 1rem;
-  padding: 0.95rem 1rem;
-  border: 2px solid rgba(28, 35, 38, 0.62);
-  background:
-    repeating-linear-gradient(0deg, rgba(0, 0, 0, 0.08) 0 1px, transparent 1px 5px),
-    linear-gradient(180deg, rgba(13, 18, 19, 0.88), rgba(22, 27, 30, 0.9));
-  box-shadow: 0 14px 34px -30px rgba(5, 10, 12, 0.6);
-}
-
-.moonlit-menu-ticker-pill,
-.moonlit-menu-ticker-date,
-.moonlit-menu-ticker p {
-  color: #79e7f1;
-}
-
-.moonlit-menu-ticker-pill {
-  padding: 0.48rem 0.82rem;
-  border: 2px solid #07d5ed;
-  font-size: 0.82rem;
-  font-weight: 800;
-  line-height: 1.1;
-  text-transform: uppercase;
-}
-
-.moonlit-menu-ticker-date {
-  font-size: 0.86rem;
-  font-weight: 700;
-  letter-spacing: 0.08em;
-}
-
-.moonlit-menu-ticker p {
-  margin: 0;
-  font-size: 0.98rem;
-  line-height: 1.6;
 }
 
 @keyframes moonlit-menu-showcase-in {
@@ -617,20 +446,21 @@
   }
 
   .moonlit-menu-stage-visual {
-    min-height: 22rem;
-  }
-
-  .moonlit-menu-stage-disc {
-    left: 0;
-    width: min(26rem, 88%);
+    min-height: 24rem;
   }
 
   .moonlit-menu-stage-wordmark {
     right: 0;
-    bottom: 3.2rem;
+    left: 0;
+    bottom: 2.8rem;
   }
 
-  .moonlit-menu-profile-bar {
+  .moonlit-menu-character-image {
+    left: 1rem;
+    width: min(24rem, 78%);
+  }
+
+  .moonlit-menu-character-profile {
     position: relative;
     left: auto;
     right: auto;
@@ -678,20 +508,11 @@
   }
 
   .moonlit-menu-stage-visual {
-    min-height: 18rem;
-  }
-
-  .moonlit-menu-nav-item {
-    min-height: 14rem;
+    min-height: 20rem;
   }
 
   .moonlit-menu-nav-vertical {
-    font-size: 2rem;
-  }
-
-  .moonlit-menu-ticker {
-    grid-template-columns: 1fr;
-    align-items: start;
+    font-size: 2.4rem;
   }
 }
 
@@ -709,17 +530,13 @@
     align-self: flex-end;
   }
 
-  .moonlit-menu-showcase-copy {
-    font-size: 0.94rem;
-  }
-
   .moonlit-menu-stage-visual {
-    min-height: 14rem;
+    min-height: 18rem;
   }
 
   .moonlit-menu-stage-wordmark {
-    font-size: 4.8rem;
-    bottom: 2.3rem;
+    font-size: 4.2rem;
+    bottom: 1.4rem;
   }
 
   .moonlit-menu-nav-list {
@@ -727,11 +544,10 @@
   }
 
   .moonlit-menu-nav-item {
-    min-height: auto;
-    gap: 0.55rem;
+    min-height: 12rem;
   }
 
   .moonlit-menu-nav-vertical {
-    font-size: 1.5rem;
+    font-size: 1.8rem;
   }
 }
