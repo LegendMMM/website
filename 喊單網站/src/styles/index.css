@@ -497,14 +497,35 @@ body {
   display: none;
 }
 
+.shop-front .hero-kaguya-mark,
+.admin-front .hero-kaguya-mark {
+  position: absolute;
+  top: 0.9rem;
+  right: var(--front-block-gutter);
+  width: min(32vw, 25rem);
+  max-width: 42%;
+  opacity: 0.18;
+  pointer-events: none;
+  user-select: none;
+  z-index: 0;
+}
+
+.admin-front .hero-kaguya-mark-admin {
+  opacity: 0.12;
+}
+
 .shop-front .hero-grid {
   gap: 1.3rem;
   align-items: end;
+  position: relative;
+  z-index: 1;
 }
 
 .admin-front .hero-grid {
   gap: 1.3rem;
   align-items: start;
+  position: relative;
+  z-index: 1;
 }
 
 .shop-front .front-header-side {
@@ -931,6 +952,16 @@ body {
   .admin-front .hero-grid {
     gap: 1rem;
     grid-template-columns: 1fr;
+  }
+
+  .shop-front .hero-kaguya-mark,
+  .admin-front .hero-kaguya-mark {
+    position: static;
+    display: block;
+    width: min(100%, 18rem);
+    max-width: 100%;
+    margin: 0 auto 0.85rem;
+    opacity: 0.22;
   }
 
   .shop-front .hero-panel h1 {

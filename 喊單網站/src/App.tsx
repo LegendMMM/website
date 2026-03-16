@@ -3,6 +3,7 @@ import { motion } from "framer-motion";
 import { AuthCard } from "./components/AuthCard";
 import type { UseOrderSystemReturn } from "./hooks/useOrderSystem";
 import { useOrderSystem } from "./hooks/useOrderSystem";
+import kaguyaLogoTransparent from "./assets/kaguya-logo-transparent.webp";
 import { CHARACTER_OPTIONS, DEFAULT_PRODUCT_CATEGORIES } from "./lib/constants";
 import {
   BLIND_ITEM_IMPORT_CSV_TEMPLATE,
@@ -3551,6 +3552,12 @@ export default function App(): JSX.Element {
             animate={{ opacity: 1, y: 0 }}
             className="hero-panel"
           >
+            <img
+              src={kaguyaLogoTransparent}
+              alt=""
+              aria-hidden="true"
+              className="hero-kaguya-mark hero-kaguya-mark-admin"
+            />
             <div className="hero-grid">
               <div>
                 <p className="section-kicker">Tsukuyomi Admin Cosmos</p>
@@ -3629,6 +3636,12 @@ export default function App(): JSX.Element {
           animate={{ opacity: 1, y: 0 }}
           className="hero-panel"
         >
+          <img
+            src={kaguyaLogoTransparent}
+            alt=""
+            aria-hidden="true"
+            className="hero-kaguya-mark"
+          />
           <div className="hero-grid">
             <div>
               <p className="section-kicker">Tsukuyomi Order Cosmos</p>
