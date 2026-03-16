@@ -600,9 +600,10 @@ function StorefrontDemoView(props: {
         </aside>
       </section>
 
-      <section className="demo-surface">
+      <section className="demo-surface demo-surface--chapters">
         <div className="demo-section-heading">
           <div>
+            <span className="demo-section-index">I</span>
             <p className="demo-kicker">Campaign Chapters</p>
             <h3>把活動做成章節入口，而不是一排資訊卡</h3>
           </div>
@@ -632,9 +633,10 @@ function StorefrontDemoView(props: {
         </div>
       </section>
 
-      <section className="demo-surface">
+      <section className="demo-surface demo-surface--shelves">
         <div className="demo-section-heading">
           <div>
+            <span className="demo-section-index">II</span>
             <p className="demo-kicker">Moon Shelves</p>
             <h3>分類應該像選品櫥窗，不是後台篩選器的延伸</h3>
           </div>
@@ -710,8 +712,9 @@ function StorefrontDemoView(props: {
         </div>
       </section>
 
-      <section className="demo-spotlight">
+      <section className="demo-spotlight demo-spotlight--blind">
         <div className="demo-spotlight-copy">
+          <span className="demo-section-index">III</span>
           <p className="demo-kicker">Blind Box Theatre</p>
           <h3>盲盒拆分應該像獨立劇場，不要混在一般商品流裡</h3>
           <p>
@@ -755,9 +758,10 @@ function StorefrontDemoView(props: {
         </div>
       </section>
 
-      <section className="demo-surface">
+      <section className="demo-surface demo-surface--flow">
         <div className="demo-section-heading">
           <div>
+            <span className="demo-section-index">IV</span>
             <p className="demo-kicker">Purchase Flow</p>
             <h3>前台節奏應該更像一條儀式流程</h3>
           </div>

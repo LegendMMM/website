@@ -841,6 +841,20 @@ body {
   gap: 1rem;
 }
 
+.demo-section-index {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  min-width: 2.1rem;
+  height: 2.1rem;
+  margin-bottom: 0.6rem;
+  font-size: 0.82rem;
+  font-weight: 800;
+  letter-spacing: 0.12em;
+  border: 1px solid var(--demo-border);
+  color: var(--demo-text);
+}
+
 .demo-campaign-grid,
 .demo-product-grid,
 .demo-flow-grid {
@@ -1223,6 +1237,16 @@ body {
   gap: 1.6rem;
 }
 
+.storefront-demo--paper .demo-section-index {
+  min-width: auto;
+  height: auto;
+  margin-bottom: 0.7rem;
+  padding: 0 0 0.35rem;
+  border: 0;
+  border-bottom: 2px solid rgba(127, 34, 48, 0.28);
+  color: #7f2230;
+}
+
 .storefront-demo--paper .demo-theme-chip {
   display: inline-flex;
   align-items: baseline;
@@ -1279,8 +1303,52 @@ body {
   gap: 1.8rem 1.6rem;
 }
 
+.storefront-demo--paper .demo-surface--chapters,
+.storefront-demo--paper .demo-surface--shelves,
+.storefront-demo--paper .demo-surface--flow,
+.storefront-demo--paper .demo-spotlight--blind {
+  position: relative;
+  padding-top: 1.8rem;
+  padding-bottom: 1.8rem;
+}
+
+.storefront-demo--paper .demo-surface--chapters::before,
+.storefront-demo--paper .demo-surface--shelves::before,
+.storefront-demo--paper .demo-surface--flow::before,
+.storefront-demo--paper .demo-spotlight--blind::before {
+  content: "";
+  position: absolute;
+  inset: 0;
+  pointer-events: none;
+  background:
+    linear-gradient(180deg, rgba(127, 34, 48, 0.05), transparent 44%),
+    linear-gradient(180deg, rgba(255, 255, 255, 0.55), rgba(255, 255, 255, 0));
+  opacity: 0.6;
+}
+
+.storefront-demo--paper .demo-surface--chapters {
+  border-top: 2px solid rgba(127, 34, 48, 0.24);
+}
+
+.storefront-demo--paper .demo-surface--shelves {
+  border-top: 1px solid rgba(127, 34, 48, 0.18);
+  background:
+    linear-gradient(180deg, rgba(255, 251, 243, 0.72), rgba(255, 251, 243, 0));
+}
+
+.storefront-demo--paper .demo-spotlight--blind {
+  border-top: 2px solid rgba(127, 34, 48, 0.24);
+  background:
+    linear-gradient(180deg, rgba(248, 241, 229, 0.78), rgba(248, 241, 229, 0));
+}
+
+.storefront-demo--paper .demo-surface--flow {
+  border-top: 1px solid rgba(127, 34, 48, 0.18);
+}
+
 .storefront-demo--paper .demo-product-card {
   border-top: 0;
+  padding-top: 0;
 }
 
 .storefront-demo--paper .demo-product-media {
@@ -1321,6 +1389,27 @@ body {
 .storefront-demo--paper .demo-link-action,
 .storefront-demo--paper .demo-secondary-action {
   color: var(--demo-text);
+}
+
+.storefront-demo--paper .demo-campaign-card,
+.storefront-demo--paper .demo-character-card,
+.storefront-demo--paper .demo-flow-card,
+.storefront-demo--paper .demo-stat-card {
+  position: relative;
+  padding-top: 1rem;
+}
+
+.storefront-demo--paper .demo-campaign-card::before,
+.storefront-demo--paper .demo-character-card::before,
+.storefront-demo--paper .demo-flow-card::before,
+.storefront-demo--paper .demo-stat-card::before {
+  content: "";
+  position: absolute;
+  left: 0;
+  top: 0;
+  width: 3.2rem;
+  height: 1px;
+  background: rgba(127, 34, 48, 0.32);
 }
 
 .storefront-demo--seal {
