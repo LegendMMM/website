@@ -89,9 +89,9 @@ const characterTierOptions: CharacterTier[] = ["FIXED_1", "FIXED_2", "FIXED_3", 
 const productTypeOptions: ProductType[] = ["NORMAL", "BLIND_BOX"];
 const orderStatusOptions: OrderStatus[] = ["PLACED", "PAID", "CANCELLED"];
 const demoThemeOptions: Array<{ id: DemoTheme; label: string; note: string }> = [
-  { id: "poster", label: "舞台海報", note: "高對比、戲劇感、主視覺先行" },
-  { id: "paper", label: "和紙目錄", note: "展覽冊頁、留白、選品通販感" },
-  { id: "seal", label: "月殿御札", note: "章印、封條、儀式感與名冊感" },
+  { id: "poster", label: "舞台海報", note: "整頁展開、幾乎無框、以文字和橫幅帶動動線" },
+  { id: "paper", label: "和紙目錄", note: "直角方格、展覽冊頁、留白與編輯感" },
+  { id: "seal", label: "月殿御札", note: "少量圓角工具框、章印、封條與名冊感" },
 ];
 const adminTabs: Array<{ id: AdminTab; label: string }> = [
   { id: "dashboard", label: "總覽" },
@@ -513,9 +513,9 @@ function StorefrontDemoView(props: {
   const heroPrimaryCampaign = featuredCampaignCards[0] ?? null;
   const activeThemeMeta = demoThemeOptions.find((item) => item.id === demoTheme) ?? demoThemeOptions[0];
   const themeLeadCopy = {
-    poster: "把首頁做成主視覺海報與章節入口，讓買家一進站就知道本期世界觀、主打角色與該從哪一個活動開始逛。",
-    paper: "把首頁做成同人展物販小冊。版面清楚、字距呼吸大、商品像被編輯選過，而不是從資料庫直接吐出來。",
-    seal: "把首頁做成帶章印與封條的月殿名冊。規則感與儀式感會更強，適合固位與盲盒拆分這種有秩序的購買流程。",
+    poster: "把首頁做成主視覺海報與章節入口。整體像特設頁，不用大方塊分區，主要靠標題、橫幅、圖片和段落節奏把人一路帶下去。",
+    paper: "把首頁做成同人展物販小冊。內容貼在版面上，只有必要資訊才進直角框，商品像被編輯選過，而不是從資料庫直接吐出來。",
+    seal: "把首頁做成帶章印與封條的月殿名冊。大部分內容仍是整頁鋪開，只有工具與狀態才用少量圓角框標示。",
   }[demoTheme];
 
   return (
