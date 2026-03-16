@@ -4036,7 +4036,7 @@ export default function App(): JSX.Element {
 
   return (
     <main className="site-shell shop-front min-h-screen px-4 py-6 md:px-8 lg:px-12">
-      <div className="mx-auto max-w-7xl space-y-5">
+      <div className="front-shell mx-auto max-w-7xl space-y-5">
         <motion.header
           initial={{ opacity: 0, y: 8 }}
           animate={{ opacity: 1, y: 0 }}
