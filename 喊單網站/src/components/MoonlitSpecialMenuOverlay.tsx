@@ -13,10 +13,16 @@ interface MenuEntry {
   onSelect: () => void;
 }
 
+interface FeaturedCharacter {
+  image: string;
+  name: string;
+  description: string;
+  backdropWord: string;
+}
+
 interface MoonlitSpecialMenuOverlayProps {
   theme?: MenuTheme;
   currentView: SiteMenuView;
-  cartCount: number;
   isAdmin: boolean;
   onGoHome: () => void;
   onGoCart: () => void;
@@ -53,7 +59,6 @@ export default function MoonlitSpecialMenuOverlay(props: MoonlitSpecialMenuOverl
   const {
     theme = "light",
     currentView,
-    cartCount,
     isAdmin,
     onGoHome,
     onGoCart,
@@ -65,6 +70,12 @@ export default function MoonlitSpecialMenuOverlay(props: MoonlitSpecialMenuOverl
   const [menuOpen, setMenuOpen] = useState(false);
   const [overlayMounted, setOverlayMounted] = useState(false);
   const [activeItem, setActiveItem] = useState<string>(currentView);
+  const featuredCharacter: FeaturedCharacter = {
+    image: tsukimiYachiyoImage,
+    name: "月見八千代",
+    description: "月夜特設站展示角色。",
+    backdropWord: "YACHIYO",
+  };
 
   useEffect(() => {
     setActiveItem(currentView);
@@ -135,7 +146,6 @@ export default function MoonlitSpecialMenuOverlay(props: MoonlitSpecialMenuOverl
 
     return baseEntries;
   }, [
-    cartCount,
     currentView,
     isAdmin,
     onGoAdmin,
@@ -207,14 +217,14 @@ export default function MoonlitSpecialMenuOverlay(props: MoonlitSpecialMenuOverl
             <section className="moonlit-menu-overlay-main">
               <div className="moonlit-menu-showcase">
                 <div className="moonlit-menu-stage-visual" aria-hidden="true">
-                  <span className="moonlit-menu-stage-wordmark">YACHIYO</span>
-                  <img src={tsukimiYachiyoImage} alt="月見八千代" className="moonlit-menu-character-image" />
+                  <span className="moonlit-menu-stage-wordmark">{featuredCharacter.backdropWord}</span>
+                  <img src={featuredCharacter.image} alt={featuredCharacter.name} className="moonlit-menu-character-image" />
                 </div>
 
                 <div className="moonlit-menu-character-profile">
                   <span className="moonlit-menu-character-kicker">CHARACTER</span>
-                  <strong>月見八千代</strong>
-                  <p>月夜特設站展示角色。</p>
+                  <strong>{featuredCharacter.name}</strong>
+                  <p>{featuredCharacter.description}</p>
                 </div>
               </div>
 
@@ -232,6 +242,7 @@ export default function MoonlitSpecialMenuOverlay(props: MoonlitSpecialMenuOverl
                         onMouseEnter={() => setActiveItem(entry.id)}
                         onFocus={() => setActiveItem(entry.id)}
                         onClick={() => handleSelect(entry)}
+                        aria-current={isActive ? "page" : undefined}
                       >
                         <span className="moonlit-menu-nav-vertical">{entry.zhLabel}</span>
                       </button>

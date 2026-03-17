@@ -3597,11 +3597,10 @@ export default function App(): JSX.Element {
   }
 
   return (
-    <main className="site-shell shop-front min-h-screen px-4 pb-6 pt-20 md:px-8 md:pb-8 md:pt-20 lg:px-12 lg:pb-10 lg:pt-20">
+    <main className="site-shell shop-front min-h-screen px-4 pb-6 pt-[5.6rem] md:px-8 md:pb-8 md:pt-[5.8rem] lg:px-12 lg:pb-10 lg:pt-[5.8rem]">
       <MoonlitSpecialMenuOverlay
         theme="light"
         currentView={view}
-        cartCount={headerCartCount}
         isAdmin={system.currentUser.isAdmin}
         onGoHome={() => setView("home")}
         onGoCart={() => setView("cart")}

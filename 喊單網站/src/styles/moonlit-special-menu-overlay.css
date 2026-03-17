@@ -255,56 +255,56 @@
 
 .moonlit-menu-overlay-main {
   display: grid;
-  grid-template-columns: minmax(0, 1.18fr) minmax(16rem, 0.82fr);
-  gap: 2rem;
+  grid-template-columns: minmax(0, 1.08fr) minmax(22rem, 0.92fr);
+  gap: 3rem;
   align-items: center;
 }
 
 .moonlit-menu-showcase {
   position: relative;
-  min-height: 42rem;
-  padding-left: 2rem;
+  min-height: 40rem;
+  padding-left: 1.2rem;
   animation: moonlit-menu-showcase-in 580ms cubic-bezier(0.2, 0.8, 0.2, 1) both;
 }
 
 .moonlit-menu-stage-visual {
   position: relative;
-  min-height: 36rem;
+  min-height: 34rem;
 }
 
 .moonlit-menu-stage-wordmark {
   position: absolute;
-  left: -0.8rem;
-  bottom: 3rem;
-  font-size: clamp(5.4rem, 13vw, 11.5rem);
+  left: -0.2rem;
+  bottom: 3.8rem;
+  font-size: clamp(4.8rem, 11vw, 9rem);
   font-weight: 800;
   line-height: 0.9;
   letter-spacing: 0.02em;
-  color: rgba(116, 216, 240, 0.38);
+  color: rgba(116, 216, 240, 0.24);
   user-select: none;
 }
 
 .moonlit-menu-character-image {
   position: absolute;
-  left: 4rem;
+  left: 2.2rem;
   bottom: 0;
-  width: min(34rem, 80%);
-  max-height: 38rem;
+  width: min(30rem, 72%);
+  max-height: 35rem;
   object-fit: contain;
   animation: moonlit-menu-float 7s ease-in-out infinite;
 }
 
 .moonlit-menu-character-profile {
   position: absolute;
-  left: 0.8rem;
-  bottom: 0.6rem;
+  left: 0;
+  bottom: 1.1rem;
   display: grid;
   gap: 0.28rem;
-  max-width: 22rem;
-  padding: 0.82rem 1rem;
-  border-radius: 999px;
+  max-width: 18rem;
+  padding: 0.9rem 1.1rem;
+  border-radius: 1.25rem;
   border: 1px solid rgba(49, 39, 35, 0.24);
-  background: rgba(255, 255, 255, 0.78);
+  background: rgba(255, 255, 255, 0.9);
   box-shadow: 0 18px 40px -32px rgba(49, 39, 35, 0.32);
 }
 
@@ -328,7 +328,7 @@
 
 .moonlit-menu-nav-zone {
   position: relative;
-  padding: 5rem 0 1rem;
+  padding: 5.4rem 0 1rem 1.2rem;
   animation: moonlit-menu-nav-in 580ms cubic-bezier(0.2, 0.8, 0.2, 1) both;
 }
 
@@ -366,12 +366,16 @@
   z-index: 1;
   display: flex;
   justify-content: flex-end;
-  gap: clamp(1rem, 2vw, 2rem);
+  align-items: flex-end;
+  gap: clamp(1.6rem, 2.8vw, 3.2rem);
   padding-top: 1.4rem;
 }
 
 .moonlit-menu-nav-item {
-  display: block;
+  display: flex;
+  align-items: flex-end;
+  justify-content: center;
+  width: clamp(3.8rem, 4.8vw, 5.2rem);
   min-height: 20rem;
   padding: 0;
   border: 0;
@@ -379,7 +383,7 @@
   color: #2d2623;
   text-align: center;
   cursor: pointer;
-  opacity: 0.72;
+  opacity: 0.76;
   transition: color 180ms ease, opacity 180ms ease;
 }
 
@@ -396,10 +400,11 @@
 .moonlit-menu-nav-vertical {
   font-family: "Noto Serif TC", serif;
   display: block;
-  font-size: clamp(2.2rem, 3vw, 3.5rem);
-  line-height: 1.06;
+  font-size: clamp(2rem, 2.65vw, 3.15rem);
+  line-height: 1.14;
   writing-mode: vertical-rl;
   text-orientation: mixed;
+  letter-spacing: 0.03em;
 }
 
 @keyframes moonlit-menu-showcase-in {
@@ -437,7 +442,7 @@
 
   .moonlit-menu-overlay-main {
     grid-template-columns: 1fr;
-    gap: 1rem;
+    gap: 1.8rem;
   }
 
   .moonlit-menu-showcase {
@@ -456,8 +461,8 @@
   }
 
   .moonlit-menu-character-image {
-    left: 1rem;
-    width: min(24rem, 78%);
+    left: 0.5rem;
+    width: min(23rem, 74%);
   }
 
   .moonlit-menu-character-profile {
@@ -469,11 +474,11 @@
   }
 
   .moonlit-menu-nav-zone {
-    padding-top: 1rem;
+    padding: 1rem 0 0;
   }
 
   .moonlit-menu-nav-list {
-    justify-content: flex-start;
+    justify-content: center;
     overflow-x: auto;
     padding-bottom: 0.5rem;
   }
@@ -511,8 +516,17 @@
     min-height: 20rem;
   }
 
+  .moonlit-menu-nav-list {
+    gap: 1.2rem;
+  }
+
+  .moonlit-menu-nav-item {
+    width: 3.4rem;
+    min-height: 16rem;
+  }
+
   .moonlit-menu-nav-vertical {
-    font-size: 2.4rem;
+    font-size: 2.05rem;
   }
 }
 
@@ -549,5 +563,70 @@
 
   .moonlit-menu-nav-vertical {
     font-size: 1.8rem;
+  }
+
+  .moonlit-menu-overlay-shell {
+    padding: 1.2rem 1rem 1rem;
+  }
+
+  .moonlit-menu-overlay-top {
+    align-items: center;
+  }
+
+  .moonlit-menu-showcase {
+    min-height: auto;
+  }
+
+  .moonlit-menu-stage-visual {
+    min-height: 18rem;
+  }
+
+  .moonlit-menu-stage-wordmark {
+    left: 0;
+    right: 0;
+    bottom: 2.2rem;
+    font-size: clamp(3.4rem, 22vw, 5.8rem);
+    text-align: center;
+  }
+
+  .moonlit-menu-character-image {
+    left: 50%;
+    width: min(16rem, 88%);
+    max-height: 18rem;
+    transform: translateX(-50%);
+  }
+
+  .moonlit-menu-character-profile {
+    max-width: none;
+    margin-top: 0.5rem;
+  }
+
+  .moonlit-menu-nav-zone {
+    padding-top: 0.6rem;
+    padding-left: 0;
+  }
+
+  .moonlit-menu-nav-rail {
+    display: none;
+  }
+
+  .moonlit-menu-nav-list {
+    justify-content: flex-start;
+    gap: 0.8rem;
+    padding-top: 0;
+    flex-wrap: wrap;
+  }
+
+  .moonlit-menu-nav-item {
+    width: calc(50% - 0.4rem);
+    min-height: auto;
+    padding: 0.4rem 0;
+    justify-content: flex-start;
+  }
+
+  .moonlit-menu-nav-vertical {
+    writing-mode: horizontal-tb;
+    font-size: 1.7rem;
+    line-height: 1.1;
   }
 }
