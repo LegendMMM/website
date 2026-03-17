@@ -536,12 +536,12 @@
   }
 
   .moonlit-menu-overlay-main {
-    gap: 0.8rem;
+    gap: 1rem;
   }
 
   .moonlit-menu-nav-zone {
     order: 1;
-    padding-top: 0.2rem;
+    padding-top: 0.85rem;
   }
 
   .moonlit-menu-nav-rail {
@@ -550,15 +550,26 @@
   }
 
   .moonlit-menu-nav-list {
-    justify-content: space-between;
-    gap: 0.8rem;
-    padding-top: 0.7rem;
+    justify-content: flex-start;
+    gap: 1rem;
+    padding-top: 0.85rem;
+    width: max-content;
+    min-width: 100%;
+    overflow-x: auto;
+    overflow-y: hidden;
+    -webkit-overflow-scrolling: touch;
+    scrollbar-width: none;
+  }
+
+  .moonlit-menu-nav-list::-webkit-scrollbar {
+    display: none;
   }
 
   .moonlit-menu-nav-item {
-    width: auto;
-    flex: 1 1 0;
-    min-width: 0;
+    width: 3.6rem;
+    flex: 0 0 auto;
+    min-width: 3.6rem;
+    scroll-snap-align: start;
   }
 
   .moonlit-menu-nav-vertical {
@@ -568,12 +579,12 @@
 
   .moonlit-menu-showcase {
     order: 2;
-    min-height: 29rem;
+    min-height: 34rem;
     padding-left: 0;
   }
 
   .moonlit-menu-stage-visual {
-    min-height: 27rem;
+    min-height: 32rem;
   }
 
   .moonlit-menu-stage-wordmark {
@@ -586,17 +597,18 @@
 
   .moonlit-menu-character-image {
     left: 50%;
-    bottom: 0.2rem;
-    width: min(24rem, 92%);
-    max-height: 28rem;
+    bottom: 0;
+    width: min(28rem, 96%);
+    max-height: 33rem;
     transform: translateX(-50%);
   }
 
   .moonlit-menu-character-profile {
     position: absolute;
-    left: 0.4rem;
+    left: 50%;
     bottom: 0;
     max-width: 12rem;
+    transform: translateX(-50%);
   }
 }
 
@@ -615,7 +627,7 @@
   }
 
   .moonlit-menu-overlay-shell {
-    padding: 1rem 0.9rem 0.85rem;
+    padding: 1rem 0.9rem 0.75rem;
   }
 
   .moonlit-menu-overlay-logo {
@@ -653,7 +665,7 @@
   }
 
   .moonlit-menu-nav-zone {
-    padding-top: 0.1rem;
+    padding-top: 1rem;
   }
 
   .moonlit-menu-nav-rail {
@@ -663,12 +675,26 @@
   }
 
   .moonlit-menu-nav-list {
-    gap: 0.48rem;
-    padding-top: 0.55rem;
+    gap: 0.9rem;
+    padding-top: 0.7rem;
+    width: max-content;
+    min-width: 100%;
+    overflow-x: auto;
+    overflow-y: hidden;
+    justify-content: flex-start;
+    scroll-snap-type: x proximity;
+    -webkit-overflow-scrolling: touch;
+    scrollbar-width: none;
+  }
+
+  .moonlit-menu-nav-list::-webkit-scrollbar {
+    display: none;
   }
 
   .moonlit-menu-nav-item {
-    flex: 1 1 0;
+    flex: 0 0 auto;
+    width: 3rem;
+    min-width: 3rem;
   }
 
   .moonlit-menu-nav-vertical {
@@ -677,11 +703,11 @@
   }
 
   .moonlit-menu-showcase {
-    min-height: 24rem;
+    min-height: 33rem;
   }
 
   .moonlit-menu-stage-visual {
-    min-height: 23rem;
+    min-height: 30rem;
   }
 
   .moonlit-menu-stage-wordmark {
@@ -690,15 +716,17 @@
   }
 
   .moonlit-menu-character-image {
-    width: min(20rem, 96%);
-    max-height: 24rem;
+    bottom: 0.1rem;
+    width: min(22rem, 102%);
+    max-height: 28rem;
   }
 
   .moonlit-menu-character-profile {
-    left: 0.15rem;
+    left: 50%;
     bottom: 0;
     max-width: 10rem;
     padding: 0.72rem 0.9rem;
+    transform: translateX(-50%);
   }
 
   .moonlit-menu-character-profile strong {
