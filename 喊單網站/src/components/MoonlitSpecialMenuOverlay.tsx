@@ -16,7 +16,6 @@ interface MenuEntry {
 interface FeaturedCharacter {
   image: string;
   name: string;
-  description: string;
   backdropWord: string;
 }
 
@@ -73,7 +72,6 @@ export default function MoonlitSpecialMenuOverlay(props: MoonlitSpecialMenuOverl
   const featuredCharacter: FeaturedCharacter = {
     image: tsukimiYachiyoImage,
     name: "月見八千代",
-    description: "月夜特設站展示角色。",
     backdropWord: "YACHIYO",
   };
 
@@ -224,7 +222,6 @@ export default function MoonlitSpecialMenuOverlay(props: MoonlitSpecialMenuOverl
                 <div className="moonlit-menu-character-profile">
                   <span className="moonlit-menu-character-kicker">CHARACTER</span>
                   <strong>{featuredCharacter.name}</strong>
-                  <p>{featuredCharacter.description}</p>
                 </div>
               </div>
 
