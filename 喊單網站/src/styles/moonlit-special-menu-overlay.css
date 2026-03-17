@@ -193,8 +193,8 @@
   align-items: center;
   justify-content: center;
   gap: 0.66rem;
-  min-width: 7.8rem;
-  padding: 2rem 0.95rem 1rem;
+  min-width: 8.4rem;
+  padding: 1.35rem 0.95rem;
   border: 0;
   background: transparent;
   color: var(--menu-red);
@@ -209,43 +209,41 @@
 .moonlit-menu-close-frame,
 .moonlit-menu-close-frame::before {
   position: absolute;
-  left: 50%;
-  transform: translateX(-50%);
-  width: 7rem;
+  left: 0.35rem;
+  right: 0.35rem;
   height: 1px;
   background: rgba(48, 38, 34, 0.6);
   content: "";
 }
 
 .moonlit-menu-close-frame {
-  top: 1rem;
+  top: 0.36rem;
 }
 
 .moonlit-menu-close-frame::before {
-  top: 2.85rem;
+  top: auto;
+  bottom: 0.36rem;
 }
 
-.moonlit-menu-close-frame::after,
+.moonlit-menu-close::before,
 .moonlit-menu-close::after {
   position: absolute;
-  width: 0.55rem;
-  height: 0.55rem;
+  top: 50%;
+  width: 0.65rem;
+  height: 0.65rem;
   content: "";
+  margin-top: -0.325rem;
   transform: rotate(45deg);
   background: transparent;
 }
 
-.moonlit-menu-close-frame::after {
-  top: -0.28rem;
-  left: -0.05rem;
-  width: 0.55rem;
-  height: 0.55rem;
+.moonlit-menu-close::before {
+  left: 0.22rem;
   border-left: 1px solid rgba(48, 38, 34, 0.8);
   border-bottom: 1px solid rgba(48, 38, 34, 0.8);
 }
 
 .moonlit-menu-close::after {
-  top: 2.59rem;
   right: 0.22rem;
   border-top: 1px solid rgba(48, 38, 34, 0.8);
   border-right: 1px solid rgba(48, 38, 34, 0.8);
@@ -324,13 +322,13 @@
 
 .moonlit-menu-nav-zone {
   position: relative;
-  padding: 3.7rem 0 1rem 1.2rem;
+  padding: 3.8rem 0 1rem 1.2rem;
   animation: moonlit-menu-nav-in 580ms cubic-bezier(0.2, 0.8, 0.2, 1) both;
 }
 
 .moonlit-menu-nav-rail {
   position: absolute;
-  top: 3.2rem;
+  top: 3.1rem;
   left: 0;
   right: 0;
   height: 1px;
@@ -362,18 +360,18 @@
   z-index: 1;
   display: flex;
   justify-content: flex-end;
-  align-items: flex-end;
+  align-items: flex-start;
   gap: clamp(1.6rem, 2.8vw, 3.2rem);
-  padding-top: 0.9rem;
+  padding-top: 0;
 }
 
 .moonlit-menu-nav-item {
   display: flex;
-  align-items: flex-end;
+  align-items: flex-start;
   justify-content: center;
   width: clamp(3.8rem, 4.8vw, 5.2rem);
-  min-height: 20rem;
-  padding: 0;
+  min-height: auto;
+  padding-top: 0.8rem;
   border: 0;
   background: transparent;
   color: #2d2623;
