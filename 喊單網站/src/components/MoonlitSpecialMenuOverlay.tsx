@@ -46,14 +46,6 @@ function MenuIcon(): JSX.Element {
   );
 }
 
-function CloseIcon(): JSX.Element {
-  return (
-    <svg viewBox="0 0 24 24" aria-hidden="true" className="moonlit-menu-icon-svg">
-      <path d="M6 6 18 18M18 6 6 18" stroke="currentColor" strokeWidth="1.7" strokeLinecap="round" fill="none" />
-    </svg>
-  );
-}
-
 export default function MoonlitSpecialMenuOverlay(props: MoonlitSpecialMenuOverlayProps): JSX.Element {
   const {
     theme = "light",
@@ -207,8 +199,7 @@ export default function MoonlitSpecialMenuOverlay(props: MoonlitSpecialMenuOverl
 
               <button type="button" className="moonlit-menu-close" onClick={() => setMenuOpen(false)}>
                 <span className="moonlit-menu-close-frame" aria-hidden="true" />
-                <CloseIcon />
-                <span>CLOSE</span>
+                <span className="moonlit-menu-close-label">CLOSE</span>
               </button>
             </header>
 
