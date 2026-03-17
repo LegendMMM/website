@@ -192,9 +192,9 @@
   display: inline-flex;
   align-items: center;
   justify-content: center;
-  min-width: 8.4rem;
-  min-height: 3.4rem;
-  padding: 1.05rem 1rem;
+  min-width: 9.2rem;
+  min-height: 3.2rem;
+  padding: 0.9rem 1.15rem;
   border: 0;
   background: transparent;
   color: var(--menu-red);
@@ -214,20 +214,20 @@
 .moonlit-menu-close-frame,
 .moonlit-menu-close-frame::before {
   position: absolute;
-  left: 0.35rem;
-  right: 0.35rem;
+  left: 0.7rem;
+  right: 0.7rem;
   height: 1px;
   background: rgba(48, 38, 34, 0.6);
   content: "";
 }
 
 .moonlit-menu-close-frame {
-  top: 0.5rem;
+  top: 0.42rem;
 }
 
 .moonlit-menu-close-frame::before {
   top: auto;
-  bottom: 0.5rem;
+  bottom: 0.42rem;
 }
 
 .moonlit-menu-close::before,
@@ -243,13 +243,13 @@
 }
 
 .moonlit-menu-close::before {
-  left: 0.28rem;
+  left: 0.5rem;
   border-left: 1px solid rgba(48, 38, 34, 0.8);
   border-bottom: 1px solid rgba(48, 38, 34, 0.8);
 }
 
 .moonlit-menu-close::after {
-  right: 0.28rem;
+  right: 0.5rem;
   border-top: 1px solid rgba(48, 38, 34, 0.8);
   border-right: 1px solid rgba(48, 38, 34, 0.8);
 }
@@ -496,14 +496,16 @@
   }
 
   .moonlit-menu-close {
-    min-width: 6.4rem;
-    padding-top: 1.8rem;
+    min-width: 7rem;
+    min-height: 2.9rem;
+    padding: 0.75rem 0.9rem;
     font-size: 0.76rem;
   }
 
   .moonlit-menu-close-frame,
   .moonlit-menu-close-frame::before {
-    width: 5.8rem;
+    left: 0.55rem;
+    right: 0.55rem;
   }
 
   .moonlit-menu-overlay-shell {

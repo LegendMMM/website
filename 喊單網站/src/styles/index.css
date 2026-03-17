@@ -515,9 +515,9 @@ body {
 }
 
 .shop-front .hero-kaguya-logo-inline {
-  width: min(100%, 17rem);
+  width: min(100%, 22rem);
   max-width: 100%;
-  min-width: 10rem;
+  min-width: 12rem;
   user-select: none;
 }
 
@@ -1010,7 +1010,7 @@ body {
   }
 
   .shop-front .hero-kaguya-logo-inline {
-    width: min(100%, 15rem);
+    width: min(100%, 17rem);
     align-self: flex-end;
   }
 
@@ -1062,7 +1062,7 @@ body {
   }
 
   .shop-front .hero-kaguya-logo-inline {
-    width: min(100%, 12rem);
+    width: min(100%, 13.5rem);
   }
 
   .shop-front .front-toolbar {
