@@ -188,13 +188,13 @@
 }
 
 .moonlit-menu-close {
-  position: relative;
   display: inline-flex;
   align-items: center;
   justify-content: center;
-  min-width: 10rem;
-  min-height: 3.42rem;
-  padding: 0.78rem 1.22rem;
+  gap: 0.9rem;
+  min-width: 11.5rem;
+  min-height: 2.4rem;
+  padding: 0.3rem 0;
   border: 0;
   background: transparent;
   color: var(--menu-red);
@@ -211,47 +211,11 @@
   line-height: 1;
 }
 
-.moonlit-menu-close-frame,
-.moonlit-menu-close-frame::before {
-  position: absolute;
-  left: 0.9rem;
-  right: 0.9rem;
+.moonlit-menu-close-line {
+  flex: 1 1 auto;
+  min-width: 2.8rem;
   height: 1px;
-  background: rgba(48, 38, 34, 0.6);
-  content: "";
-}
-
-.moonlit-menu-close-frame {
-  top: 0.52rem;
-}
-
-.moonlit-menu-close-frame::before {
-  top: auto;
-  bottom: 0.52rem;
-}
-
-.moonlit-menu-close::before,
-.moonlit-menu-close::after {
-  position: absolute;
-  top: 50%;
-  width: 0.65rem;
-  height: 0.65rem;
-  content: "";
-  margin-top: -0.325rem;
-  transform: rotate(45deg);
-  background: transparent;
-}
-
-.moonlit-menu-close::before {
-  left: 0.66rem;
-  border-left: 1px solid rgba(48, 38, 34, 0.8);
-  border-bottom: 1px solid rgba(48, 38, 34, 0.8);
-}
-
-.moonlit-menu-close::after {
-  right: 0.66rem;
-  border-top: 1px solid rgba(48, 38, 34, 0.8);
-  border-right: 1px solid rgba(48, 38, 34, 0.8);
+  background: linear-gradient(90deg, rgba(48, 38, 34, 0.18), rgba(48, 38, 34, 0.78), rgba(48, 38, 34, 0.18));
 }
 
 .moonlit-menu-close:hover {
@@ -259,52 +223,86 @@
 }
 
 .moonlit-menu-overlay-main {
+  position: relative;
   display: grid;
-  grid-template-columns: minmax(0, 1.08fr) minmax(0, 0.92fr);
-  gap: 1.8rem;
-  align-items: start;
+  grid-template-columns: minmax(24rem, 0.92fr) minmax(0, 1.08fr);
+  gap: clamp(2rem, 4vw, 4.4rem);
+  align-items: center;
 }
 
 .moonlit-menu-showcase {
   position: relative;
+  z-index: 1;
   min-height: 48rem;
   padding-left: 0;
+  justify-self: start;
+  width: 100%;
   animation: moonlit-menu-showcase-in 580ms cubic-bezier(0.2, 0.8, 0.2, 1) both;
 }
 
 .moonlit-menu-stage-visual {
   position: relative;
-  min-height: 44rem;
+  min-height: 50rem;
+  width: min(100%, 48rem);
 }
 
 .moonlit-menu-stage-wordmark {
   position: absolute;
   left: 50%;
-  bottom: 4.4rem;
+  bottom: 5.2rem;
+  z-index: 0;
+  width: 100vw;
+  overflow: hidden;
   transform: translateX(-50%);
-  font-size: clamp(5.8rem, 14vw, 11rem);
+  white-space: nowrap;
+  user-select: none;
+  pointer-events: none;
+}
+
+.moonlit-menu-stage-wordmark-track {
+  display: flex;
+  align-items: center;
+  min-width: max-content;
+  animation: moonlit-menu-wordmark-drift 24s linear infinite;
+}
+
+.moonlit-menu-stage-wordmark-group {
+  display: flex;
+  flex: 0 0 auto;
+  align-items: center;
+  gap: clamp(2rem, 3.6vw, 3.4rem);
+  padding-right: clamp(2rem, 3.6vw, 3.4rem);
+}
+
+.moonlit-menu-stage-wordmark-text {
+  display: inline-block;
+  font-size: clamp(6rem, 11vw, 10.5rem);
   font-weight: 800;
   line-height: 0.9;
   letter-spacing: 0.02em;
   color: rgba(116, 216, 240, 0.24);
-  user-select: none;
-  white-space: nowrap;
 }
 
 .moonlit-menu-character-image {
+  --moonlit-character-shift-x: 0%;
+  --moonlit-character-shift-y: 0px;
+  --moonlit-character-scale: 1;
+  --moonlit-character-active-shift-y: var(--moonlit-character-shift-y);
+  --moonlit-character-active-scale: var(--moonlit-character-scale);
   position: absolute;
-  left: 50%;
-  bottom: -0.4rem;
-  width: min(50vw, 48rem);
-  max-height: 48rem;
-  transform: translateX(-50%);
+  left: -2.6rem;
+  bottom: -1.6rem;
+  width: min(60vw, 56rem);
+  max-height: 62rem;
+  transform: translate3d(var(--moonlit-character-shift-x), var(--moonlit-character-active-shift-y), 0) scale(var(--moonlit-character-active-scale));
+  transform-origin: center bottom;
   object-fit: contain;
   animation: moonlit-menu-float 7s ease-in-out infinite;
 }
 
 .moonlit-menu-character-profile {
   position: absolute;
-  left: 50%;
+  left: 1rem;
   bottom: 0.9rem;
   display: grid;
   gap: 0.16rem;
@@ -314,7 +312,7 @@
   border: 1px solid rgba(49, 39, 35, 0.24);
   background: rgba(255, 255, 255, 0.9);
   box-shadow: 0 18px 40px -32px rgba(49, 39, 35, 0.32);
-  transform: translateX(-50%);
+  transform: none;
 }
 
 .moonlit-menu-character-kicker {
@@ -331,6 +329,7 @@
 
 .moonlit-menu-nav-zone {
   position: relative;
+  z-index: 1;
   align-self: start;
   padding: 0 0 1rem 0;
   margin-top: 2rem;
@@ -436,9 +435,14 @@
 }
 
 @keyframes moonlit-menu-float {
-  0% { transform: translateY(0); }
-  50% { transform: translateY(-10px); }
-  100% { transform: translateY(0); }
+  0% { transform: translate3d(var(--moonlit-character-shift-x), var(--moonlit-character-active-shift-y), 0) scale(var(--moonlit-character-active-scale)); }
+  50% { transform: translate3d(var(--moonlit-character-shift-x), calc(var(--moonlit-character-active-shift-y) - 10px), 0) scale(var(--moonlit-character-active-scale)); }
+  100% { transform: translate3d(var(--moonlit-character-shift-x), var(--moonlit-character-active-shift-y), 0) scale(var(--moonlit-character-active-scale)); }
+}
+
+@keyframes moonlit-menu-wordmark-drift {
+  0% { transform: translate3d(0, 0, 0); }
+  100% { transform: translate3d(-50%, 0, 0); }
 }
 
 @media (max-width: 1180px) {
@@ -457,21 +461,24 @@
   }
 
   .moonlit-menu-stage-visual {
-    min-height: 30rem;
+    min-height: 38rem;
+    width: 100%;
   }
 
   .moonlit-menu-stage-wordmark {
-    right: 0;
-    left: 0;
-    bottom: 2.8rem;
-    transform: none;
+    left: 50%;
+    bottom: 3rem;
+  }
+
+  .moonlit-menu-stage-wordmark-text {
+    font-size: clamp(4.8rem, 12vw, 8.4rem);
   }
 
   .moonlit-menu-character-image {
-    left: 50%;
-    width: min(30rem, 88%);
-    max-height: 30rem;
-    transform: translateX(-50%);
+    left: -1rem;
+    width: min(40rem, 118%);
+    max-height: 40rem;
+    transform: translate3d(var(--moonlit-character-shift-x), var(--moonlit-character-active-shift-y), 0) scale(var(--moonlit-character-active-scale));
   }
 
   .moonlit-menu-character-profile {
@@ -514,32 +521,15 @@
   }
 
   .moonlit-menu-close {
-    min-width: 7.2rem;
-    min-height: 2.8rem;
-    padding: 0.6rem 0.92rem;
+    gap: 0.75rem;
+    min-width: 8.5rem;
+    min-height: 2.4rem;
+    padding: 0.28rem 0;
     font-size: 0.76rem;
   }
 
-  .moonlit-menu-close-frame,
-  .moonlit-menu-close-frame::before {
-    left: 0.65rem;
-    right: 0.65rem;
-  }
-
-  .moonlit-menu-close-frame {
-    top: 0.42rem;
-  }
-
-  .moonlit-menu-close-frame::before {
-    bottom: 0.42rem;
-  }
-
-  .moonlit-menu-close::before {
-    left: 0.42rem;
-  }
-
-  .moonlit-menu-close::after {
-    right: 0.42rem;
+  .moonlit-menu-close-line {
+    min-width: 2rem;
   }
 
   .moonlit-menu-overlay-main {
@@ -591,23 +581,28 @@
   }
 
   .moonlit-menu-stage-visual {
-    min-height: 32rem;
+    min-height: 38rem;
   }
 
   .moonlit-menu-stage-wordmark {
-    left: 0;
-    right: 0;
-    bottom: 1.6rem;
-    font-size: clamp(4rem, 18vw, 7rem);
-    text-align: center;
+    left: 50%;
+    bottom: 2.4rem;
+  }
+
+  .moonlit-menu-stage-wordmark-group {
+    gap: 1.4rem;
+    padding-right: 1.4rem;
   }
 
   .moonlit-menu-character-image {
     left: 50%;
-    bottom: 0;
-    width: min(28rem, 96%);
-    max-height: 33rem;
-    transform: translateX(-50%);
+    bottom: -0.5rem;
+    --moonlit-character-shift-x: -50%;
+    --moonlit-character-active-shift-y: var(--moonlit-character-mobile-shift-y, var(--moonlit-character-shift-y));
+    --moonlit-character-active-scale: var(--moonlit-character-mobile-scale, var(--moonlit-character-scale));
+    width: min(39rem, 138%);
+    max-height: 40rem;
+    transform: translate3d(var(--moonlit-character-shift-x), var(--moonlit-character-active-shift-y), 0) scale(var(--moonlit-character-active-scale));
   }
 
   .moonlit-menu-character-profile {
@@ -643,32 +638,14 @@
 
   .moonlit-menu-close {
     min-width: 6.8rem;
-    min-height: 2.6rem;
-    padding: 0.52rem 0.86rem;
+    min-height: 2.2rem;
+    padding: 0.2rem 0;
     font-size: 0.72rem;
     letter-spacing: 0.2em;
   }
 
-  .moonlit-menu-close-frame,
-  .moonlit-menu-close-frame::before {
-    left: 0.6rem;
-    right: 0.6rem;
-  }
-
-  .moonlit-menu-close-frame {
-    top: 0.36rem;
-  }
-
-  .moonlit-menu-close-frame::before {
-    bottom: 0.36rem;
-  }
-
-  .moonlit-menu-close::before {
-    left: 0.36rem;
-  }
-
-  .moonlit-menu-close::after {
-    right: 0.36rem;
+  .moonlit-menu-close-line {
+    min-width: 1.45rem;
   }
 
   .moonlit-menu-nav-zone {
@@ -714,18 +691,17 @@
   }
 
   .moonlit-menu-stage-visual {
-    min-height: 30rem;
+    min-height: 35rem;
   }
 
-  .moonlit-menu-stage-wordmark {
-    font-size: clamp(3rem, 20vw, 5rem);
-    bottom: 1.1rem;
+  .moonlit-menu-stage-wordmark-text {
+    font-size: clamp(3.4rem, 19vw, 5.2rem);
   }
 
   .moonlit-menu-character-image {
-    bottom: 0.1rem;
-    width: min(22rem, 102%);
-    max-height: 28rem;
+    bottom: -0.2rem;
+    width: min(29rem, 146%);
+    max-height: 31rem;
   }
 
   .moonlit-menu-character-profile {

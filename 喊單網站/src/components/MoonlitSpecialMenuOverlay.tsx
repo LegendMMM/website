@@ -1,6 +1,14 @@
-import { useEffect, useMemo, useState } from "react";
+import { useEffect, useMemo, useState, type CSSProperties } from "react";
 import kaguyaLogoHeader from "../assets/kaguya-logo-header.webp";
-import tsukimiYachiyoImage from "../assets/tsukimi-yachiyo.webp";
+import menuAkiraImage from "../assets/menu-characters/menu-akira.webp";
+import menuFushiImage from "../assets/menu-characters/menu-fushi.webp";
+import menuIrohaImage from "../assets/menu-characters/menu-iroha.webp";
+import menuKaguyaImage from "../assets/menu-characters/menu-kaguya.webp";
+import menuMamiImage from "../assets/menu-characters/menu-mami.webp";
+import menuNoiImage from "../assets/menu-characters/menu-noi.webp";
+import menuRaiImage from "../assets/menu-characters/menu-rai.webp";
+import menuRokaImage from "../assets/menu-characters/menu-roka.webp";
+import menuYachiyoImage from "../assets/menu-characters/menu-yachiyo.webp";
 import "../styles/moonlit-special-menu-overlay.css";
 
 type MenuTheme = "light" | "dark";
@@ -17,6 +25,88 @@ interface FeaturedCharacter {
   image: string;
   name: string;
   backdropWord: string;
+  desktopScale?: number;
+  desktopShiftY?: string;
+  mobileScale?: number;
+  mobileShiftY?: string;
+}
+
+const WORDMARK_GROUP_COUNT = 2;
+const WORDMARK_WORD_COUNT = 5;
+
+const FEATURED_CHARACTERS: FeaturedCharacter[] = [
+  {
+    image: menuKaguyaImage,
+    name: "かぐや",
+    backdropWord: "KAGUYA",
+  },
+  {
+    image: menuIrohaImage,
+    name: "酒寄彩葉",
+    backdropWord: "IROHA",
+  },
+  {
+    image: menuYachiyoImage,
+    name: "月見ヤチヨ",
+    backdropWord: "YACHIYO",
+    desktopShiftY: "-4.8rem",
+    mobileShiftY: "-2.4rem",
+  },
+  {
+    image: menuAkiraImage,
+    name: "帝アキラ",
+    backdropWord: "AKIRA",
+    desktopShiftY: "-3.2rem",
+    mobileShiftY: "-1.6rem",
+  },
+  {
+    image: menuNoiImage,
+    name: "駒沢乃依",
+    backdropWord: "NOI",
+    desktopScale: 0.86,
+    mobileScale: 0.9,
+  },
+  {
+    image: menuRaiImage,
+    name: "駒澤雷",
+    backdropWord: "RAI",
+    desktopScale: 0.82,
+    mobileScale: 0.88,
+  },
+  {
+    image: menuRokaImage,
+    name: "綾紬芦花",
+    backdropWord: "ROKA",
+    desktopScale: 0.84,
+    mobileScale: 0.9,
+  },
+  {
+    image: menuMamiImage,
+    name: "練山真實",
+    backdropWord: "MAMI",
+    desktopScale: 0.85,
+    mobileScale: 0.9,
+  },
+  {
+    image: menuFushiImage,
+    name: "FUSHI",
+    backdropWord: "FUSHI",
+    desktopScale: 0.94,
+    desktopShiftY: "-4.6rem",
+    mobileScale: 0.96,
+    mobileShiftY: "-2.6rem",
+  },
+];
+
+function pickRandomCharacterIndex(previousIndex: number | null): number {
+  if (FEATURED_CHARACTERS.length <= 1) return 0;
+
+  let nextIndex = Math.floor(Math.random() * FEATURED_CHARACTERS.length);
+  while (previousIndex !== null && nextIndex === previousIndex) {
+    nextIndex = Math.floor(Math.random() * FEATURED_CHARACTERS.length);
+  }
+
+  return nextIndex;
 }
 
 interface MoonlitSpecialMenuOverlayProps {
@@ -61,11 +151,14 @@ export default function MoonlitSpecialMenuOverlay(props: MoonlitSpecialMenuOverl
   const [menuOpen, setMenuOpen] = useState(false);
   const [overlayMounted, setOverlayMounted] = useState(false);
   const [activeItem, setActiveItem] = useState<string>(currentView);
-  const featuredCharacter: FeaturedCharacter = {
-    image: tsukimiYachiyoImage,
-    name: "月見八千代",
-    backdropWord: "YACHIYO",
-  };
+  const [featuredCharacterIndex, setFeaturedCharacterIndex] = useState<number | null>(null);
+  const featuredCharacter = FEATURED_CHARACTERS[featuredCharacterIndex ?? 0];
+  const featuredCharacterStyle = {
+    "--moonlit-character-scale": featuredCharacter.desktopScale ?? 1,
+    "--moonlit-character-shift-y": featuredCharacter.desktopShiftY ?? "0px",
+    "--moonlit-character-mobile-scale": featuredCharacter.mobileScale ?? featuredCharacter.desktopScale ?? 1,
+    "--moonlit-character-mobile-shift-y": featuredCharacter.mobileShiftY ?? featuredCharacter.desktopShiftY ?? "0px",
+  } as CSSProperties;
 
   useEffect(() => {
     setActiveItem(currentView);
@@ -73,6 +166,7 @@ export default function MoonlitSpecialMenuOverlay(props: MoonlitSpecialMenuOverl
 
   useEffect(() => {
     if (menuOpen) {
+      setFeaturedCharacterIndex((currentIndex) => pickRandomCharacterIndex(currentIndex));
       setOverlayMounted(true);
       return undefined;
     }
@@ -198,16 +292,35 @@ export default function MoonlitSpecialMenuOverlay(props: MoonlitSpecialMenuOverl
               <img src={kaguyaLogoHeader} alt="超かぐや姫!" className="moonlit-menu-overlay-logo" />
 
               <button type="button" className="moonlit-menu-close" onClick={() => setMenuOpen(false)}>
-                <span className="moonlit-menu-close-frame" aria-hidden="true" />
+                <span className="moonlit-menu-close-line" aria-hidden="true" />
                 <span className="moonlit-menu-close-label">CLOSE</span>
+                <span className="moonlit-menu-close-line" aria-hidden="true" />
               </button>
             </header>
 
             <section className="moonlit-menu-overlay-main">
+              <div className="moonlit-menu-stage-wordmark" aria-hidden="true">
+                <div className="moonlit-menu-stage-wordmark-track">
+                  {Array.from({ length: WORDMARK_GROUP_COUNT }).map((_, groupIndex) => (
+                    <div key={`${featuredCharacter.backdropWord}-group-${groupIndex}`} className="moonlit-menu-stage-wordmark-group">
+                      {Array.from({ length: WORDMARK_WORD_COUNT }).map((_, wordIndex) => (
+                        <span key={`${featuredCharacter.backdropWord}-${groupIndex}-${wordIndex}`} className="moonlit-menu-stage-wordmark-text">
+                          {featuredCharacter.backdropWord}
+                        </span>
+                      ))}
+                    </div>
+                  ))}
+                </div>
+              </div>
+
               <div className="moonlit-menu-showcase">
                 <div className="moonlit-menu-stage-visual" aria-hidden="true">
-                  <span className="moonlit-menu-stage-wordmark">{featuredCharacter.backdropWord}</span>
-                  <img src={featuredCharacter.image} alt={featuredCharacter.name} className="moonlit-menu-character-image" />
+                  <img
+                    src={featuredCharacter.image}
+                    alt={featuredCharacter.name}
+                    className="moonlit-menu-character-image"
+                    style={featuredCharacterStyle}
+                  />
                 </div>
 
                 <div className="moonlit-menu-character-profile">
