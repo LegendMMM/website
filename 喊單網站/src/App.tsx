@@ -173,6 +173,116 @@ function ProductImage(props: { imageUrl: string | null; alt: string }): JSX.Elem
   return <img className="h-36 w-full rounded-xl object-cover" src={imageUrl} alt={alt} loading="lazy" />;
 }
 
+function HomeIcon(): JSX.Element {
+  return (
+    <svg viewBox="0 0 24 24" aria-hidden="true" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round">
+      <path d="M3 11.5 12 4l9 7.5" />
+      <path d="M5.5 10.5V20h13V10.5" />
+    </svg>
+  );
+}
+
+function GridIcon(): JSX.Element {
+  return (
+    <svg viewBox="0 0 24 24" aria-hidden="true" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round">
+      <rect x="4" y="4" width="6.5" height="6.5" rx="1.2" />
+      <rect x="13.5" y="4" width="6.5" height="6.5" rx="1.2" />
+      <rect x="4" y="13.5" width="6.5" height="6.5" rx="1.2" />
+      <rect x="13.5" y="13.5" width="6.5" height="6.5" rx="1.2" />
+    </svg>
+  );
+}
+
+function CartIcon(): JSX.Element {
+  return (
+    <svg viewBox="0 0 24 24" aria-hidden="true" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round">
+      <circle cx="9" cy="19" r="1.4" />
+      <circle cx="18" cy="19" r="1.4" />
+      <path d="M3.5 5h2l2.3 9.2a1 1 0 0 0 1 .8h8.9a1 1 0 0 0 1-.8L20.5 8H7" />
+    </svg>
+  );
+}
+
+function UserIcon(): JSX.Element {
+  return (
+    <svg viewBox="0 0 24 24" aria-hidden="true" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round">
+      <circle cx="12" cy="8" r="3.2" />
+      <path d="M5.5 19.5c1.5-3 4.2-4.5 6.5-4.5s5 1.5 6.5 4.5" />
+    </svg>
+  );
+}
+
+function MobileBottomNav(props: {
+  currentView: PageView;
+  cartCount: number;
+  hasSelectedCampaign: boolean;
+  onGoHome: () => void;
+  onGoCampaign: () => void;
+  onGoCart: () => void;
+  onGoMe: () => void;
+}): JSX.Element {
+  const { currentView, cartCount, hasSelectedCampaign, onGoHome, onGoCampaign, onGoCart, onGoMe } = props;
+  const campaignActive = currentView === "campaign" || currentView === "blindBox";
+
+  return (
+    <nav className="mobile-bottom-nav" aria-label="手機導覽">
+      <button
+        type="button"
+        className={currentView === "home" ? "mobile-bottom-nav-item is-active" : "mobile-bottom-nav-item"}
+        onClick={onGoHome}
+      >
+        <span className="mobile-bottom-nav-icon-wrap">
+          <span className="mobile-bottom-nav-icon">
+            <HomeIcon />
+          </span>
+        </span>
+        <span>首頁</span>
+      </button>
+
+      <button
+        type="button"
+        className={campaignActive ? "mobile-bottom-nav-item is-active" : "mobile-bottom-nav-item"}
+        onClick={onGoCampaign}
+        aria-disabled={!hasSelectedCampaign}
+      >
+        <span className="mobile-bottom-nav-icon-wrap">
+          <span className="mobile-bottom-nav-icon">
+            <GridIcon />
+          </span>
+        </span>
+        <span>活動</span>
+      </button>
+
+      <button
+        type="button"
+        className={currentView === "cart" ? "mobile-bottom-nav-item is-active" : "mobile-bottom-nav-item"}
+        onClick={onGoCart}
+      >
+        <span className="mobile-bottom-nav-icon-wrap">
+          <span className="mobile-bottom-nav-icon">
+            <CartIcon />
+          </span>
+          {cartCount > 0 && <span className="mobile-bottom-nav-badge">{cartCount}</span>}
+        </span>
+        <span>購物車</span>
+      </button>
+
+      <button
+        type="button"
+        className={currentView === "me" ? "mobile-bottom-nav-item is-active" : "mobile-bottom-nav-item"}
+        onClick={onGoMe}
+      >
+        <span className="mobile-bottom-nav-icon-wrap">
+          <span className="mobile-bottom-nav-icon">
+            <UserIcon />
+          </span>
+        </span>
+        <span>我的</span>
+      </button>
+    </nav>
+  );
+}
+
 function readFileAsDataUrl(file: File): Promise<string> {
   return new Promise((resolve, reject) => {
     const reader = new FileReader();
@@ -335,6 +445,7 @@ function CampaignView(props: {
   const [keyword, setKeyword] = useState("");
   const [onlyAvailable, setOnlyAvailable] = useState(false);
   const [sortBy, setSortBy] = useState<"name" | "priceAsc" | "priceDesc">("name");
+  const [mobileFiltersOpen, setMobileFiltersOpen] = useState(false);
   const products = system.getProductsByCampaign(campaign.id);
   const cartItems = system.getMyCartItems(campaign.id);
   const cartMap = new Map(cartItems.map((item) => [`${item.productId}::${item.blindBoxItemId ?? "none"}`, item]));
@@ -425,7 +536,7 @@ function CampaignView(props: {
       </div>
 
       <div className="grid gap-4 lg:grid-cols-[280px_minmax(0,1fr)]">
-        <aside className="section-frame h-fit lg:sticky lg:top-6">
+        <aside className="section-frame campaign-sidebar h-fit lg:sticky lg:top-6">
           <div className="flex items-start justify-between gap-3">
             <div>
               <p className="section-kicker">系列導覽</p>
@@ -436,13 +547,27 @@ function CampaignView(props: {
             </div>
           </div>
 
-          <div className="series-rail mt-4">
+          <div className="campaign-mobile-controls mt-4">
+            <button
+              type="button"
+              className={mobileFiltersOpen ? "campaign-mobile-filter-toggle is-open" : "campaign-mobile-filter-toggle"}
+              onClick={() => setMobileFiltersOpen((current) => !current)}
+            >
+              <span>搜尋與篩選</span>
+              <span>{mobileFiltersOpen ? "收起" : "展開"}</span>
+            </button>
+          </div>
+
+          <div className="series-rail campaign-series-rail mt-4">
             {seriesGroups.map((group) => (
               <button
                 key={group.series}
                 type="button"
                 className={selectedSeries === group.series ? "series-chip series-chip-active" : "series-chip"}
-                onClick={() => setSelectedSeries(group.series)}
+                onClick={() => {
+                  setSelectedSeries(group.series);
+                  setMobileFiltersOpen(false);
+                }}
               >
                 <span>{group.series}</span>
                 <span className="text-xs opacity-75">{group.products.length}</span>
@@ -450,7 +575,7 @@ function CampaignView(props: {
             ))}
           </div>
 
-          <div className="filter-panel mt-5 space-y-3 text-sm">
+          <div className={`filter-panel campaign-filter-panel mt-5 space-y-3 text-sm ${mobileFiltersOpen ? "is-open" : ""}`}>
             <label className="block">
               搜尋關鍵字
               <input
@@ -491,7 +616,7 @@ function CampaignView(props: {
         </aside>
 
         <div className="space-y-3">
-          <div className="section-frame">
+          <div className="section-frame campaign-product-header">
             <p className="section-kicker">本期選品</p>
             <div className="flex flex-wrap items-end justify-between gap-3">
               <div>
@@ -651,7 +776,7 @@ function BlindBoxView(props: {
           const inCartQty = cartMap.get(item.id) ?? 0;
 
           return (
-            <article key={item.id} className="product-stage-card">
+            <article key={item.id} className="product-stage-card blind-item-card">
               <div className="product-figure">
                 <ProductImage imageUrl={item.imageUrl} alt={item.name} />
                 <div className="product-price-badge">
@@ -764,26 +889,16 @@ function CartView(props: {
         }, 0);
 
         return (
-          <article key={campaignId} className="section-frame">
-            <div className="flex flex-wrap items-center justify-between gap-2">
+          <article key={campaignId} className="section-frame cart-campaign-section">
+            <div className="cart-campaign-header flex flex-wrap items-center justify-between gap-2">
               <h3 className="text-lg font-bold text-slate-900">{campaign?.title ?? "未知活動"}</h3>
-              <div className="flex gap-2">
+              <div className="cart-campaign-header-actions flex gap-2">
                 <button
                   type="button"
                   className="rounded-lg border px-3 py-1.5 text-xs font-semibold"
                   onClick={() => campaign && onOpenCampaign(campaign)}
                 >
                   回活動頁
-                </button>
-                <button
-                  type="button"
-                  className="rounded-lg bg-slate-900 px-3 py-1.5 text-xs font-semibold text-white"
-                  onClick={() => {
-                    const result = system.placeOrder(campaignId);
-                    setFeedback(result.message);
-                  }}
-                >
-                  下單此活動
                 </button>
               </div>
             </div>
@@ -806,27 +921,29 @@ function CartView(props: {
                       </div>
 
                       <div className="cart-item-actions flex items-center gap-2">
-                        <button
-                          type="button"
-                          className="rounded-lg border px-2 py-1 text-xs"
-                          onClick={() => {
-                            const result = system.changeCartItemQty(item.id, item.qty - 1);
-                            setFeedback(result.message);
-                          }}
-                        >
-                          -1
-                        </button>
-                        <span className="min-w-8 text-center text-sm font-semibold">{item.qty}</span>
-                        <button
-                          type="button"
-                          className="rounded-lg border px-2 py-1 text-xs"
-                          onClick={() => {
-                            const result = system.changeCartItemQty(item.id, item.qty + 1);
-                            setFeedback(result.message);
-                          }}
-                        >
-                          +1
-                        </button>
+                        <div className="cart-stepper">
+                          <button
+                            type="button"
+                            className="rounded-lg border px-2 py-1 text-xs"
+                            onClick={() => {
+                              const result = system.changeCartItemQty(item.id, item.qty - 1);
+                              setFeedback(result.message);
+                            }}
+                          >
+                            -1
+                          </button>
+                          <span className="min-w-8 text-center text-sm font-semibold">{item.qty}</span>
+                          <button
+                            type="button"
+                            className="rounded-lg border px-2 py-1 text-xs"
+                            onClick={() => {
+                              const result = system.changeCartItemQty(item.id, item.qty + 1);
+                              setFeedback(result.message);
+                            }}
+                          >
+                            +1
+                          </button>
+                        </div>
                         <button
                           className="rounded-lg border border-rose-200 bg-rose-50 px-3 py-1 text-xs font-semibold text-rose-700"
                           type="button"
@@ -853,7 +970,19 @@ function CartView(props: {
               })}
             </div>
 
-            <p className="mt-3 text-sm font-semibold text-slate-700">預估總額：{twd(estimatedTotal)}</p>
+            <div className="cart-campaign-summary">
+              <p className="text-sm font-semibold text-slate-700">預估總額：{twd(estimatedTotal)}</p>
+              <button
+                type="button"
+                className="cart-place-order-button rounded-lg bg-slate-900 px-3 py-2 text-sm font-semibold text-white"
+                onClick={() => {
+                  const result = system.placeOrder(campaignId);
+                  setFeedback(result.message);
+                }}
+              >
+                下單此活動
+              </button>
+            </div>
           </article>
         );
       })}
@@ -3597,7 +3726,7 @@ export default function App(): JSX.Element {
   }
 
   return (
-    <main className="site-shell shop-front min-h-screen px-4 pb-6 pt-[5.6rem] md:px-8 md:pb-8 md:pt-[5.8rem] lg:px-12 lg:pb-10 lg:pt-[5.8rem]">
+    <main className="site-shell shop-front min-h-screen px-4 pb-24 pt-[5.6rem] md:px-8 md:pb-8 md:pt-[5.8rem] lg:px-12 lg:pb-10 lg:pt-[5.8rem]">
       <MoonlitSpecialMenuOverlay
         theme="light"
         currentView={view}
@@ -3701,6 +3830,23 @@ export default function App(): JSX.Element {
 
         {view === "me" && <MeView system={system} />}
       </div>
+
+      <MobileBottomNav
+        currentView={view}
+        cartCount={headerCartCount}
+        hasSelectedCampaign={Boolean(selectedCampaignId)}
+        onGoHome={() => setView("home")}
+        onGoCampaign={() => {
+          setSelectedBlindProductId("");
+          if (selectedCampaignId) {
+            setView("campaign");
+            return;
+          }
+          setView("home");
+        }}
+        onGoCart={() => setView("cart")}
+        onGoMe={() => setView("me")}
+      />
     </main>
   );
 }
