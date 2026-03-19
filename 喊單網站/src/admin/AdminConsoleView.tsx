@@ -45,20 +45,11 @@ export function AdminConsoleView(props: {
     };
   }, [system.state.claims, system.state.orders, system.state.payments, system.state.users]);
 
-  const activePanelCopy: Record<AdminTab, string> = {
-    claims: "先處理待審喊單，這裡只保留團主最常用的審核動作。",
-    fulfillment: "把付款、訂單狀態與物流匯出集中在同一頁，不再來回切兩三個 tab。",
-    members: "會員資料、管理員權限、取貨率與角色固位都集中在這裡管理。",
-    catalog: "活動、商品建立、清單編輯與批次匯入都集中到商品管理，不再混進其他工作流。",
-  };
-
   return (
     <section className="admin-shell">
       <aside className="admin-sidebar">
         <div>
-          <p className="section-kicker">Admin Console</p>
           <h2 className="mt-2 text-2xl font-extrabold text-slate-900">團主工作台</h2>
-          <p className="mt-2 text-sm text-slate-600">後台現在改成控制台結構，導航、統計與主工作區分開，不再所有東西都堆在同一列按鈕下面。</p>
         </div>
 
         <button
@@ -93,11 +84,9 @@ export function AdminConsoleView(props: {
 
       <div className="space-y-5">
         <div className="section-frame">
-          <p className="section-kicker">Active Panel</p>
           <div className="flex flex-wrap items-end justify-between gap-3">
             <div>
               <h3 className="text-2xl font-extrabold text-slate-900">{adminTabs.find((item) => item.id === activeTab)?.label ?? "管理後台"}</h3>
-              <p className="mt-1 text-sm text-slate-600">{activePanelCopy[activeTab]}</p>
             </div>
           </div>
           {feedback && <p className="mt-3 text-sm font-semibold text-slate-800">{feedback}</p>}

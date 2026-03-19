@@ -105,12 +105,9 @@ export function BuildersTab(props: {
   return (
     <div className="space-y-5">
       <section className="section-frame">
-        <p className="section-kicker">Campaign Builder</p>
         <h3 className="text-lg font-bold text-slate-900">建立商品與盲盒子項</h3>
-        <p className="mt-2 text-sm text-slate-600">建立流程集中在這裡，避免跟大量表格編輯混在同一頁。</p>
       </section>
       <section className="section-frame">
-        <p className="section-kicker">Product Builder</p>
         <h3 className="text-lg font-bold text-slate-900">新增商品（含圖片）</h3>
         <div className="mt-3 space-y-4 text-sm">
           <label className="block">
@@ -123,7 +120,6 @@ export function BuildersTab(props: {
           </label>
           <div className="form-panel">
             <p className="form-section-title">1. 商品基礎</p>
-            <p className="form-section-copy">先決定這件商品是一般代購，還是盲盒母商品。這個選擇會直接影響後面欄位。</p>
             <div className="admin-chip-group">
               {productTypeOptions.map((type) => (
                 <button key={type} type="button" className={productType === type ? "admin-chip admin-chip-active" : "admin-chip"} onClick={() => onProductTypeChange(type)}>
@@ -157,9 +153,6 @@ export function BuildersTab(props: {
           )}
           <div className="form-panel">
             <p className="form-section-title">2. 固位規則</p>
-            <p className="form-section-copy">
-              {productType === "BLIND_BOX" ? "這是單一盲盒母商品自己的開關，不會影響同活動內其他商品。" : "一般商品預設全員可喊；若你要某件普通商品也照角色順位開放，可以在這裡單獨開啟。"}
-            </p>
             <label className="flex items-center gap-2 text-sm text-slate-700">
               <input type="checkbox" checked={productSlotRestrictionEnabled} onChange={(event) => onProductSlotRestrictionEnabledChange(event.target.checked)} />
               {productType === "BLIND_BOX" ? "這一個盲盒商品啟用固位限制" : "這一個普通商品啟用固位限制"}
@@ -207,7 +200,6 @@ export function BuildersTab(props: {
         </div>
       </section>
       <section className="section-frame">
-        <p className="section-kicker">Blind Items</p>
         <h3 className="text-lg font-bold text-slate-900">新增盲盒角色子項（含圖片）</h3>
         <div className="mt-3 grid gap-3 text-sm md:grid-cols-2">
           <label className="block md:col-span-2">

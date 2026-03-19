@@ -31,9 +31,7 @@ export function ImportsTab(props: {
 
   return (
     <section className="section-frame">
-      <p className="section-kicker">Bulk Import</p>
       <h3 className="text-lg font-bold text-slate-900">表單匯入商品（批次）</h3>
-      <p className="mt-2 text-sm text-slate-600">一般商品、盲盒母商品、盲盒子項分開匯入，可用 CSV 或 JSON。</p>
       <p className="mt-1 text-xs text-slate-500">{importModeDescription[importMode]}</p>
       <div className="mt-3 grid gap-3 text-sm">
         <label className="block">

@@ -40,9 +40,7 @@ export function CampaignsTab(props: {
       <section className="section-frame">
         <div className="flex flex-wrap items-center justify-between gap-3">
           <div>
-            <p className="section-kicker">Categories</p>
             <h3 className="text-lg font-bold text-slate-900">商品分類管理</h3>
-            <p className="mt-1 text-sm text-slate-600">分類由管理員自行維護，刪除分類後商品會自動改放到未分類。</p>
           </div>
           <div className="flex flex-wrap gap-2">
             <input className="rounded-xl border border-slate-200 px-3 py-2 text-sm" placeholder="新增分類名稱" value={newCategoryName} onChange={(event) => onCategoryNameChange(event.target.value)} />
@@ -67,7 +65,6 @@ export function CampaignsTab(props: {
       </section>
 
       <section className="section-frame">
-        <p className="section-kicker">Campaign Builder</p>
         <h3 className="text-lg font-bold text-slate-900">新增活動</h3>
         <div className="mt-3 space-y-3 text-sm">
           <input className="w-full rounded-xl border border-slate-200 px-3 py-2" placeholder="活動名稱" value={campaignTitle} onChange={(event) => onCampaignTitleChange(event.target.value)} />

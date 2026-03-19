@@ -644,9 +644,7 @@ export function AdminCatalogPanel(props: { system: UseOrderSystemReturn }): JSX.
   return (
     <section className="space-y-5">
       <div className="section-frame">
-        <p className="section-kicker">Catalog Workspace</p>
-        <h2 className="text-2xl font-extrabold text-slate-900">商品管理（管理員）</h2>
-        <p className="mt-2 text-sm text-slate-600">這裡只保留團主日常真的會用到的管理流程：活動、建立商品、清單編輯與批次匯入。</p>
+        <h2 className="text-2xl font-extrabold text-slate-900">商品管理</h2>
         <div className="admin-chip-group mt-4">
           {catalogTabs.map((item) => (
             <button

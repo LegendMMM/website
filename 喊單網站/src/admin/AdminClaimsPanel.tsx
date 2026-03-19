@@ -48,7 +48,6 @@ export function AdminClaimsPanel(props: {
   return (
     <section className="section-frame">
       <h3 className="text-lg font-bold text-slate-900">全站喊單總表</h3>
-      <p className="mt-1 text-sm text-slate-600">可篩選所有喊單並快速確認/取消。</p>
       <div className="mt-3 grid gap-3 md:grid-cols-4">
         <label className="block text-sm">
           活動

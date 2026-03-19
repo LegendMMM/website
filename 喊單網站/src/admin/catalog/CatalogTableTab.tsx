@@ -37,9 +37,7 @@ export function CatalogTableTab(props: {
     <section className="section-frame">
       <div className="flex flex-wrap items-end justify-between gap-3">
         <div>
-          <p className="section-kicker">Editable Catalog</p>
           <h3 className="text-lg font-bold text-slate-900">活動與商品清單</h3>
-          <p className="mt-1 text-sm text-slate-600">直接在表格內修改商品與盲盒規則，不再使用 prompt。</p>
         </div>
         <input className="w-full rounded-xl border border-slate-200 px-3 py-2 text-sm md:max-w-sm" placeholder="搜尋活動內商品 / SKU / 分類" value={settingsProductKeyword} onChange={(event) => onSettingsProductKeywordChange(event.target.value)} />
       </div>
@@ -57,9 +55,8 @@ export function CatalogTableTab(props: {
             <article key={campaign.id} className="rounded-[1.5rem] border border-slate-200 p-4">
               <div className="flex flex-wrap items-start justify-between gap-2">
                 <div>
-                  <p className="section-kicker">Campaign</p>
                   <h4 className="text-lg font-bold text-slate-900">{campaign.title}</h4>
-                  <p className="mt-1 text-xs text-slate-500">目前：{releaseStageLabel(campaign.releaseStage)}</p>
+                  <p className="mt-1 text-xs text-slate-500">{releaseStageLabel(campaign.releaseStage)}</p>
                 </div>
                 <button type="button" className="rounded-lg border border-rose-300 bg-rose-50 px-2 py-1 text-[11px] font-semibold text-rose-700" onClick={() => onDeleteCampaign(campaign.id, campaign.title)}>
                   刪除活動

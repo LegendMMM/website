@@ -200,16 +200,7 @@ function HomeView(props: {
       <div className="hero-panel">
         <div className="hero-grid">
           <div>
-            <p className="section-kicker">本期導覽</p>
-            <h2 className="text-3xl font-extrabold text-slate-900">先選活動，再進入對應系列挑商品</h2>
-            <p className="mt-3 max-w-2xl text-sm text-slate-600">
-              一般商品直接挑款加入購物車；盲盒商品則進入拆分頁後，再依角色與釋出階段確認是否能喊。首頁只負責帶你進正確的活動入口。
-            </p>
-            <div className="front-guide-list mt-5">
-              <p>一般商品：直接購買</p>
-              <p>盲盒商品：進拆分頁看角色與資格</p>
-              <p>喊單成立後，仍需等待團主確認</p>
-            </div>
+            <h2 className="text-3xl font-extrabold text-slate-900">活動導覽</h2>
           </div>
           <div className="front-summary-strip">
             <div className="front-summary-item">
@@ -235,9 +226,7 @@ function HomeView(props: {
       <div className="section-frame">
         <div className="flex flex-wrap items-end justify-between gap-3">
           <div>
-            <p className="section-kicker">活動章節</p>
-            <h3 className="text-2xl font-extrabold text-slate-900">活動導覽</h3>
-            <p className="mt-1 text-sm text-slate-600">先看活動，再進入該活動底下的系列與商品。這樣不會一進站就被大量資訊淹沒。</p>
+            <h3 className="text-2xl font-extrabold text-slate-900">活動</h3>
           </div>
         </div>
       </div>
@@ -246,18 +235,17 @@ function HomeView(props: {
         {system.visibleCampaigns.map((campaign) => (
           <article key={campaign.id} className="campaign-card">
             <div className="campaign-card-top">
-              <p className="section-kicker">本期活動</p>
               <span className="state-pill bg-slate-100 text-slate-700">{releaseStageLabel(campaign.releaseStage)}</span>
             </div>
             <h3 className="mt-4 text-2xl font-extrabold text-slate-900">{campaign.title}</h3>
-            <p className="mt-3 min-h-12 text-sm text-slate-600">{campaign.description || "尚未填寫活動描述。"}</p>
+            {campaign.description ? <p className="mt-3 min-h-12 text-sm text-slate-600">{campaign.description}</p> : null}
             <div className="campaign-meta mt-4">
               <div>
                 <p className="campaign-meta-label">截止時間</p>
                 <p className="campaign-meta-value">{formatDate(campaign.deadlineAt)}</p>
               </div>
               <div>
-                <p className="campaign-meta-label">目前釋出</p>
+                <p className="campaign-meta-label">釋出</p>
                 <p className="campaign-meta-value">{releaseStageLabel(campaign.releaseStage)}</p>
               </div>
             </div>
@@ -367,15 +355,13 @@ function CampaignView(props: {
           <button className="cta-secondary" type="button" onClick={onGoCart}>前往購物車</button>
         </div>
 
-        <p className="section-kicker mt-6">本期活動</p>
         <h2 className="mt-2 text-3xl font-extrabold text-slate-900">{campaign.title}</h2>
-        <p className="mt-3 max-w-3xl text-sm text-slate-600">{campaign.description}</p>
+        {campaign.description ? <p className="mt-3 max-w-3xl text-sm text-slate-600">{campaign.description}</p> : null}
 
         <div className="mt-4 flex flex-wrap gap-2 text-xs">
           <span className="state-pill bg-slate-100 text-slate-700">釋出：{releaseStageLabel(campaign.releaseStage)}</span>
           <span className="state-pill bg-slate-100 text-slate-700">截止：{formatDate(campaign.deadlineAt)}</span>
         </div>
-        <p className="mt-4 text-sm text-slate-700">先用左側切換系列，再從右側看商品。一般商品可直接加入購物車，盲盒則進拆分頁挑角色。</p>
 
         {feedback && <p className="mt-3 text-sm font-semibold text-slate-800">{feedback}</p>}
       </div>
@@ -384,8 +370,7 @@ function CampaignView(props: {
         <aside className="section-frame campaign-sidebar h-fit lg:sticky lg:top-6">
           <div className="flex items-start justify-between gap-3">
             <div>
-              <p className="section-kicker">系列導覽</p>
-              <h3 className="text-base font-bold text-slate-900">系列與篩選</h3>
+              <h3 className="text-base font-bold text-slate-900">系列</h3>
             </div>
             <div className="rounded-full border border-slate-200 px-3 py-1 text-xs text-slate-500">
               {visibleProducts.length} / {selectedSeriesProducts.length}
@@ -454,19 +439,13 @@ function CampaignView(props: {
             </label>
           </div>
 
-            <div className="mt-5 rounded-2xl border border-slate-200 bg-white/60 p-4 text-xs text-slate-600">
-            <p className="font-semibold text-slate-800">選購提醒</p>
-            <p className="mt-2">一般商品可直接加購；若該商品另有固位限制，頁面會明確標示。盲盒商品請進拆分頁看角色資格。</p>
-          </div>
         </aside>
 
         <div className="space-y-3">
           <div className="section-frame campaign-product-header">
-            <p className="section-kicker">本期選品</p>
             <div className="flex flex-wrap items-end justify-between gap-3">
               <div>
                 <h3 className="text-2xl font-extrabold text-slate-900">{selectedSeries || "未選擇分類"}</h3>
-                <p className="mt-1 text-sm text-slate-600">商品已依可視條件整理完成，直接從這裡加入購物車或進入盲盒拆分。</p>
               </div>
             </div>
           </div>
@@ -510,10 +489,6 @@ function CampaignView(props: {
               <div className="mt-4 space-y-1 text-sm text-slate-600">
                 {product.type === "NORMAL" && (
                   <>
-                    <p>
-                      購買方式：一般代購，
-                      {product.slotRestrictionEnabled ? "此商品啟用固位限制" : "全員可喊"}
-                    </p>
                     {product.character && <p>展示角色：{product.character}</p>}
                     {product.slotRestrictionEnabled && (
                       <p>限制角色：{product.slotRestrictedCharacter ?? product.character ?? "未設定"}</p>
@@ -524,11 +499,7 @@ function CampaignView(props: {
 
                 {product.type === "BLIND_BOX" && (
                   <>
-                    <p>
-                      購買方式：盲盒拆分，
-                      {product.slotRestrictionEnabled ? "依子項角色判斷固位" : "此盲盒目前全員可喊"}
-                    </p>
-                    <p>盲盒子項：{blindItemsCount} 項（進入拆分頁挑角色）</p>
+                    <p>角色項目：{blindItemsCount} 項</p>
                   </>
                 )}
               </div>
@@ -598,9 +569,7 @@ function BlindBoxView(props: {
           <button className="cta-secondary" type="button" onClick={onGoCart}>前往購物車</button>
         </div>
 
-        <p className="section-kicker mt-6">盲盒拆分</p>
         <h2 className="mt-2 text-3xl font-extrabold text-slate-900">{product.name}</h2>
-        <p className="mt-3 text-sm text-slate-600">這一頁才需要看角色、固位與釋出時段。你在這裡選的是角色子項，不是整盒母商品。</p>
         <div className="mt-4 flex flex-wrap gap-2 text-xs">
           <span className="state-pill bg-slate-100 text-slate-700">
             {product.slotRestrictionEnabled ? "此盲盒啟用固位限制" : "此盲盒全員可喊"}
@@ -643,14 +612,7 @@ function BlindBoxView(props: {
                 <span className="meta-chip">上限 {item.maxPerUser ?? "不限"}</span>
               </div>
 
-              <div className="mt-3 space-y-1 text-sm text-slate-600">
-                <p>
-                  {product.slotRestrictionEnabled
-                    ? `你的角色固位：${myTier ? fixedTierLabel(myTier) : "未分配"}`
-                    : "這個盲盒商品未啟用固位限制。"}
-                </p>
-                <p>你已加入：{inCartQty}</p>
-              </div>
+              <p className="mt-3 text-sm text-slate-600">已加入：{inCartQty}</p>
 
               <p className={`status-note ${access.ok ? "status-note-ok" : "status-note-warn"}`}>
                 {access.ok ? "可加入購物車" : access.reason}
@@ -714,9 +676,7 @@ function CartView(props: {
   return (
     <section className="space-y-6">
       <div className="section-frame">
-        <p className="section-kicker">購物清單</p>
         <h2 className="text-2xl font-extrabold text-slate-900">購物車</h2>
-        <p className="mt-2 text-sm text-slate-600">單一商品或盲盒子項都可多件，且各自受上限與庫存限制。</p>
         {feedback && <p className="mt-2 text-sm font-semibold text-slate-800">{feedback}</p>}
       </div>
 
@@ -861,9 +821,7 @@ function MeView(props: { system: UseOrderSystemReturn }): JSX.Element {
   return (
     <section className="space-y-6">
       <div className="section-frame">
-        <p className="section-kicker">我的紀錄</p>
         <h2 className="text-2xl font-extrabold text-slate-900">個人主頁</h2>
-        <p className="mt-2 text-sm text-slate-600">這裡會看到你下過的單與目前喊單狀態。</p>
       </div>
 
       <div className="grid gap-5 lg:grid-cols-2">
@@ -1000,13 +958,7 @@ export default function App(): JSX.Element {
     return (
       <main className="site-shell grid min-h-screen place-items-center px-4 py-12 grid-bg">
         <section className="hero-panel max-w-xl text-center">
-          <p className="section-kicker">Syncing Workspace</p>
-          <h1 className="mt-2 text-3xl font-extrabold text-slate-900">
-            {system.hasStoredSession ? "正在恢復登入狀態" : "正在同步遠端資料"}
-          </h1>
-          <p className="mt-3 text-sm text-slate-600">
-            Supabase 資料仍在載入，先不要把你丟回登入畫面。等帳號與活動資料到位後會直接進站。
-          </p>
+          <h1 className="text-3xl font-extrabold text-slate-900">載入中</h1>
         </section>
       </main>
     );
@@ -1037,10 +989,9 @@ export default function App(): JSX.Element {
             />
             <div className="hero-grid">
               <div>
-                <p className="section-kicker">Tsukuyomi Admin Cosmos</p>
-                <h1 className="mt-2 text-4xl font-extrabold text-slate-900">超時空輝耀姬・管理後台</h1>
+                <h1 className="mt-2 text-4xl font-extrabold text-slate-900">管理後台</h1>
                 <p className="admin-account-copy mt-3 text-sm text-slate-600">登入帳號：{system.currentUser.fbNickname}（{system.currentUser.email}）</p>
-                <p className="admin-meta-note text-xs text-slate-500">資料模式：{isSupabaseEnabled ? "Supabase 遠端資料模式" : "Demo Local 模式"}</p>
+                <p className="admin-meta-note text-xs text-slate-500">{isSupabaseEnabled ? "Supabase" : "Demo Local"}</p>
               </div>
               <div className="space-y-3">
                 <div className="action-nav admin-hero-actions justify-end">
@@ -1123,15 +1074,11 @@ export default function App(): JSX.Element {
           animate={{ opacity: 1, y: 0 }}
           className="hero-panel"
         >
-          <div className="hero-grid">
-            <div>
-              <p className="section-kicker">Tsukuyomi Order Cosmos</p>
-              <h1 className="mt-2 text-4xl font-extrabold text-slate-900">超時空輝耀姬・活動導覽與拆分系統</h1>
+        <div className="hero-grid">
+          <div>
+              <h1 className="mt-2 text-4xl font-extrabold text-slate-900">超時空輝耀姬</h1>
               <p className="mt-3 text-sm text-slate-600">你好，{system.currentUser.fbNickname}</p>
-              <p className="text-sm text-slate-500">
-                先選活動，再依系列挑商品；一般商品可直接加購，盲盒拆分則在子頁查看角色資格與可喊狀態。
-                {system.currentUser.isAdmin ? " 你目前以前台視角瀏覽，若要調整資料可從上方 MENU 切換管理後台。" : ""}
-              </p>
+              {system.currentUser.isAdmin ? <p className="text-sm text-slate-500">可從 MENU 進入管理後台。</p> : null}
             </div>
 
             <div className="space-y-3 front-header-side">

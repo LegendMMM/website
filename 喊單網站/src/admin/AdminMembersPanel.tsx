@@ -135,7 +135,6 @@ export function AdminMembersPanel(props: {
     <section className="space-y-4">
       <div className="section-frame">
         <h3 className="text-lg font-bold text-slate-900">帳號總覽</h3>
-        <p className="mt-1 text-sm text-slate-600">可直接調整管理員權限與取貨率，並檢視每位會員訂單表現。</p>
         <div className="mt-4">
           <input
             className="w-full rounded-xl border border-slate-200 px-3 py-2 text-sm"
@@ -215,9 +214,7 @@ export function AdminMembersPanel(props: {
       <div className="section-frame">
         <div className="flex flex-wrap items-center justify-between gap-2">
           <div>
-            <p className="section-kicker">Character Slots</p>
             <h3 className="text-lg font-bold text-slate-900">角色固位分配</h3>
-            <p className="mt-1 text-sm text-slate-600">角色固位屬於會員資料，直接放在會員頁管理，不再混進活動與商品設定。</p>
           </div>
           <div className="flex flex-wrap gap-2">
             <button
