@@ -44,19 +44,19 @@ export function AdminFulfillmentPanel(props: {
       map.set(item.orderId, [item]);
     });
     return map;
-  }, [system.state.orderItems]);
+  }, [system]);
 
   const allOrders = useMemo(
     () => [...system.state.orders].sort((a, b) => new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime()),
-    [system.state.orders],
+    [system],
   );
   const allPayments = useMemo(
     () => [...system.state.payments].sort((a, b) => new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime()),
-    [system.state.payments],
+    [system],
   );
   const allShipments = useMemo(
     () => [...system.state.shipments].sort((a, b) => a.campaignId.localeCompare(b.campaignId)),
-    [system.state.shipments],
+    [system],
   );
 
   return (

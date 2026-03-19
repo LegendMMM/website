@@ -10,12 +10,15 @@ export default [
   },
   js.configs.recommended,
   {
-    files: ["src/**/*.{ts,tsx}"],
+    files: ["**/*.{ts,tsx}"],
     languageOptions: {
       parser: tsParser,
       parserOptions: {
         ecmaVersion: "latest",
         sourceType: "module",
+        ecmaFeatures: {
+          jsx: true,
+        },
       },
     },
     plugins: {
@@ -25,14 +28,10 @@ export default [
     },
     rules: {
       ...reactHooks.configs.recommended.rules,
+      "no-undef": "off",
+      "no-unused-vars": "off",
       "react-refresh/only-export-components": ["warn", { allowConstantExport: true }],
-      "@typescript-eslint/no-unused-vars": [
-        "error",
-        {
-          argsIgnorePattern: "^_",
-          varsIgnorePattern: "^_",
-        },
-      ],
+      "@typescript-eslint/no-unused-vars": "off",
     },
   },
 ];

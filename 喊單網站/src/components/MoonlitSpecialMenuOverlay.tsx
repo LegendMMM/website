@@ -1,4 +1,7 @@
 import { useEffect, useMemo, useState, type CSSProperties } from "react";
+import heroKaguyaCenter from "../assets/hero-kaguya-center.png";
+import heroKaguyaLeft from "../assets/hero-kaguya-left.png";
+import heroKaguyaRight from "../assets/hero-kaguya-right.png";
 import kaguyaLogoHeader from "../assets/kaguya-logo-header.webp";
 import menuAkiraImage from "../assets/menu-characters/menu-akira.webp";
 import menuFushiImage from "../assets/menu-characters/menu-fushi.webp";
@@ -33,6 +36,11 @@ interface FeaturedCharacter {
 
 const WORDMARK_GROUP_COUNT = 2;
 const WORDMARK_WORD_COUNT = 5;
+const BRAND_PORTRAITS = [
+  { src: heroKaguyaLeft, alt: "超時空輝耀姬角色頭像 1" },
+  { src: heroKaguyaCenter, alt: "超時空輝耀姬角色頭像 2" },
+  { src: heroKaguyaRight, alt: "超時空輝耀姬角色頭像 3" },
+];
 
 const FEATURED_CHARACTERS: FeaturedCharacter[] = [
   {
@@ -120,11 +128,19 @@ interface MoonlitSpecialMenuOverlayProps {
   onLogout: () => void;
 }
 
-function StarIcon(): JSX.Element {
+function BrandPortraitOrb(): JSX.Element {
+  const [activePortraitIndex] = useState<number>(() => Math.floor(Math.random() * BRAND_PORTRAITS.length));
+  const activePortrait = BRAND_PORTRAITS[activePortraitIndex];
+
   return (
-    <svg viewBox="0 0 24 24" aria-hidden="true" className="moonlit-menu-icon-svg">
-      <path d="M12 2.8l2.18 5.2 5.62.48-4.28 3.74 1.28 5.58L12 14.92 7.2 17.8l1.28-5.58L4.2 8.48l5.62-.48L12 2.8Z" />
-    </svg>
+    <span className="moonlit-menu-brand-icon moonlit-menu-brand-icon-portrait">
+      <img
+        src={activePortrait.src}
+        alt={activePortrait.alt}
+        className="moonlit-menu-brand-portrait-image"
+      />
+      <span className="moonlit-menu-brand-orb-glow" aria-hidden="true" />
+    </span>
   );
 }
 
@@ -254,9 +270,7 @@ export default function MoonlitSpecialMenuOverlay(props: MoonlitSpecialMenuOverl
       <header className="moonlit-menu-bar">
         <div className="moonlit-menu-bar-inner">
           <div className="moonlit-menu-brand">
-            <span className="moonlit-menu-brand-icon">
-              <StarIcon />
-            </span>
+            <BrandPortraitOrb />
             <div className="moonlit-menu-brand-copy">
               <span className="moonlit-menu-brand-overline">TSUKUYOMI SPECIAL SITE</span>
               <strong className="moonlit-menu-brand-title">超時空輝耀姬 導覽選單</strong>

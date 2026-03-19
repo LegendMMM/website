@@ -52,7 +52,7 @@ export function AdminMembersPanel(props: {
     return new Map(
       Array.from(groupedSlots.entries()).map(([userId, slots]) => [userId, formatCharacterSlotSummary(slots)]),
     );
-  }, [system.state.characterSlots]);
+  }, [system]);
 
   const memberRows = useMemo(() => (
     system.state.users
@@ -67,7 +67,7 @@ export function AdminMembersPanel(props: {
         };
       })
       .sort((a, b) => Number(b.user.isAdmin) - Number(a.user.isAdmin) || a.user.fbNickname.localeCompare(b.user.fbNickname))
-  ), [pendingClaimsByUserId, slotSummaryByUserId, system.state.users, userOrderStatsById]);
+  ), [pendingClaimsByUserId, slotSummaryByUserId, system, userOrderStatsById]);
 
   const filteredMemberRows = useMemo(() => {
     const keyword = memberOverviewKeyword.trim().toLowerCase();

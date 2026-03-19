@@ -250,9 +250,9 @@ function logSupabaseSyncError(context: string, error: unknown): void {
 }
 
 export function useOrderSystem(): UseOrderSystemReturn {
-  const [state, setState] = useState<OrderSystemState>(() => loadState({ fallbackToSeed: !supabase }));
+  const [state, setState] = useState<OrderSystemState>(() => loadState({ fallbackToSeed: true }));
   const [sessionUserId, setSessionUserId] = useState<string | null>(() => loadSessionUserId());
-  const [stateHydrated, setStateHydrated] = useState<boolean>(() => !supabase);
+  const [stateHydrated, setStateHydrated] = useState<boolean>(() => true);
 
   useEffect(() => {
     if (!stateHydrated) return;
@@ -267,6 +267,10 @@ export function useOrderSystem(): UseOrderSystemReturn {
     if (!supabase) return;
 
     let cancelled = false;
+    const timeout = window.setTimeout(() => {
+      if (cancelled) return;
+      setStateHydrated(true);
+    }, 2500);
 
     void loadOrderSystemStateFromSupabase(supabase)
       .then((remoteState) => {
@@ -282,6 +286,7 @@ export function useOrderSystem(): UseOrderSystemReturn {
 
     return () => {
       cancelled = true;
+      window.clearTimeout(timeout);
     };
   }, []);
 
@@ -1404,7 +1409,7 @@ export function useOrderSystem(): UseOrderSystemReturn {
         ];
       });
 
-    const escapeCsv = (value: string): string => `"${value.replace(/\"/g, "\"\"")}"`;
+    const escapeCsv = (value: string): string => `"${value.replace(/"/g, "\"\"")}"`;
     return [headers, ...rows]
       .map((cols) => cols.map((value) => escapeCsv(value)).join(","))
       .join("\n");
