@@ -121,10 +121,13 @@ interface MoonlitSpecialMenuOverlayProps {
   theme?: MenuTheme;
   currentView: SiteMenuView;
   isAdmin: boolean;
+  isAuthenticated?: boolean;
   onGoHome: () => void;
+  onGoCampaign?: () => void;
   onGoCart: () => void;
   onGoMe: () => void;
   onGoAdmin?: () => void;
+  onOpenAuth?: () => void;
   onLogout: () => void;
 }
 
@@ -157,10 +160,13 @@ export default function MoonlitSpecialMenuOverlay(props: MoonlitSpecialMenuOverl
     theme = "light",
     currentView,
     isAdmin,
+    isAuthenticated = false,
     onGoHome,
+    onGoCampaign,
     onGoCart,
     onGoMe,
     onGoAdmin,
+    onOpenAuth,
     onLogout,
   } = props;
 
@@ -217,6 +223,12 @@ export default function MoonlitSpecialMenuOverlay(props: MoonlitSpecialMenuOverl
         onSelect: onGoHome,
       },
       {
+        id: "campaign",
+        zhLabel: "活動選單",
+        active: currentView === "campaign" || currentView === "blindBox",
+        onSelect: onGoCampaign ?? onGoHome,
+      },
+      {
         id: "cart",
         zhLabel: "購物清單",
         active: currentView === "cart",
@@ -238,20 +250,31 @@ export default function MoonlitSpecialMenuOverlay(props: MoonlitSpecialMenuOverl
       });
     }
 
-    baseEntries.push({
-      id: "logout",
-      zhLabel: "登出站點",
-      onSelect: onLogout,
-    });
+    baseEntries.push(
+      isAuthenticated
+        ? {
+            id: "logout",
+            zhLabel: "登出站點",
+            onSelect: onLogout,
+          }
+        : {
+            id: "auth",
+            zhLabel: "登入 / 註冊",
+            onSelect: onOpenAuth ?? onGoHome,
+          },
+    );
 
     return baseEntries;
   }, [
     currentView,
     isAdmin,
+    isAuthenticated,
     onGoAdmin,
     onGoCart,
+    onGoCampaign,
     onGoHome,
     onGoMe,
+    onOpenAuth,
     onLogout,
   ]);
 

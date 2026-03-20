@@ -6,6 +6,7 @@ import { AuthCard } from "./components/AuthCard";
 import MoonlitSpecialMenuOverlay from "./components/MoonlitSpecialMenuOverlay";
 import type { UseOrderSystemReturn } from "./hooks/useOrderSystem";
 import { useOrderSystem } from "./hooks/useOrderSystem";
+import heroKaguyaCenter from "./assets/hero-kaguya-center.png";
 import kaguyaLogoHeader from "./assets/kaguya-logo-header.webp";
 import { DEFAULT_PRODUCT_CATEGORIES } from "./lib/constants";
 import {
@@ -186,47 +187,85 @@ function MobileBottomNav(props: {
 
 function HomeView(props: {
   system: UseOrderSystemReturn;
+  isAuthenticated: boolean;
+  authNotice: string;
+  onBrowseCampaigns: () => void;
+  onShowAuth: (message?: string) => void;
   onOpenCampaign: (campaign: Campaign) => void;
 }): JSX.Element {
-  const { system, onOpenCampaign } = props;
-  const cartCount = system.getMyCartItems().reduce((sum, item) => sum + item.qty, 0);
-  const myOrdersCount = system.getMyOrders().length;
-  const myPendingClaims = system.currentUser
-    ? system.state.claims.filter((claim) => claim.userId === system.currentUser?.id && claim.status === "LOCKED").length
-    : 0;
+  const { system, isAuthenticated, authNotice, onBrowseCampaigns, onShowAuth, onOpenCampaign } = props;
 
   return (
     <section className="space-y-6">
-      <div className="hero-panel">
-        <div className="hero-grid">
-          <div>
-            <h2 className="text-3xl font-extrabold text-slate-900">活動導覽</h2>
+      <div className="hero-panel overflow-hidden">
+        <div className="grid items-center gap-8 lg:grid-cols-[minmax(0,1.15fr)_minmax(320px,0.85fr)]">
+          <div className="space-y-5">
+            <div className="space-y-3">
+              <p className="text-xs font-semibold uppercase tracking-[0.32em] text-slate-500">TSUKUYOMI SPECIAL SITE</p>
+              <h2 className="text-4xl font-extrabold text-slate-900 md:text-5xl">姬你太美專用網站</h2>
+              <p className="max-w-2xl text-sm leading-7 text-slate-600 md:text-base">
+                這裡主要是整理超時空輝耀姬相關活動、團務資訊和喊單入口的地方。
+                你可以先看主頁介紹、挑活動，再決定要不要登入參加。
+              </p>
+            </div>
+
+            <div className="flex flex-wrap gap-3">
+              <button type="button" className="cta-primary" onClick={onBrowseCampaigns}>
+                查看活動選單
+              </button>
+              {isAuthenticated ? (
+                <button type="button" className="cta-secondary" onClick={onBrowseCampaigns}>
+                  繼續逛活動
+                </button>
+              ) : (
+                <button
+                  type="button"
+                  className="cta-secondary"
+                  onClick={() => onShowAuth("登入後即可加入購物車、查看訂單與喊單紀錄。")}
+                >
+                  登入 / 註冊
+                </button>
+              )}
+            </div>
+
+            {!isAuthenticated && authNotice ? (
+              <div className="rounded-3xl border border-amber-200 bg-amber-50/80 px-5 py-4 text-sm text-amber-900">
+                {authNotice}
+              </div>
+            ) : null}
           </div>
-          <div className="front-summary-strip">
-            <div className="front-summary-item">
-              <span>進行中活動</span>
-              <strong>{system.visibleCampaigns.length}</strong>
-            </div>
-            <div className="front-summary-item">
-              <span>購物車</span>
-              <strong>{cartCount}</strong>
-            </div>
-            <div className="front-summary-item">
-              <span>我的訂單</span>
-              <strong>{myOrdersCount}</strong>
-            </div>
-            <div className="front-summary-item">
-              <span>待審喊單</span>
-              <strong>{myPendingClaims}</strong>
-            </div>
+
+          <div className="overflow-hidden rounded-[2rem] border border-slate-200/80 bg-white/80 p-3 shadow-[0_24px_80px_rgba(15,23,42,0.08)] backdrop-blur">
+            <img
+              src={heroKaguyaCenter}
+              alt="超時空輝耀姬主視覺"
+              className="h-full max-h-[30rem] w-full rounded-[1.5rem] object-cover object-center"
+            />
           </div>
         </div>
       </div>
 
-      <div className="section-frame">
+      <article className="section-frame space-y-4">
+        <div>
+          <p className="text-xs font-semibold uppercase tracking-[0.28em] text-slate-400">About The Site</p>
+          <h3 className="mt-2 text-2xl font-extrabold text-slate-900">簡單介紹這網站在幹麻</h3>
+        </div>
+        <p className="text-sm leading-7 text-slate-600">
+          這個網站是拿來整理輝耀姬相關活動與喊單流程的入口頁。你可以先從主頁了解目前開什麼活動、
+          看每個活動的內容，再決定要不要加入。
+        </p>
+        <p className="text-sm leading-7 text-slate-600">
+          現在的設計重點是先讓人看懂站點用途，不會一打開就直接撞到登入畫面。等你真的要加入購物車、
+          查看個人紀錄或正式喊單時，再登入就好。
+        </p>
+      </article>
+
+      <div id="campaign-selection" className="section-frame">
         <div className="flex flex-wrap items-end justify-between gap-3">
           <div>
-            <h3 className="text-2xl font-extrabold text-slate-900">活動</h3>
+            <p className="text-xs font-semibold uppercase tracking-[0.28em] text-slate-400">Campaign Menu</p>
+            <h3 className="mt-2 text-2xl font-extrabold text-slate-900">活動選單</h3>
+            <p className="mt-2 text-sm text-slate-600">先選你想加入的活動，再進去看商品與喊單規則。</p>
           </div>
         </div>
       </div>
@@ -254,11 +293,27 @@ function HomeView(props: {
               className="cta-primary mt-6 w-full"
               type="button"
             >
-              進入活動
+              {isAuthenticated ? "進入活動" : "查看活動"}
             </button>
           </article>
         ))}
       </div>
+
+      {!isAuthenticated ? (
+        <section id="auth-entry" className="section-frame space-y-4">
+          <div>
+            <p className="text-xs font-semibold uppercase tracking-[0.28em] text-slate-400">Sign In</p>
+            <h3 className="mt-2 text-2xl font-extrabold text-slate-900">登入後再喊單</h3>
+            <p className="mt-2 text-sm leading-7 text-slate-600">
+              訪客模式可以先看首頁與活動內容。需要加入購物車、查看個人主頁或正式喊單時，再登入或註冊即可。
+            </p>
+          </div>
+          <AuthCard
+            onLogin={system.login}
+            onRegister={system.register}
+          />
+        </section>
+      ) : null}
     </section>
   );
 }
@@ -268,11 +323,13 @@ function CampaignView(props: {
 
   system: UseOrderSystemReturn;
   campaign: Campaign;
+  isAuthenticated: boolean;
+  onRequireAuth: () => void;
   onGoCart: () => void;
   onBack: () => void;
   onOpenBlindBox: (product: Product) => void;
 }): JSX.Element {
-  const { system, campaign, onGoCart, onBack, onOpenBlindBox } = props;
+  const { system, campaign, isAuthenticated, onRequireAuth, onGoCart, onBack, onOpenBlindBox } = props;
   const [feedback, setFeedback] = useState("");
   const [selectedSeries, setSelectedSeries] = useState<ProductSeries>("");
   const [keyword, setKeyword] = useState("");
@@ -362,6 +419,15 @@ function CampaignView(props: {
           <span className="state-pill bg-slate-100 text-slate-700">釋出：{releaseStageLabel(campaign.releaseStage)}</span>
           <span className="state-pill bg-slate-100 text-slate-700">截止：{formatDate(campaign.deadlineAt)}</span>
         </div>
+
+        {!isAuthenticated ? (
+          <div className="mt-4 flex flex-wrap items-center justify-between gap-3 rounded-2xl border border-amber-200 bg-amber-50 px-4 py-3 text-sm text-amber-900">
+            <p>目前是訪客模式，可以先看商品；要加入購物車或喊單時再登入。</p>
+            <button type="button" className="cta-secondary" onClick={onRequireAuth}>
+              登入 / 註冊
+            </button>
+          </div>
+        ) : null}
 
         {feedback && <p className="mt-3 text-sm font-semibold text-slate-800">{feedback}</p>}
       </div>
@@ -510,21 +576,31 @@ function CampaignView(props: {
                     {normalAccess?.ok ? "可加入購物車" : normalAccess?.reason}
                   </p>
 
-                  <button
-                    type="button"
-                    disabled={!normalAccess?.ok}
-                    onClick={() => {
-                      const result = system.addToCart(campaign.id, product.id);
-                      setFeedback(result.message);
-                    }}
-                    className={`mt-5 w-full rounded-2xl px-4 py-3 text-sm font-semibold ${
-                      normalAccess?.ok
-                        ? "cta-primary"
-                        : "cursor-not-allowed rounded-2xl border border-slate-200 bg-slate-100 text-slate-500"
-                    }`}
-                  >
-                    加入購物車
-                  </button>
+                  {isAuthenticated ? (
+                    <button
+                      type="button"
+                      disabled={!normalAccess?.ok}
+                      onClick={() => {
+                        const result = system.addToCart(campaign.id, product.id);
+                        setFeedback(result.message);
+                      }}
+                      className={`mt-5 w-full rounded-2xl px-4 py-3 text-sm font-semibold ${
+                        normalAccess?.ok
+                          ? "cta-primary"
+                          : "cursor-not-allowed rounded-2xl border border-slate-200 bg-slate-100 text-slate-500"
+                      }`}
+                    >
+                      加入購物車
+                    </button>
+                  ) : (
+                    <button
+                      type="button"
+                      className="cta-secondary mt-5 w-full"
+                      onClick={onRequireAuth}
+                    >
+                      登入後加入購物車
+                    </button>
+                  )}
                 </>
               ) : (
                 <button
@@ -549,10 +625,12 @@ function BlindBoxView(props: {
   system: UseOrderSystemReturn;
   campaign: Campaign;
   product: Product;
+  isAuthenticated: boolean;
+  onRequireAuth: () => void;
   onBack: () => void;
   onGoCart: () => void;
 }): JSX.Element {
-  const { system, campaign, product, onBack, onGoCart } = props;
+  const { system, campaign, product, isAuthenticated, onRequireAuth, onBack, onGoCart } = props;
   const [feedback, setFeedback] = useState("");
   const items = system.getBlindBoxItemsByProduct(product.id);
   const cartItems = system
@@ -578,6 +656,14 @@ function BlindBoxView(props: {
             <span className="state-pill bg-slate-100 text-slate-700">活動釋出：{releaseStageLabel(campaign.releaseStage)}</span>
           )}
         </div>
+        {!isAuthenticated ? (
+          <div className="mt-4 flex flex-wrap items-center justify-between gap-3 rounded-2xl border border-amber-200 bg-amber-50 px-4 py-3 text-sm text-amber-900">
+            <p>角色子項可以先看，登入後才會正式加入購物車。</p>
+            <button type="button" className="cta-secondary" onClick={onRequireAuth}>
+              登入 / 註冊
+            </button>
+          </div>
+        ) : null}
         {feedback && <p className="mt-3 text-sm font-semibold text-slate-800">{feedback}</p>}
       </div>
 
@@ -618,21 +704,31 @@ function BlindBoxView(props: {
                 {access.ok ? "可加入購物車" : access.reason}
               </p>
 
-              <button
-                type="button"
-                disabled={!access.ok}
-                onClick={() => {
-                  const result = system.addToCart(campaign.id, product.id, item.id);
-                  setFeedback(result.message);
-                }}
-                className={`mt-5 w-full rounded-2xl px-4 py-3 text-sm font-semibold ${
-                  access.ok
-                    ? "cta-primary"
-                    : "cursor-not-allowed rounded-2xl border border-slate-200 bg-slate-100 text-slate-500"
-                }`}
-              >
-                加入購物車
-              </button>
+              {isAuthenticated ? (
+                <button
+                  type="button"
+                  disabled={!access.ok}
+                  onClick={() => {
+                    const result = system.addToCart(campaign.id, product.id, item.id);
+                    setFeedback(result.message);
+                  }}
+                  className={`mt-5 w-full rounded-2xl px-4 py-3 text-sm font-semibold ${
+                    access.ok
+                      ? "cta-primary"
+                      : "cursor-not-allowed rounded-2xl border border-slate-200 bg-slate-100 text-slate-500"
+                  }`}
+                >
+                  加入購物車
+                </button>
+              ) : (
+                <button
+                  type="button"
+                  className="cta-secondary mt-5 w-full"
+                  onClick={onRequireAuth}
+                >
+                  登入後加入購物車
+                </button>
+              )}
             </article>
           );
         })}
@@ -892,6 +988,7 @@ export default function App(): JSX.Element {
   const [selectedCampaignId, setSelectedCampaignId] = useState<string>("");
   const [selectedBlindProductId, setSelectedBlindProductId] = useState<string>("");
   const [permissionSyncFeedback, setPermissionSyncFeedback] = useState<string>("");
+  const [authNotice, setAuthNotice] = useState<string>("");
 
   useEffect(() => {
     const handleHashChange = () => {
@@ -926,6 +1023,11 @@ export default function App(): JSX.Element {
     }
   }, [selectedBlindProductId, system.state.products, view]);
 
+  useEffect(() => {
+    if (!system.currentUser) return;
+    setAuthNotice("");
+  }, [system.currentUser]);
+
   const selectedCampaign = useMemo(
     () => system.state.campaigns.find((campaign) => campaign.id === selectedCampaignId) ?? null,
     [selectedCampaignId, system.state.campaigns],
@@ -954,6 +1056,53 @@ export default function App(): JSX.Element {
     setAdminTab(tab);
   };
 
+  const scrollToSection = (id: string): void => {
+    if (typeof window === "undefined") return;
+    window.setTimeout(() => {
+      document.getElementById(id)?.scrollIntoView({ behavior: "smooth", block: "start" });
+    }, 20);
+  };
+
+  const openAuthSection = (message = "登入後即可加入購物車、查看訂單與喊單紀錄。"): void => {
+    if (rootRoute !== "shop") {
+      navigateRoot("shop");
+    }
+    setAuthNotice(message);
+    setSelectedBlindProductId("");
+    setView("home");
+    scrollToSection("auth-entry");
+  };
+
+  const browseCampaignMenu = (): void => {
+    setView("home");
+    scrollToSection("campaign-selection");
+  };
+
+  const goToCampaignView = (): void => {
+    setSelectedBlindProductId("");
+    if (selectedCampaignId) {
+      setView("campaign");
+      return;
+    }
+    browseCampaignMenu();
+  };
+
+  const handleGoCart = (): void => {
+    if (!system.currentUser) {
+      openAuthSection("購物車與下單功能需要先登入。");
+      return;
+    }
+    setView("cart");
+  };
+
+  const handleGoMe = (): void => {
+    if (!system.currentUser) {
+      openAuthSection("個人主頁與喊單紀錄需要先登入。");
+      return;
+    }
+    setView("me");
+  };
+
   if (!system.currentUser && system.isHydratingState) {
     return (
       <main className="site-shell grid min-h-screen place-items-center px-4 py-12 grid-bg">
@@ -964,10 +1113,19 @@ export default function App(): JSX.Element {
     );
   }
 
-  if (!system.currentUser) {
+  if (rootRoute === "admin" && !system.currentUser) {
     return (
       <main className="site-shell grid min-h-screen place-items-center px-4 py-12 grid-bg">
-        <AuthCard onLogin={system.login} onRegister={system.register} />
+        <div className="w-full max-w-3xl space-y-5">
+          <section className="hero-panel text-center">
+            <h1 className="text-3xl font-extrabold text-slate-900">管理後台需要先登入</h1>
+            <p className="mt-3 text-sm text-slate-600">商城首頁已改成公開入口頁，但管理後台仍維持登入後才能進入。</p>
+          </section>
+          <AuthCard
+            onLogin={system.login}
+            onRegister={system.register}
+          />
+        </div>
       </main>
     );
   }
@@ -990,7 +1148,7 @@ export default function App(): JSX.Element {
             <div className="hero-grid">
               <div>
                 <h1 className="mt-2 text-4xl font-extrabold text-slate-900">管理後台</h1>
-                <p className="admin-account-copy mt-3 text-sm text-slate-600">登入帳號：{system.currentUser.fbNickname}（{system.currentUser.email}）</p>
+                <p className="admin-account-copy mt-3 text-sm text-slate-600">登入帳號：{system.currentUser!.fbNickname}（{system.currentUser!.email}）</p>
                 <p className="admin-meta-note text-xs text-slate-500">{isSupabaseEnabled ? "Supabase" : "Demo Local"}</p>
               </div>
               <div className="space-y-3">
@@ -1019,7 +1177,7 @@ export default function App(): JSX.Element {
             </div>
           </motion.header>
 
-          {system.currentUser.isAdmin ? (
+          {system.currentUser!.isAdmin ? (
             <AdminConsoleView
               system={system}
               onBackToShop={() => navigateRoot("shop")}
@@ -1061,11 +1219,14 @@ export default function App(): JSX.Element {
       <MoonlitSpecialMenuOverlay
         theme="light"
         currentView={view}
-        isAdmin={system.currentUser.isAdmin}
+        isAuthenticated={Boolean(system.currentUser)}
+        isAdmin={Boolean(system.currentUser?.isAdmin)}
         onGoHome={() => setView("home")}
-        onGoCart={() => setView("cart")}
-        onGoMe={() => setView("me")}
+        onGoCampaign={goToCampaignView}
+        onGoCart={handleGoCart}
+        onGoMe={handleGoMe}
         onGoAdmin={() => navigateAdminTab("claims")}
+        onOpenAuth={() => openAuthSection()}
         onLogout={system.logout}
       />
       <div className="front-shell mx-auto max-w-7xl space-y-5">
@@ -1077,8 +1238,12 @@ export default function App(): JSX.Element {
         <div className="hero-grid">
           <div>
               <h1 className="mt-2 text-4xl font-extrabold text-slate-900">超時空輝耀姬</h1>
-              <p className="mt-3 text-sm text-slate-600">你好，{system.currentUser.fbNickname}</p>
-              {system.currentUser.isAdmin ? <p className="text-sm text-slate-500">可從 MENU 進入管理後台。</p> : null}
+              <p className="mt-3 text-sm text-slate-600">
+                {system.currentUser
+                  ? `你好，${system.currentUser.fbNickname}`
+                  : "先瀏覽首頁與活動內容，真的要喊單時再登入。"}
+              </p>
+              {system.currentUser?.isAdmin ? <p className="text-sm text-slate-500">可從 MENU 進入管理後台。</p> : null}
             </div>
 
             <div className="space-y-3 front-header-side">
@@ -1089,10 +1254,15 @@ export default function App(): JSX.Element {
               />
               <div className="front-header-meta">
                 <span>可進活動 {system.visibleCampaigns.length} 檔</span>
-                <span>購物車 {headerCartCount} 件</span>
-                <span>已下單 {headerOrderCount} 筆</span>
-                <span>待審喊單 {headerPendingClaims} 筆</span>
+                <span>{system.currentUser ? `購物車 ${headerCartCount} 件` : "訪客模式"}</span>
+                <span>{system.currentUser ? `已下單 ${headerOrderCount} 筆` : "可先預覽商品"}</span>
+                <span>{system.currentUser ? `待審喊單 ${headerPendingClaims} 筆` : "登入後即可喊單"}</span>
               </div>
+              {!system.currentUser ? (
+                <button type="button" className="cta-secondary" onClick={() => openAuthSection()}>
+                  登入 / 註冊
+                </button>
+              ) : null}
             </div>
           </div>
         </motion.header>
@@ -1100,6 +1270,10 @@ export default function App(): JSX.Element {
         {view === "home" && (
           <HomeView
             system={system}
+            isAuthenticated={Boolean(system.currentUser)}
+            authNotice={authNotice}
+            onBrowseCampaigns={browseCampaignMenu}
+            onShowAuth={openAuthSection}
             onOpenCampaign={(campaign) => {
               setSelectedCampaignId(campaign.id);
               setSelectedBlindProductId("");
@@ -1112,7 +1286,9 @@ export default function App(): JSX.Element {
           <CampaignView
             system={system}
             campaign={selectedCampaign}
-            onGoCart={() => setView("cart")}
+            isAuthenticated={Boolean(system.currentUser)}
+            onRequireAuth={() => openAuthSection("登入後才可將商品加入購物車。")}
+            onGoCart={handleGoCart}
             onBack={() => setView("home")}
             onOpenBlindBox={(product) => {
               setSelectedBlindProductId(product.id);
@@ -1126,8 +1302,10 @@ export default function App(): JSX.Element {
             system={system}
             campaign={selectedCampaign}
             product={selectedBlindProduct}
+            isAuthenticated={Boolean(system.currentUser)}
+            onRequireAuth={() => openAuthSection("登入後才可把盲盒角色加入購物車。")}
             onBack={() => setView("campaign")}
-            onGoCart={() => setView("cart")}
+            onGoCart={handleGoCart}
           />
         )}
 
@@ -1163,16 +1341,9 @@ export default function App(): JSX.Element {
         cartCount={headerCartCount}
         hasSelectedCampaign={Boolean(selectedCampaignId)}
         onGoHome={() => setView("home")}
-        onGoCampaign={() => {
-          setSelectedBlindProductId("");
-          if (selectedCampaignId) {
-            setView("campaign");
-            return;
-          }
-          setView("home");
-        }}
-        onGoCart={() => setView("cart")}
-        onGoMe={() => setView("me")}
+        onGoCampaign={goToCampaignView}
+        onGoCart={handleGoCart}
+        onGoMe={handleGoMe}
       />
     </main>
   );

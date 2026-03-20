@@ -1,4 +1,5 @@
 import { useCallback, useEffect, useMemo, useState } from "react";
+import type { User as SupabaseUser } from "@supabase/supabase-js";
 import {
   availablePaymentMethods,
   buildShipmentDraft,
@@ -19,7 +20,14 @@ import {
   upsertProfiles,
 } from "../lib/supabase-sync";
 import { supabase } from "../lib/supabase";
-import { createEmptyState, loadSessionUserId, loadState, resetState, saveSessionUserId, saveState } from "../lib/storage";
+import {
+  createEmptyState,
+  loadSessionUserId,
+  loadState,
+  resetState,
+  saveSessionUserId,
+  saveState,
+} from "../lib/storage";
 import type {
   BlindBoxItem,
   Campaign,
@@ -141,8 +149,8 @@ export interface UseOrderSystemReturn {
   isHydratingState: boolean;
   hasStoredSession: boolean;
   visibleCampaigns: Campaign[];
-  login: (identifier: string) => ActionResult;
-  register: (input: RegisterInput) => ActionResult;
+  login: (identifier: string) => Promise<ActionResult>;
+  register: (input: RegisterInput) => Promise<ActionResult>;
   logout: () => void;
   claimProduct: (campaignId: string, productId: string, blindBoxItemId?: string) => ActionResult;
   adminCancelClaim: (claimId: string) => ActionResult;
@@ -233,6 +241,28 @@ function normalizeCategoryName(value: string): string {
   return value.trim() || "未分類";
 }
 
+function resolveAuthRedirectUrl(): string | undefined {
+  if (typeof window === "undefined") return undefined;
+  return new URL(import.meta.env.BASE_URL, window.location.origin).toString();
+}
+
+function formatAuthMessage(message: string): string {
+  const normalized = message.toLowerCase();
+  if (normalized.includes("email not confirmed")) {
+    return "這個帳號尚未完成 Email 啟用，請先到信箱點擊啟用連結。";
+  }
+  if (normalized.includes("invalid login credentials")) {
+    return "登入失敗，請確認 Email 是否正確。";
+  }
+  if (normalized.includes("user already registered")) {
+    return "這個 Email 已經註冊過。";
+  }
+  if (normalized.includes("otp") || normalized.includes("magic link")) {
+    return "登入信寄送失敗，請稍後再試。";
+  }
+  return message;
+}
+
 function generateNextSku(prefix: string, existingSkus: string[]): string {
   const normalizedPrefix = prefix.toUpperCase();
   const nextNumber = existingSkus.reduce((max, sku) => {
@@ -290,6 +320,33 @@ export function useOrderSystem(): UseOrderSystemReturn {
     };
   }, []);
 
+  useEffect(() => {
+    if (!supabase) return undefined;
+
+    let active = true;
+
+    void supabase.auth.getSession().then(({ data }) => {
+      if (!active) return;
+      const authUser = data.session?.user ?? null;
+      if (!authUser) return;
+      hydrateVerifiedAuthUser(authUser);
+    });
+
+    const {
+      data: { subscription },
+    } = supabase.auth.onAuthStateChange((_event, session) => {
+      if (!active) return;
+      const authUser = session?.user ?? null;
+      if (!authUser) return;
+      hydrateVerifiedAuthUser(authUser);
+    });
+
+    return () => {
+      active = false;
+      subscription.unsubscribe();
+    };
+  }, []);
+
   const currentUser = useMemo(
     () => state.users.find((user) => user.id === sessionUserId) ?? null,
     [sessionUserId, state.users],
@@ -308,6 +365,43 @@ export function useOrderSystem(): UseOrderSystemReturn {
     void job().catch((error) => {
       logSupabaseSyncError(context, error);
     });
+  }, []);
+
+  const mergeProfileIntoState = useCallback((profile: UserProfile) => {
+    setState((prev) => {
+      const existing = prev.users.find((item) => item.id === profile.id);
+      if (!existing) {
+        return {
+          ...prev,
+          users: [...prev.users, profile],
+        };
+      }
+
+      return {
+        ...prev,
+        users: prev.users.map((item) => (item.id === profile.id ? { ...item, ...profile } : item)),
+      };
+    });
+  }, []);
+
+  const buildProfileFromAuthUser = useCallback((authUser: SupabaseUser, fbNickname?: string): UserProfile | null => {
+    const normalizedEmail = normalizeEmail(authUser.email ?? "");
+    if (!normalizedEmail) return null;
+
+    const nicknameFromMeta = typeof authUser.user_metadata?.fb_nickname === "string"
+      ? authUser.user_metadata.fb_nickname
+      : "";
+
+    const nextProfile: UserProfile = {
+      id: authUser.id,
+      email: normalizedEmail,
+      fbNickname: (fbNickname?.trim() || nicknameFromMeta.trim() || normalizedEmail.split("@")[0] || "新團員"),
+      pickupRate: 100,
+      isAdmin: false,
+      createdAt: authUser.created_at ?? new Date().toISOString(),
+    };
+
+    return nextProfile;
   }, []);
 
   const syncUsersByIds = useCallback(async (userIds: string[]): Promise<void> => {
@@ -451,6 +545,18 @@ export function useOrderSystem(): UseOrderSystemReturn {
       applyAdminFlag(Boolean(profileResult.data.is_admin));
     }
   }, []);
+
+  const hydrateVerifiedAuthUser = useCallback((authUser: SupabaseUser) => {
+    const nextProfile = buildProfileFromAuthUser(authUser);
+    if (nextProfile) {
+      mergeProfileIntoState(nextProfile);
+      runSupabaseWrite("sync verified auth profile", async () => {
+        await upsertProfiles(supabase!, [nextProfile]);
+      });
+      void syncAdminFlagFromSupabase(nextProfile);
+    }
+    setSessionUserId(authUser.id);
+  }, [buildProfileFromAuthUser, mergeProfileIntoState, runSupabaseWrite, syncAdminFlagFromSupabase]);
 
   useEffect(() => {
     if (!currentUser) return;
@@ -861,7 +967,7 @@ export function useOrderSystem(): UseOrderSystemReturn {
     );
   };
 
-  const login = (identifier: string): ActionResult => {
+  const login = async (identifier: string): Promise<ActionResult> => {
     const normalized = normalizeEmail(identifier);
     if (!normalized) {
       return { ok: false, message: "請輸入 Email 或 FB 暱稱。" };
@@ -876,15 +982,22 @@ export function useOrderSystem(): UseOrderSystemReturn {
     if (!user) {
       return { ok: false, message: "找不到對應帳號（請確認 Email 或 FB 暱稱）。" };
     }
+
+    if (!supabase) {
+      setSessionUserId(user.id);
+      runSupabaseWrite("sync profile on login", async () => {
+        await upsertProfiles(supabase!, [user]);
+      });
+      void syncAdminFlagFromSupabase(user);
+      return { ok: true, message: "登入成功。" };
+    }
+
     setSessionUserId(user.id);
-    runSupabaseWrite("sync profile on login", async () => {
-      await upsertProfiles(supabase!, [user]);
-    });
     void syncAdminFlagFromSupabase(user);
     return { ok: true, message: "登入成功。" };
   };
 
-  const register = (input: RegisterInput): ActionResult => {
+  const register = async (input: RegisterInput): Promise<ActionResult> => {
     const normalizedEmail = normalizeEmail(input.email);
     const normalizedNickname = normalizeNickname(input.fbNickname);
     if (!normalizedEmail || !normalizedNickname) {
@@ -899,33 +1012,50 @@ export function useOrderSystem(): UseOrderSystemReturn {
       return { ok: false, message: "此 FB 暱稱已被使用，請換一個可識別的名稱。" };
     }
 
-    const userId = crypto.randomUUID();
+    if (!supabase) {
+      const userId = crypto.randomUUID();
 
-    const nextUser: UserProfile = {
-      id: userId,
+      const nextUser: UserProfile = {
+        id: userId,
+        email: normalizedEmail,
+        fbNickname: input.fbNickname.trim(),
+        pickupRate: 100,
+        isAdmin: false,
+        createdAt: new Date().toISOString(),
+      };
+
+      setState((prev) => ({
+        ...prev,
+        users: [...prev.users, nextUser],
+      }));
+
+      setSessionUserId(nextUser.id);
+      return { ok: true, message: "註冊成功，已自動登入。" };
+    }
+
+    const { error } = await supabase.auth.signInWithOtp({
       email: normalizedEmail,
-      fbNickname: input.fbNickname.trim(),
-      pickupRate: 100,
-      isAdmin: false,
-      createdAt: new Date().toISOString(),
-    };
-
-    setState((prev) => ({
-      ...prev,
-      users: [...prev.users, nextUser],
-    }));
-
-    setSessionUserId(nextUser.id);
-    runSupabaseWrite("register profile", async () => {
-      await upsertProfiles(supabase!, [nextUser]);
+      options: {
+        emailRedirectTo: resolveAuthRedirectUrl(),
+        shouldCreateUser: true,
+        data: {
+          fb_nickname: input.fbNickname.trim(),
+        },
+      },
     });
-    void syncAdminFlagFromSupabase(nextUser);
 
-    return { ok: true, message: "註冊成功，已自動登入。" };
+    if (error) {
+      return { ok: false, message: formatAuthMessage(error.message) };
+    }
+
+    return { ok: true, message: "已寄出首次驗證信。帳號啟用後，之後就可以直接用 Email 或名字登入。" };
   };
 
   const logout = (): void => {
     setSessionUserId(null);
+    if (supabase) {
+      void supabase.auth.signOut();
+    }
   };
 
   const refreshCurrentUserAdminFlag = async (): Promise<ActionResult> => {
