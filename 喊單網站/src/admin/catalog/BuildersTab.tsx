@@ -1,7 +1,7 @@
 import type { UseOrderSystemReturn } from "../../hooks/useOrderSystem";
 import { CHARACTER_OPTIONS } from "../../lib/constants";
 import { productTypeLabel } from "../../lib/format";
-import type { CharacterName, ProductSeries, ProductType } from "../../types/domain";
+import type { CharacterName, ProductType } from "../../types/domain";
 import { ProductImage } from "./shared";
 import { productTypeOptions } from "./types";
 
@@ -9,7 +9,6 @@ export function BuildersTab(props: {
   system: UseOrderSystemReturn;
   productCampaignId: string;
   productType: ProductType;
-  productSeries: ProductSeries;
   productName: string;
   productCharacter: CharacterName | "";
   productSlotRestrictionEnabled: boolean;
@@ -30,7 +29,6 @@ export function BuildersTab(props: {
   blindMaxPerUser: string;
   onProductCampaignChange: (value: string) => void;
   onProductTypeChange: (value: ProductType) => void;
-  onProductSeriesChange: (value: ProductSeries) => void;
   onProductNameChange: (value: string) => void;
   onProductCharacterChange: (value: CharacterName | "") => void;
   onProductSlotRestrictionEnabledChange: (value: boolean) => void;
@@ -57,7 +55,6 @@ export function BuildersTab(props: {
     system,
     productCampaignId,
     productType,
-    productSeries,
     productName,
     productCharacter,
     productSlotRestrictionEnabled,
@@ -78,7 +75,6 @@ export function BuildersTab(props: {
     blindMaxPerUser,
     onProductCampaignChange,
     onProductTypeChange,
-    onProductSeriesChange,
     onProductNameChange,
     onProductCharacterChange,
     onProductSlotRestrictionEnabledChange,
@@ -128,21 +124,16 @@ export function BuildersTab(props: {
               ))}
             </div>
           </div>
-          <div className="grid gap-3 sm:grid-cols-2">
-            <label className="block">
-              商品分類
-              <select className="mt-1 w-full rounded-xl border border-slate-200 px-3 py-2" value={productSeries} onChange={(event) => onProductSeriesChange(event.target.value as ProductSeries)}>
-                {system.state.productCategories.map((series) => (
-                  <option key={series} value={series}>{series}</option>
-                ))}
-              </select>
-            </label>
-            <div className="rounded-xl border border-dashed border-slate-300 px-3 py-2 text-xs text-slate-500">SKU 由系統自動產生</div>
-          </div>
+          <div className="rounded-xl border border-dashed border-slate-300 px-3 py-2 text-xs text-slate-500">SKU 由系統自動產生，商品目前不再區分系列或分類。</div>
           <input className="w-full rounded-xl border border-slate-200 px-3 py-2" placeholder="商品名稱" value={productName} onChange={(event) => onProductNameChange(event.target.value)} />
           {productType === "NORMAL" && (
+            <p className="text-xs text-slate-500">
+              一般商品如果有多個角色款，商品名稱請保持相同，前台就會合併成同一個品項，點進去後再選角色。
+            </p>
+          )}
+          {productType === "NORMAL" && (
             <label className="block">
-              展示角色（可留空）
+              角色款（可留空）
               <select className="mt-1 w-full rounded-xl border border-slate-200 px-3 py-2" value={productCharacter} onChange={(event) => onProductCharacterChange(event.target.value as CharacterName | "")}>
                 <option value="">不指定角色</option>
                 {CHARACTER_OPTIONS.map((character) => (

@@ -3,11 +3,6 @@ import type { ReleaseStage } from "../../types/domain";
 import { stageOptions } from "./types";
 
 export function CampaignsTab(props: {
-  categories: string[];
-  newCategoryName: string;
-  onCategoryNameChange: (value: string) => void;
-  onCreateCategory: () => void;
-  onDeleteCategory: (category: string) => void;
   campaignTitle: string;
   campaignDescription: string;
   campaignDeadlineAt: string;
@@ -19,11 +14,6 @@ export function CampaignsTab(props: {
   onCreateCampaign: () => void;
 }): JSX.Element {
   const {
-    categories,
-    newCategoryName,
-    onCategoryNameChange,
-    onCreateCategory,
-    onDeleteCategory,
     campaignTitle,
     campaignDescription,
     campaignDeadlineAt,
@@ -38,34 +28,7 @@ export function CampaignsTab(props: {
   return (
     <section className="space-y-5">
       <section className="section-frame">
-        <div className="flex flex-wrap items-center justify-between gap-3">
-          <div>
-            <h3 className="text-lg font-bold text-slate-900">商品分類管理</h3>
-          </div>
-          <div className="flex flex-wrap gap-2">
-            <input className="rounded-xl border border-slate-200 px-3 py-2 text-sm" placeholder="新增分類名稱" value={newCategoryName} onChange={(event) => onCategoryNameChange(event.target.value)} />
-            <button type="button" className="rounded-xl bg-slate-900 px-4 py-2 text-sm font-semibold text-white hover:bg-slate-700" onClick={onCreateCategory}>
-              新增分類
-            </button>
-          </div>
-        </div>
-
-        <div className="admin-chip-group">
-          {categories.map((category) => (
-            <div key={category} className="admin-chip flex items-center gap-2">
-              <span>{category}</span>
-              {category !== "未分類" && (
-                <button type="button" className="text-xs font-semibold text-rose-700" onClick={() => onDeleteCategory(category)}>
-                  刪除
-                </button>
-              )}
-            </div>
-          ))}
-        </div>
-      </section>
-
-      <section className="section-frame">
-        <h3 className="text-lg font-bold text-slate-900">新增活動</h3>
+        <h3 className="text-lg font-bold text-slate-900">活動管理</h3>
         <div className="mt-3 space-y-3 text-sm">
           <input className="w-full rounded-xl border border-slate-200 px-3 py-2" placeholder="活動名稱" value={campaignTitle} onChange={(event) => onCampaignTitleChange(event.target.value)} />
           <textarea className="w-full rounded-xl border border-slate-200 px-3 py-2" placeholder="活動說明" value={campaignDescription} onChange={(event) => onCampaignDescriptionChange(event.target.value)} />

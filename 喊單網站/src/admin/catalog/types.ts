@@ -24,6 +24,17 @@ export interface ProductEditorDraft {
   slotRestrictedCharacter: CharacterName | "";
 }
 
+export interface BlindBoxItemEditorDraft {
+  name: string;
+  character: CharacterName;
+  imageUrl: string;
+  imageFile: File | null;
+  imagePreviewUrl: string | null;
+  price: string;
+  stock: string;
+  maxPerUser: string;
+}
+
 export const stageOptions: ReleaseStage[] = ["FIXED_1_ONLY", "FIXED_1_2", "FIXED_1_2_3", "ALL_OPEN"];
 export const productTypeOptions: ProductType[] = ["NORMAL", "BLIND_BOX"];
 export const catalogTabs: Array<{ id: CatalogTab; label: string }> = [

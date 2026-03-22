@@ -141,6 +141,8 @@ function BrandPortraitOrb(): JSX.Element {
         src={activePortrait.src}
         alt={activePortrait.alt}
         className="moonlit-menu-brand-portrait-image"
+        loading="eager"
+        fetchPriority="high"
       />
       <span className="moonlit-menu-brand-orb-glow" aria-hidden="true" />
     </span>
@@ -185,6 +187,21 @@ export default function MoonlitSpecialMenuOverlay(props: MoonlitSpecialMenuOverl
   useEffect(() => {
     setActiveItem(currentView);
   }, [currentView]);
+
+  useEffect(() => {
+    const preloadSources = [
+      ...BRAND_PORTRAITS.map((item) => item.src),
+      ...FEATURED_CHARACTERS.map((item) => item.image),
+      kaguyaLogoHeader,
+    ];
+
+    preloadSources.forEach((src) => {
+      const image = new Image();
+      image.decoding = "async";
+      image.setAttribute("fetchpriority", "high");
+      image.src = src;
+    });
+  }, []);
 
   useEffect(() => {
     if (menuOpen) {
@@ -357,6 +374,8 @@ export default function MoonlitSpecialMenuOverlay(props: MoonlitSpecialMenuOverl
                     alt={featuredCharacter.name}
                     className="moonlit-menu-character-image"
                     style={featuredCharacterStyle}
+                    loading="eager"
+                    fetchPriority="high"
                   />
                 </div>
 

@@ -45,35 +45,56 @@ export function AdminClaimsPanel(props: {
       });
   }, [blindItemById, campaignById, claimCampaignFilter, claimKeyword, claimStatusFilter, productById, system.state.claims, userById]);
 
+  const summary = useMemo(() => ({
+    total: system.state.claims.length,
+    locked: system.state.claims.filter((claim) => claim.status === "LOCKED").length,
+    confirmed: system.state.claims.filter((claim) => claim.status === "CONFIRMED").length,
+    cancelled: system.state.claims.filter((claim) => claim.status === "CANCELLED_BY_ADMIN").length,
+  }), [system.state.claims]);
+
   return (
-    <section className="section-frame">
-      <h3 className="text-lg font-bold text-slate-900">全站喊單總表</h3>
-      <div className="mt-3 grid gap-3 md:grid-cols-4">
-        <label className="block text-sm">
-          活動
-          <select className="mt-1 w-full rounded-xl border border-slate-200 px-3 py-2" value={claimCampaignFilter} onChange={(event) => setClaimCampaignFilter(event.target.value)}>
-            <option value="ALL">全部活動</option>
-            {system.state.campaigns.map((campaign) => (
-              <option key={campaign.id} value={campaign.id}>{campaign.title}</option>
-            ))}
-          </select>
-        </label>
-        <label className="block text-sm">
-          狀態
-          <select className="mt-1 w-full rounded-xl border border-slate-200 px-3 py-2" value={claimStatusFilter} onChange={(event) => setClaimStatusFilter(event.target.value as ClaimStatusFilter)}>
-            <option value="ALL">全部狀態</option>
-            <option value="LOCKED">LOCKED</option>
-            <option value="CONFIRMED">CONFIRMED</option>
-            <option value="CANCELLED_BY_ADMIN">CANCELLED_BY_ADMIN</option>
-          </select>
-        </label>
-        <label className="block text-sm md:col-span-2">
-          搜尋
-          <input className="mt-1 w-full rounded-xl border border-slate-200 px-3 py-2" placeholder="會員 / Email / 商品 / SKU / 活動" value={claimKeyword} onChange={(event) => setClaimKeyword(event.target.value)} />
-        </label>
+    <section className="space-y-4">
+      <div className="admin-summary-grid">
+        <article className="admin-summary-card"><span>全部喊單</span><strong>{summary.total}</strong></article>
+        <article className="admin-summary-card"><span>待審</span><strong>{summary.locked}</strong></article>
+        <article className="admin-summary-card"><span>已確認</span><strong>{summary.confirmed}</strong></article>
       </div>
-      <div className="mt-4 space-y-3">
-        {visibleClaims.length === 0 && <p className="text-sm text-slate-500">目前沒有符合條件的喊單資料。</p>}
+
+      <div className="admin-filter-card">
+        <div className="admin-section-head">
+          <div>
+            <h3 className="text-lg font-bold text-slate-900">全站喊單總表</h3>
+            <p className="admin-section-copy">先用活動、狀態和關鍵字縮小範圍，再處理單筆喊單。</p>
+          </div>
+        </div>
+        <div className="mt-4 grid gap-3 md:grid-cols-4">
+          <label className="block text-sm">
+            活動
+            <select className="mt-1 w-full rounded-xl border border-slate-200 px-3 py-2" value={claimCampaignFilter} onChange={(event) => setClaimCampaignFilter(event.target.value)}>
+              <option value="ALL">全部活動</option>
+              {system.state.campaigns.map((campaign) => (
+                <option key={campaign.id} value={campaign.id}>{campaign.title}</option>
+              ))}
+            </select>
+          </label>
+          <label className="block text-sm">
+            狀態
+            <select className="mt-1 w-full rounded-xl border border-slate-200 px-3 py-2" value={claimStatusFilter} onChange={(event) => setClaimStatusFilter(event.target.value as ClaimStatusFilter)}>
+              <option value="ALL">全部狀態</option>
+              <option value="LOCKED">LOCKED</option>
+              <option value="CONFIRMED">CONFIRMED</option>
+              <option value="CANCELLED_BY_ADMIN">CANCELLED_BY_ADMIN</option>
+            </select>
+          </label>
+          <label className="block text-sm md:col-span-2">
+            搜尋
+            <input className="mt-1 w-full rounded-xl border border-slate-200 px-3 py-2" placeholder="會員 / Email / 商品 / SKU / 活動" value={claimKeyword} onChange={(event) => setClaimKeyword(event.target.value)} />
+          </label>
+        </div>
+      </div>
+
+      <div className="space-y-3">
+        {visibleClaims.length === 0 && <div className="empty-panel">目前沒有符合條件的喊單資料。</div>}
         {visibleClaims.map((claim) => {
           const campaign = campaignById.get(claim.campaignId);
           const product = productById.get(claim.productId);

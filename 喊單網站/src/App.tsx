@@ -4,11 +4,11 @@ import { AdminConsoleView } from "./admin/AdminConsoleView";
 import { adminTabs, type AdminTab } from "./admin/config";
 import { AuthCard } from "./components/AuthCard";
 import MoonlitSpecialMenuOverlay from "./components/MoonlitSpecialMenuOverlay";
+import { ProductImageLightbox } from "./components/ProductImageLightbox";
 import type { UseOrderSystemReturn } from "./hooks/useOrderSystem";
 import { useOrderSystem } from "./hooks/useOrderSystem";
-import heroKaguyaCenter from "./assets/hero-kaguya-center.png";
+import homeKaguyaStage from "./assets/home-kaguya-stage.jpg";
 import kaguyaLogoHeader from "./assets/kaguya-logo-header.webp";
-import { DEFAULT_PRODUCT_CATEGORIES } from "./lib/constants";
 import {
   fixedTierLabel,
   formatDate,
@@ -24,7 +24,6 @@ import type {
   Campaign,
   CharacterTier,
   Product,
-  ProductSeries,
 } from "./types/domain";
 
 type PageView = "home" | "campaign" | "blindBox" | "cart" | "me";
@@ -68,11 +67,7 @@ function InsightTile(props: {
 }
 
 function ProductImage(props: { imageUrl: string | null; alt: string }): JSX.Element {
-  const { imageUrl, alt } = props;
-  if (!imageUrl) {
-    return <div className="h-36 w-full rounded-xl bg-slate-100" aria-label="no-image" />;
-  }
-  return <img className="h-36 w-full rounded-xl object-cover" src={imageUrl} alt={alt} loading="lazy" />;
+  return <ProductImageLightbox {...props} />;
 }
 
 function HomeIcon(): JSX.Element {
@@ -197,50 +192,43 @@ function HomeView(props: {
 
   return (
     <section className="space-y-6">
-      <div className="hero-panel overflow-hidden">
-        <div className="grid items-center gap-8 lg:grid-cols-[minmax(0,1.15fr)_minmax(320px,0.85fr)]">
-          <div className="space-y-5">
-            <div className="space-y-3">
-              <p className="text-xs font-semibold uppercase tracking-[0.32em] text-slate-500">TSUKUYOMI SPECIAL SITE</p>
-              <h2 className="text-4xl font-extrabold text-slate-900 md:text-5xl">姬你太美專用網站</h2>
-              <p className="max-w-2xl text-sm leading-7 text-slate-600 md:text-base">
-                這裡主要是整理超時空輝耀姬相關活動、團務資訊和喊單入口的地方。
-                你可以先看主頁介紹、挑活動，再決定要不要登入參加。
-              </p>
-            </div>
-
-            <div className="flex flex-wrap gap-3">
-              <button type="button" className="cta-primary" onClick={onBrowseCampaigns}>
-                查看活動選單
-              </button>
-              {isAuthenticated ? (
-                <button type="button" className="cta-secondary" onClick={onBrowseCampaigns}>
-                  繼續逛活動
-                </button>
-              ) : (
-                <button
-                  type="button"
-                  className="cta-secondary"
-                  onClick={() => onShowAuth("登入後即可加入購物車、查看訂單與喊單紀錄。")}
-                >
-                  登入 / 註冊
-                </button>
-              )}
-            </div>
-
-            {!isAuthenticated && authNotice ? (
-              <div className="rounded-3xl border border-amber-200 bg-amber-50/80 px-5 py-4 text-sm text-amber-900">
-                {authNotice}
-              </div>
-            ) : null}
-          </div>
-
-          <div className="overflow-hidden rounded-[2rem] border border-slate-200/80 bg-white/80 p-3 shadow-[0_24px_80px_rgba(15,23,42,0.08)] backdrop-blur">
+      <div className="hero-panel overflow-hidden home-stage-panel">
+        <div className="home-stage-shell">
+          <div className="home-stage-scene">
             <img
-              src={heroKaguyaCenter}
+              src={homeKaguyaStage}
               alt="超時空輝耀姬主視覺"
-              className="h-full max-h-[30rem] w-full rounded-[1.5rem] object-cover object-center"
+              className="home-stage-scene-image"
             />
+            <div className="home-stage-scene-vignette" aria-hidden="true" />
+            <div className="home-stage-scene-copy">
+              <h2 className="home-stage-title">姬你太美專用網站</h2>
+
+              <div className="home-stage-actions">
+                <button type="button" className="cta-primary" onClick={onBrowseCampaigns}>
+                  查看活動選單
+                </button>
+                {isAuthenticated ? (
+                  <button type="button" className="cta-secondary" onClick={onBrowseCampaigns}>
+                    繼續逛活動
+                  </button>
+                ) : (
+                  <button
+                    type="button"
+                    className="cta-secondary"
+                    onClick={() => onShowAuth("登入後即可加入購物車、查看訂單與喊單紀錄。")}
+                  >
+                    登入 / 註冊
+                  </button>
+                )}
+              </div>
+
+              {!isAuthenticated && authNotice ? (
+                <div className="home-stage-notice">
+                  {authNotice}
+                </div>
+              ) : null}
+            </div>
           </div>
         </div>
       </div>
@@ -251,13 +239,13 @@ function HomeView(props: {
           <h3 className="mt-2 text-2xl font-extrabold text-slate-900">簡單介紹這網站在幹麻</h3>
         </div>
         <p className="text-sm leading-7 text-slate-600">
-          這個網站是拿來整理輝耀姬相關活動與喊單流程的入口頁。你可以先從主頁了解目前開什麼活動、
-          看每個活動的內容，再決定要不要加入。
+          這個網站是專門給姬你太美固拆團喊單專用網站，使用請務必註冊登入，第一次註冊會需要信箱驗證，
+          請使用自己常用的信箱以便我後續方便發訂單訂購紀錄給你。
         </p>
         <p className="text-sm leading-7 text-slate-600">
-          現在的設計重點是先讓人看懂站點用途，不會一打開就直接撞到登入畫面。等你真的要加入購物車、
-          查看個人紀錄或正式喊單時，再登入就好。
+          商品部分有些會設定只有某些角色固位可喊，沒寫就是全開放。另外，如果要拆盒等活動也都會改為在這網站上進行。
         </p>
+        <p className="text-sm leading-7 text-slate-600">以上</p>
       </article>
 
       <div id="campaign-selection" className="section-frame">
@@ -327,11 +315,9 @@ function CampaignView(props: {
   onRequireAuth: () => void;
   onGoCart: () => void;
   onBack: () => void;
-  onOpenBlindBox: (product: Product) => void;
+  onOpenProductDetail: (product: Product) => void;
 }): JSX.Element {
-  const { system, campaign, isAuthenticated, onRequireAuth, onGoCart, onBack, onOpenBlindBox } = props;
-  const [feedback, setFeedback] = useState("");
-  const [selectedSeries, setSelectedSeries] = useState<ProductSeries>("");
+  const { system, campaign, isAuthenticated, onRequireAuth, onGoCart, onBack, onOpenProductDetail } = props;
   const [keyword, setKeyword] = useState("");
   const [onlyAvailable, setOnlyAvailable] = useState(false);
   const [sortBy, setSortBy] = useState<"name" | "priceAsc" | "priceDesc">("name");
@@ -339,70 +325,114 @@ function CampaignView(props: {
   const products = system.getProductsByCampaign(campaign.id);
   const cartItems = system.getMyCartItems(campaign.id);
   const cartMap = new Map(cartItems.map((item) => [`${item.productId}::${item.blindBoxItemId ?? "none"}`, item]));
-  const seriesGroups = useMemo(() => {
-    const availableCategories = Array.from(
-      new Set([
-        ...system.state.productCategories,
-        ...DEFAULT_PRODUCT_CATEGORIES,
-        ...products.map((item) => item.series || "未分類"),
-      ]),
-    );
 
-    return availableCategories
-      .map((series) => ({
-        series,
-        products: products.filter((item) => (item.series || "未分類") === series),
-      }))
-      .filter((group) => group.products.length > 0);
-  }, [products, system.state.productCategories]);
+  type NormalProductGroup = {
+    key: string;
+    name: string;
+    imageUrl: string | null;
+    variants: Product[];
+    characters: string[];
+    minPrice: number;
+    maxPrice: number;
+  };
 
-  useEffect(() => {
-    if (seriesGroups.length === 0) return;
-    if (!seriesGroups.some((group) => group.series === selectedSeries)) {
-      setSelectedSeries(seriesGroups[0].series);
-    }
-  }, [selectedSeries, seriesGroups]);
+  type CampaignBrowseEntry =
+    | { kind: "normalGroup"; group: NormalProductGroup }
+    | { kind: "product"; product: Product };
 
-  const selectedSeriesProducts = useMemo(
-    () => products.filter((item) => item.series === selectedSeries),
-    [products, selectedSeries],
-  );
+  const browseEntries = useMemo(() => {
+    const normalGroupMap = new Map<string, Product[]>();
 
-  const visibleProducts = useMemo(() => {
+    products
+      .filter((item) => item.type === "NORMAL")
+      .forEach((item) => {
+        const key = item.name.trim().toLowerCase();
+        const existing = normalGroupMap.get(key);
+        if (existing) {
+          existing.push(item);
+          return;
+        }
+        normalGroupMap.set(key, [item]);
+      });
+
+    const normalEntries: CampaignBrowseEntry[] = Array.from(normalGroupMap.values()).map((variants) => {
+      const sortedVariants = [...variants].sort((a, b) => {
+        const left = a.character ?? "";
+        const right = b.character ?? "";
+        return left.localeCompare(right) || a.sku.localeCompare(b.sku);
+      });
+      const prices = sortedVariants.map((item) => item.price);
+      const representative = sortedVariants.find((item) => item.imageUrl) ?? sortedVariants[0];
+
+      return {
+        kind: "normalGroup",
+        group: {
+          key: representative.name.trim().toLowerCase(),
+          name: representative.name,
+          imageUrl: representative.imageUrl,
+          variants: sortedVariants,
+          characters: sortedVariants.map((item) => item.character ?? "一般款"),
+          minPrice: Math.min(...prices),
+          maxPrice: Math.max(...prices),
+        },
+      };
+    });
+
+    const blindEntries: CampaignBrowseEntry[] = products
+      .filter((item) => item.type === "BLIND_BOX")
+      .map((product) => ({ kind: "product", product }));
+
+    return [...normalEntries, ...blindEntries];
+  }, [products]);
+
+  const visibleEntries = useMemo(() => {
     const normalizedKeyword = keyword.trim().toLowerCase();
 
-    const withPrice = selectedSeriesProducts.map((product) => ({
-      product,
-      price: product.price,
-    }));
-
-    const filtered = withPrice.filter(({ product }) => {
-      const matchesKeyword = normalizedKeyword.length === 0
-        || product.name.toLowerCase().includes(normalizedKeyword)
-        || product.sku.toLowerCase().includes(normalizedKeyword)
-        || (product.character?.toLowerCase().includes(normalizedKeyword) ?? false);
+    const filtered = browseEntries.filter((entry) => {
+      const matchesKeyword = normalizedKeyword.length === 0 || (
+        entry.kind === "normalGroup"
+          ? (
+            entry.group.name.toLowerCase().includes(normalizedKeyword)
+            || entry.group.characters.some((character) => character.toLowerCase().includes(normalizedKeyword))
+            || entry.group.variants.some((variant) => variant.sku.toLowerCase().includes(normalizedKeyword))
+          )
+          : (() => {
+            const blindItems = system.getBlindBoxItemsByProduct(entry.product.id);
+            return (
+              entry.product.name.toLowerCase().includes(normalizedKeyword)
+              || entry.product.sku.toLowerCase().includes(normalizedKeyword)
+              || blindItems.some((item) => (
+                item.name.toLowerCase().includes(normalizedKeyword)
+                || item.character.toLowerCase().includes(normalizedKeyword)
+                || item.sku.toLowerCase().includes(normalizedKeyword)
+              ))
+            );
+          })()
+      );
 
       if (!matchesKeyword) return false;
 
       if (!onlyAvailable) return true;
 
-      if (product.type === "NORMAL") {
-        const access = system.getProductAccessForCurrentUser(campaign.id, product.id);
-        return access.ok;
+      if (entry.kind === "normalGroup") {
+        return entry.group.variants.some((variant) => system.getProductAccessForCurrentUser(campaign.id, variant.id).ok);
       }
 
-      const blindItems = system.getBlindBoxItemsByProduct(product.id);
-      return blindItems.some((item) => system.getProductAccessForCurrentUser(campaign.id, product.id, item.id).ok);
+      const blindItems = system.getBlindBoxItemsByProduct(entry.product.id);
+      return blindItems.some((item) => system.getProductAccessForCurrentUser(campaign.id, entry.product.id, item.id).ok);
     });
 
-    const sorted = [...filtered].sort((a, b) => {
-      if (sortBy === "priceAsc") return a.price - b.price;
-      if (sortBy === "priceDesc") return b.price - a.price;
-      return a.product.name.localeCompare(b.product.name);
-    });
+    return [...filtered].sort((left, right) => {
+      const leftPrice = left.kind === "normalGroup" ? left.group.minPrice : left.product.price;
+      const rightPrice = right.kind === "normalGroup" ? right.group.minPrice : right.product.price;
+      const leftName = left.kind === "normalGroup" ? left.group.name : left.product.name;
+      const rightName = right.kind === "normalGroup" ? right.group.name : right.product.name;
 
-    return sorted.map((item) => item.product);
-  }, [campaign.id, keyword, onlyAvailable, selectedSeriesProducts, sortBy, system]);
+      if (sortBy === "priceAsc") return leftPrice - rightPrice;
+      if (sortBy === "priceDesc") return rightPrice - leftPrice;
+      return leftName.localeCompare(rightName);
+    });
+  }, [browseEntries, campaign.id, keyword, onlyAvailable, sortBy, system]);
 
   return (
     <section className="space-y-6">
@@ -428,18 +458,16 @@ function CampaignView(props: {
             </button>
           </div>
         ) : null}
-
-        {feedback && <p className="mt-3 text-sm font-semibold text-slate-800">{feedback}</p>}
       </div>
 
       <div className="grid gap-4 lg:grid-cols-[280px_minmax(0,1fr)]">
         <aside className="section-frame campaign-sidebar h-fit lg:sticky lg:top-6">
           <div className="flex items-start justify-between gap-3">
             <div>
-              <h3 className="text-base font-bold text-slate-900">系列</h3>
+              <h3 className="text-base font-bold text-slate-900">商品列表</h3>
             </div>
             <div className="rounded-full border border-slate-200 px-3 py-1 text-xs text-slate-500">
-              {visibleProducts.length} / {selectedSeriesProducts.length}
+              {visibleEntries.length} / {browseEntries.length}
             </div>
           </div>
 
@@ -452,23 +480,6 @@ function CampaignView(props: {
               <span>搜尋與篩選</span>
               <span>{mobileFiltersOpen ? "收起" : "展開"}</span>
             </button>
-          </div>
-
-          <div className="series-rail campaign-series-rail mt-4">
-            {seriesGroups.map((group) => (
-              <button
-                key={group.series}
-                type="button"
-                className={selectedSeries === group.series ? "series-chip series-chip-active" : "series-chip"}
-                onClick={() => {
-                  setSelectedSeries(group.series);
-                  setMobileFiltersOpen(false);
-                }}
-              >
-                <span>{group.series}</span>
-                <span className="text-xs opacity-75">{group.products.length}</span>
-              </button>
-            ))}
           </div>
 
           <div className={`filter-panel campaign-filter-panel mt-5 space-y-3 text-sm ${mobileFiltersOpen ? "is-open" : ""}`}>
@@ -511,21 +522,80 @@ function CampaignView(props: {
           <div className="section-frame campaign-product-header">
             <div className="flex flex-wrap items-end justify-between gap-3">
               <div>
-                <h3 className="text-2xl font-extrabold text-slate-900">{selectedSeries || "未選擇分類"}</h3>
+                <h3 className="text-2xl font-extrabold text-slate-900">全部商品</h3>
               </div>
             </div>
           </div>
 
-          {visibleProducts.length === 0 && (
-            <div className="empty-panel">此系列目前沒有符合條件的商品。</div>
+          {visibleEntries.length === 0 && (
+            <div className="empty-panel">目前沒有符合條件的商品。</div>
           )}
 
       <div className="front-product-grid grid gap-4 md:grid-cols-2 2xl:grid-cols-3">
-        {visibleProducts.map((product) => {
-          const myQty = cartMap.get(`${product.id}::none`)?.qty ?? 0;
-          const normalAccess = product.type === "NORMAL"
-            ? system.getProductAccessForCurrentUser(campaign.id, product.id)
-            : null;
+        {visibleEntries.map((entry) => {
+          if (entry.kind === "normalGroup") {
+            const { group } = entry;
+            const inCartQty = group.variants.reduce(
+              (sum, variant) => sum + (cartMap.get(`${variant.id}::none`)?.qty ?? 0),
+              0,
+            );
+            const availableCount = group.variants.filter(
+              (variant) => system.getProductAccessForCurrentUser(campaign.id, variant.id).ok,
+            ).length;
+            const priceText = group.minPrice === group.maxPrice
+              ? twd(group.minPrice)
+              : `${twd(group.minPrice)} 起`;
+
+            return (
+              <article key={group.key} className="product-stage-card">
+                <div className="product-figure">
+                  <ProductImage imageUrl={group.imageUrl} alt={group.name} />
+                  <div className="product-price-badge">
+                    <span className="text-[11px] uppercase tracking-[0.16em] text-slate-400">Price</span>
+                    <strong>{priceText}</strong>
+                  </div>
+                </div>
+
+                <div className="mt-4 flex items-start justify-between gap-3">
+                  <div>
+                    <h3 className="text-xl font-extrabold text-slate-900">{group.name}</h3>
+                    <p className="text-xs text-slate-500">角色商品</p>
+                  </div>
+                  <span className="state-pill bg-slate-100 text-slate-700">代購</span>
+                </div>
+
+                <div className="meta-chip-row">
+                  <span className="meta-chip">角色款 {group.variants.length} 項</span>
+                </div>
+
+                <div className="mt-4 flex flex-wrap gap-2">
+                  {group.characters.slice(0, 4).map((character) => (
+                    <span key={`${group.key}:${character}`} className="meta-chip">{character}</span>
+                  ))}
+                  {group.characters.length > 4 && <span className="meta-chip">+{group.characters.length - 4}</span>}
+                </div>
+
+                <div className="mt-4 space-y-1 text-sm text-slate-600">
+                  <p>這個品項已合併角色款，點進去再選你要的角色商品。</p>
+                  <p>已加入：{inCartQty}</p>
+                </div>
+
+                <p className={`status-note ${availableCount > 0 ? "status-note-ok" : "status-note-warn"}`}>
+                  {availableCount > 0 ? `${availableCount} 個角色款目前可喊` : "目前沒有可喊的角色款"}
+                </p>
+
+                <button
+                  type="button"
+                  className="cta-primary mt-5 w-full"
+                  onClick={() => onOpenProductDetail(group.variants[0])}
+                >
+                  查看角色商品
+                </button>
+              </article>
+            );
+          }
+
+          const product = entry.product;
           const blindItemsCount = system.getBlindBoxItemsByProduct(product.id).length;
 
           return (
@@ -541,76 +611,26 @@ function CampaignView(props: {
               <div className="mt-4 flex items-start justify-between gap-3">
                 <div>
                   <h3 className="text-xl font-extrabold text-slate-900">{product.name}</h3>
-                  <p className="text-xs text-slate-500">{product.series} / {productTypeLabel(product.type)}</p>
+                  <p className="text-xs text-slate-500">{productTypeLabel(product.type)}</p>
                 </div>
-                <span className="state-pill bg-slate-100 text-slate-700">{product.type === "NORMAL" ? "代購" : "拆分"}</span>
+                <span className="state-pill bg-slate-100 text-slate-700">拆分</span>
               </div>
 
               <div className="meta-chip-row">
-                <span className="meta-chip">{product.series}</span>
-                {product.type === "NORMAL" && <span className="meta-chip">庫存 {product.stock ?? "不限"}</span>}
-                {product.type === "BLIND_BOX" && <span className="meta-chip">子項 {blindItemsCount} 項</span>}
+                <span className="meta-chip">子項 {blindItemsCount} 項</span>
               </div>
 
               <div className="mt-4 space-y-1 text-sm text-slate-600">
-                {product.type === "NORMAL" && (
-                  <>
-                    {product.character && <p>展示角色：{product.character}</p>}
-                    {product.slotRestrictionEnabled && (
-                      <p>限制角色：{product.slotRestrictedCharacter ?? product.character ?? "未設定"}</p>
-                    )}
-                    <p>上限：{product.maxPerUser ?? "不限"} / 已加入：{myQty}</p>
-                  </>
-                )}
-
-                {product.type === "BLIND_BOX" && (
-                  <>
-                    <p>角色項目：{blindItemsCount} 項</p>
-                  </>
-                )}
+                <p>角色項目：{blindItemsCount} 項</p>
               </div>
 
-              {product.type === "NORMAL" ? (
-                <>
-                  <p className={`status-note ${normalAccess?.ok ? "status-note-ok" : "status-note-warn"}`}>
-                    {normalAccess?.ok ? "可加入購物車" : normalAccess?.reason}
-                  </p>
-
-                  {isAuthenticated ? (
-                    <button
-                      type="button"
-                      disabled={!normalAccess?.ok}
-                      onClick={() => {
-                        const result = system.addToCart(campaign.id, product.id);
-                        setFeedback(result.message);
-                      }}
-                      className={`mt-5 w-full rounded-2xl px-4 py-3 text-sm font-semibold ${
-                        normalAccess?.ok
-                          ? "cta-primary"
-                          : "cursor-not-allowed rounded-2xl border border-slate-200 bg-slate-100 text-slate-500"
-                      }`}
-                    >
-                      加入購物車
-                    </button>
-                  ) : (
-                    <button
-                      type="button"
-                      className="cta-secondary mt-5 w-full"
-                      onClick={onRequireAuth}
-                    >
-                      登入後加入購物車
-                    </button>
-                  )}
-                </>
-              ) : (
-                <button
-                  type="button"
-                  className="cta-primary mt-5 w-full"
-                  onClick={() => onOpenBlindBox(product)}
-                >
-                  進入盲盒拆分
-                </button>
-              )}
+              <button
+                type="button"
+                className="cta-primary mt-5 w-full"
+                onClick={() => onOpenProductDetail(product)}
+              >
+                進入角色拆分
+              </button>
             </article>
           );
         })}
@@ -621,7 +641,7 @@ function CampaignView(props: {
   );
 }
 
-function BlindBoxView(props: {
+function ProductDetailView(props: {
   system: UseOrderSystemReturn;
   campaign: Campaign;
   product: Product;
@@ -632,12 +652,120 @@ function BlindBoxView(props: {
 }): JSX.Element {
   const { system, campaign, product, isAuthenticated, onRequireAuth, onBack, onGoCart } = props;
   const [feedback, setFeedback] = useState("");
-  const items = system.getBlindBoxItemsByProduct(product.id);
-  const cartItems = system
-    .getMyCartItems(campaign.id)
-    .filter((item) => item.productId === product.id && item.blindBoxItemId);
+  const blindItems = system.getBlindBoxItemsByProduct(product.id);
+  const normalVariants = useMemo(
+    () => system.getProductsByCampaign(campaign.id)
+      .filter((item) => (
+        item.type === "NORMAL"
+        && item.name === product.name
+      ))
+      .sort((a, b) => (a.character ?? "").localeCompare(b.character ?? "") || a.sku.localeCompare(b.sku)),
+    [campaign.id, product.name, system],
+  );
+  const cartItems = system.getMyCartItems(campaign.id);
+  const blindCartMap = new Map(
+    cartItems
+      .filter((item) => item.productId === product.id && item.blindBoxItemId)
+      .map((item) => [item.blindBoxItemId ?? "", item.qty]),
+  );
+  const normalCartMap = new Map(
+    cartItems
+      .filter((item) => item.blindBoxItemId === null && normalVariants.some((variant) => variant.id === item.productId))
+      .map((item) => [item.productId, item.qty]),
+  );
 
-  const cartMap = new Map(cartItems.map((item) => [item.blindBoxItemId ?? "", item.qty]));
+  if (product.type === "NORMAL") {
+    return (
+      <section className="space-y-6">
+        <div className="hero-panel">
+          <div className="front-toolbar flex flex-wrap items-center justify-between gap-2">
+            <button className="cta-secondary" type="button" onClick={onBack}>返回活動商品</button>
+            <button className="cta-secondary" type="button" onClick={onGoCart}>前往購物車</button>
+          </div>
+
+          <h2 className="mt-2 text-3xl font-extrabold text-slate-900">{product.name}</h2>
+          <div className="mt-4 flex flex-wrap gap-2 text-xs">
+            <span className="state-pill bg-slate-100 text-slate-700">角色款 {normalVariants.length} 項</span>
+          </div>
+          {!isAuthenticated ? (
+            <div className="mt-4 flex flex-wrap items-center justify-between gap-3 rounded-2xl border border-amber-200 bg-amber-50 px-4 py-3 text-sm text-amber-900">
+              <p>先看角色款內容，登入後才會正式加入購物車。</p>
+              <button type="button" className="cta-secondary" onClick={onRequireAuth}>
+                登入 / 註冊
+              </button>
+            </div>
+          ) : null}
+          {feedback && <p className="mt-3 text-sm font-semibold text-slate-800">{feedback}</p>}
+        </div>
+
+        {normalVariants.length === 0 && <div className="empty-panel">這個品項目前還沒有可選的角色商品。</div>}
+
+        <div className="blind-item-grid grid gap-4 md:grid-cols-2 xl:grid-cols-3">
+          {normalVariants.map((variant) => {
+            const access = system.getProductAccessForCurrentUser(campaign.id, variant.id);
+            const inCartQty = normalCartMap.get(variant.id) ?? 0;
+
+            return (
+              <article key={variant.id} className="product-stage-card blind-item-card">
+                <div className="product-figure">
+                  <ProductImage imageUrl={variant.imageUrl} alt={variant.name} />
+                  <div className="product-price-badge">
+                    <span className="text-[11px] uppercase tracking-[0.16em] text-slate-400">Price</span>
+                    <strong>{twd(variant.price)}</strong>
+                  </div>
+                </div>
+                <div className="mt-3">
+                  <h3 className="text-xl font-extrabold text-slate-900">{variant.character ?? "一般款"}</h3>
+                  <p className="text-sm text-slate-500">所屬商品：{variant.name}</p>
+                </div>
+
+                <div className="meta-chip-row">
+                  <span className="meta-chip">{variant.character ?? "一般款"}</span>
+                  <span className="meta-chip">庫存 {variant.stock ?? "不限"}</span>
+                  <span className="meta-chip">上限 {variant.maxPerUser ?? "不限"}</span>
+                </div>
+
+                <p className="mt-3 text-sm text-slate-600">已加入：{inCartQty}</p>
+                {variant.slotRestrictionEnabled && (
+                  <p className="mt-1 text-sm text-slate-600">限制角色：{variant.slotRestrictedCharacter ?? variant.character ?? "未設定"}</p>
+                )}
+
+                <p className={`status-note ${access.ok ? "status-note-ok" : "status-note-warn"}`}>
+                  {access.ok ? "可加入購物車" : access.reason}
+                </p>
+
+                {isAuthenticated ? (
+                  <button
+                    type="button"
+                    disabled={!access.ok}
+                    onClick={() => {
+                      const result = system.addToCart(campaign.id, variant.id);
+                      setFeedback(result.message);
+                    }}
+                    className={`mt-5 w-full rounded-2xl px-4 py-3 text-sm font-semibold ${
+                      access.ok
+                        ? "cta-primary"
+                        : "cursor-not-allowed rounded-2xl border border-slate-200 bg-slate-100 text-slate-500"
+                    }`}
+                  >
+                    加入購物車
+                  </button>
+                ) : (
+                  <button
+                    type="button"
+                    className="cta-secondary mt-5 w-full"
+                    onClick={onRequireAuth}
+                  >
+                    登入後加入購物車
+                  </button>
+                )}
+              </article>
+            );
+          })}
+        </div>
+      </section>
+    );
+  }
 
   return (
     <section className="space-y-6">
@@ -667,13 +795,13 @@ function BlindBoxView(props: {
         {feedback && <p className="mt-3 text-sm font-semibold text-slate-800">{feedback}</p>}
       </div>
 
-      {items.length === 0 && <div className="empty-panel">此盲盒尚未建立任何角色子項。</div>}
+      {blindItems.length === 0 && <div className="empty-panel">此盲盒尚未建立任何角色子項。</div>}
 
       <div className="blind-item-grid grid gap-4 md:grid-cols-2 xl:grid-cols-3">
-        {items.map((item) => {
+        {blindItems.map((item) => {
           const access = system.getProductAccessForCurrentUser(campaign.id, product.id, item.id);
           const myTier = system.currentUser ? system.getUserCharacterTier(system.currentUser.id, item.character) : null;
-          const inCartQty = cartMap.get(item.id) ?? 0;
+          const inCartQty = blindCartMap.get(item.id) ?? 0;
 
           return (
             <article key={item.id} className="product-stage-card blind-item-card">
@@ -740,9 +868,9 @@ function BlindBoxView(props: {
 function CartView(props: {
   system: UseOrderSystemReturn;
   onOpenCampaign: (campaign: Campaign) => void;
-  onOpenBlindBox: (campaign: Campaign, product: Product) => void;
+  onOpenProductDetail: (campaign: Campaign, product: Product) => void;
 }): JSX.Element {
-  const { system, onOpenCampaign, onOpenBlindBox } = props;
+  const { system, onOpenCampaign, onOpenProductDetail } = props;
   const [feedback, setFeedback] = useState("");
   const cartItems = system.getMyCartItems();
 
@@ -855,13 +983,13 @@ function CartView(props: {
                         >
                           移除
                         </button>
-                        {product?.type === "BLIND_BOX" && campaign && (
+                        {product && campaign && (
                           <button
                             className="rounded-lg border px-3 py-1 text-xs font-semibold"
                             type="button"
-                            onClick={() => onOpenBlindBox(campaign, product)}
+                            onClick={() => onOpenProductDetail(campaign, product)}
                           >
-                            回盲盒頁
+                            {product.type === "BLIND_BOX" ? "回拆分頁" : "回角色頁"}
                           </button>
                         )}
                       </div>
@@ -1290,7 +1418,7 @@ export default function App(): JSX.Element {
             onRequireAuth={() => openAuthSection("登入後才可將商品加入購物車。")}
             onGoCart={handleGoCart}
             onBack={() => setView("home")}
-            onOpenBlindBox={(product) => {
+            onOpenProductDetail={(product) => {
               setSelectedBlindProductId(product.id);
               setView("blindBox");
             }}
@@ -1298,12 +1426,12 @@ export default function App(): JSX.Element {
         )}
 
         {view === "blindBox" && selectedCampaign && selectedBlindProduct && (
-          <BlindBoxView
+          <ProductDetailView
             system={system}
             campaign={selectedCampaign}
             product={selectedBlindProduct}
             isAuthenticated={Boolean(system.currentUser)}
-            onRequireAuth={() => openAuthSection("登入後才可把盲盒角色加入購物車。")}
+            onRequireAuth={() => openAuthSection("登入後才可把商品加入購物車。")}
             onBack={() => setView("campaign")}
             onGoCart={handleGoCart}
           />
@@ -1325,7 +1453,7 @@ export default function App(): JSX.Element {
               setSelectedBlindProductId("");
               setView("campaign");
             }}
-            onOpenBlindBox={(campaign, product) => {
+            onOpenProductDetail={(campaign, product) => {
               setSelectedCampaignId(campaign.id);
               setSelectedBlindProductId(product.id);
               setView("blindBox");

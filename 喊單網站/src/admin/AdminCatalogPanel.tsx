@@ -3,7 +3,7 @@ import { BuildersTab } from "./catalog/BuildersTab";
 import { CampaignsTab } from "./catalog/CampaignsTab";
 import { CatalogTableTab } from "./catalog/CatalogTableTab";
 import { ImportsTab } from "./catalog/ImportsTab";
-import { catalogTabs, type CatalogTab, type ImportMode, type ProductEditorDraft } from "./catalog/types";
+import { catalogTabs, type BlindBoxItemEditorDraft, type CatalogTab, type ImportMode, type ProductEditorDraft } from "./catalog/types";
 import type { UseOrderSystemReturn } from "../hooks/useOrderSystem";
 import {
   BLIND_ITEM_IMPORT_CSV_TEMPLATE,
@@ -24,6 +24,7 @@ import { upsertCampaigns, upsertProfiles } from "../lib/supabase-sync";
 import { isSupabaseEnabled, prepareImageForUpload, supabase, uploadImageToSupabaseStorage } from "../lib/supabase";
 import type {
   CharacterName,
+  BlindBoxItem,
   Product,
   ProductSeries,
   ProductType,
@@ -75,6 +76,17 @@ function parseOptionalNonNegativeInteger(value: string, label: string): { ok: tr
   return { ok: true, value: nextValue };
 }
 
+function parseOptionalNonNegativeNumber(value: string, label: string): { ok: true; value: number | null } | { ok: false; message: string } {
+  if (!value.trim()) {
+    return { ok: true, value: null };
+  }
+  const nextValue = Number(value);
+  if (!Number.isFinite(nextValue) || nextValue < 0) {
+    return { ok: false, message: `${label} 需為大於等於 0 的數字，或留空。` };
+  }
+  return { ok: true, value: nextValue };
+}
+
 export function AdminCatalogPanel(props: { system: UseOrderSystemReturn }): JSX.Element {
   const { system } = props;
   const [feedback, setFeedback] = useState("");
@@ -85,8 +97,6 @@ export function AdminCatalogPanel(props: { system: UseOrderSystemReturn }): JSX.
   const [campaignReleaseStage, setCampaignReleaseStage] = useState<ReleaseStage>("FIXED_1_ONLY");
   const [productCampaignId, setProductCampaignId] = useState(system.state.campaigns[0]?.id ?? "");
   const [productType, setProductType] = useState<ProductType>("NORMAL");
-  const [productSeries, setProductSeries] = useState<ProductSeries>(system.state.productCategories[0] ?? "未分類");
-  const [newCategoryName, setNewCategoryName] = useState("");
   const [productName, setProductName] = useState("");
   const [productCharacter, setProductCharacter] = useState<CharacterName | "">("");
   const [productSlotRestrictionEnabled, setProductSlotRestrictionEnabled] = useState(false);
@@ -108,6 +118,8 @@ export function AdminCatalogPanel(props: { system: UseOrderSystemReturn }): JSX.
   const [blindMaxPerUser, setBlindMaxPerUser] = useState("");
   const [settingsProductKeyword, setSettingsProductKeyword] = useState("");
   const [productEditorDrafts, setProductEditorDrafts] = useState<Record<string, ProductEditorDraft>>({});
+  const [blindBoxItemEditorDrafts, setBlindBoxItemEditorDrafts] = useState<Record<string, BlindBoxItemEditorDraft>>({});
+  const [newBlindBoxItemDrafts, setNewBlindBoxItemDrafts] = useState<Record<string, BlindBoxItemEditorDraft>>({});
   const [importMode, setImportMode] = useState<ImportMode>("NORMAL_PRODUCT_CSV");
   const [importText, setImportText] = useState("");
 
@@ -115,19 +127,30 @@ export function AdminCatalogPanel(props: { system: UseOrderSystemReturn }): JSX.
     () => system.state.products.filter((product) => product.type === "BLIND_BOX"),
     [system.state.products],
   );
+  const catalogTabMeta: Record<CatalogTab, { title: string; copy: string }> = {
+    campaigns: {
+      title: "活動管理",
+      copy: "先建活動時間與釋出階段，後面的商品與匯入都會掛在活動底下。",
+    },
+    builders: {
+      title: "建立商品",
+      copy: "手動建立一般商品或盲盒母商品，再補角色款或盲盒子項。",
+    },
+    catalog: {
+      title: "商品清單",
+      copy: "集中搜尋、逐筆調整商品與活動設定，適合最後校稿。",
+    },
+    imports: {
+      title: "匯入工具",
+      copy: "大量商品時直接貼 CSV / JSON，比手動一筆一筆建快很多。",
+    },
+  };
 
   useEffect(() => {
     if (!productCampaignId && system.state.campaigns[0]) {
       setProductCampaignId(system.state.campaigns[0].id);
     }
   }, [productCampaignId, system.state.campaigns]);
-
-  useEffect(() => {
-    if (!system.state.productCategories.length) return;
-    if (!system.state.productCategories.includes(productSeries)) {
-      setProductSeries(system.state.productCategories[0]);
-    }
-  }, [productSeries, system.state.productCategories]);
 
   useEffect(() => {
     if (blindProducts.length === 0) {
@@ -230,6 +253,72 @@ export function AdminCatalogPanel(props: { system: UseOrderSystemReturn }): JSX.
     });
   };
 
+  const createBlankBlindBoxItemDraft = (character: CharacterName = "八千代"): BlindBoxItemEditorDraft => ({
+    name: "",
+    character,
+    imageUrl: "",
+    imageFile: null,
+    imagePreviewUrl: null,
+    price: "",
+    stock: "",
+    maxPerUser: "",
+  });
+
+  const getBlindBoxItemEditorDraft = (item: BlindBoxItem): BlindBoxItemEditorDraft => (
+    blindBoxItemEditorDrafts[item.id] ?? {
+      name: item.name,
+      character: item.character,
+      imageUrl: item.imageUrl ?? "",
+      imageFile: null,
+      imagePreviewUrl: null,
+      price: item.price === null ? "" : String(item.price),
+      stock: item.stock === null ? "" : String(item.stock),
+      maxPerUser: item.maxPerUser === null ? "" : String(item.maxPerUser),
+    }
+  );
+
+  const patchBlindBoxItemEditorDraft = (blindBoxItemId: string, patch: Partial<BlindBoxItemEditorDraft>): void => {
+    const source = system.state.blindBoxItems.find((item) => item.id === blindBoxItemId);
+    if (!source) return;
+    setBlindBoxItemEditorDrafts((prev) => ({
+      ...prev,
+      [blindBoxItemId]: {
+        ...getBlindBoxItemEditorDraft(source),
+        ...patch,
+      },
+    }));
+  };
+
+  const resetBlindBoxItemEditorDraft = (blindBoxItemId: string): void => {
+    setBlindBoxItemEditorDrafts((prev) => {
+      const next = { ...prev };
+      delete next[blindBoxItemId];
+      return next;
+    });
+  };
+
+  const getNewBlindBoxItemDraft = (productId: string): BlindBoxItemEditorDraft => (
+    newBlindBoxItemDrafts[productId] ?? createBlankBlindBoxItemDraft()
+  );
+
+  const patchNewBlindBoxItemDraft = (productId: string, patch: Partial<BlindBoxItemEditorDraft>): void => {
+    setNewBlindBoxItemDrafts((prev) => ({
+      ...prev,
+      [productId]: {
+        ...getNewBlindBoxItemDraft(productId),
+        ...patch,
+      },
+    }));
+  };
+
+  const resetNewBlindBoxItemDraft = (productId: string): void => {
+    setNewBlindBoxItemDrafts((prev) => {
+      const next = { ...prev };
+      delete next[productId];
+      return next;
+    });
+  };
+
   const assignGeneratedSkus = <T extends { sku: string }>(prefix: string, rows: T[], existingSkus: string[]): T[] => {
     let sequence = existingSkus.reduce((max, sku) => {
       const match = sku.toUpperCase().match(new RegExp(`^${prefix}-(\\d+)$`));
@@ -316,7 +405,7 @@ export function AdminCatalogPanel(props: { system: UseOrderSystemReturn }): JSX.
     const result = system.adminUpdateProductRule({
       productId: product.id,
       name: draft.name,
-      series: draft.series,
+      series: "未分類",
       character: product.type === "NORMAL" ? (draft.character || null) : null,
       imageUrl: imageResult.imageUrl,
       price: priceResult.value,
@@ -328,6 +417,106 @@ export function AdminCatalogPanel(props: { system: UseOrderSystemReturn }): JSX.
     setFeedback(imageResult.note ? `${result.message} ${imageResult.note}` : result.message);
     if (result.ok) {
       resetProductEditorDraft(product.id);
+    }
+  };
+
+  const handleSelectBlindBoxItemDraftImage = async (blindBoxItemId: string, file: File | null): Promise<void> => {
+    if (!file) {
+      patchBlindBoxItemEditorDraft(blindBoxItemId, { imageFile: null, imagePreviewUrl: null });
+      return;
+    }
+    try {
+      const preview = await readFileAsDataUrl(file);
+      patchBlindBoxItemEditorDraft(blindBoxItemId, { imageFile: file, imagePreviewUrl: preview });
+    } catch (error) {
+      setFeedback(error instanceof Error ? error.message : "讀取圖片失敗。");
+    }
+  };
+
+  const handleSelectNewBlindBoxItemDraftImage = async (productId: string, file: File | null): Promise<void> => {
+    if (!file) {
+      patchNewBlindBoxItemDraft(productId, { imageFile: null, imagePreviewUrl: null });
+      return;
+    }
+    try {
+      const preview = await readFileAsDataUrl(file);
+      patchNewBlindBoxItemDraft(productId, { imageFile: file, imagePreviewUrl: preview });
+    } catch (error) {
+      setFeedback(error instanceof Error ? error.message : "讀取圖片失敗。");
+    }
+  };
+
+  const handleSaveBlindBoxItemRow = async (blindBoxItem: BlindBoxItem): Promise<void> => {
+    const draft = getBlindBoxItemEditorDraft(blindBoxItem);
+    const priceResult = parseOptionalNonNegativeNumber(draft.price, "子項價格");
+    if (!priceResult.ok) {
+      setFeedback(priceResult.message);
+      return;
+    }
+    const stockResult = parseOptionalNonNegativeInteger(draft.stock, "子項庫存");
+    if (!stockResult.ok) {
+      setFeedback(stockResult.message);
+      return;
+    }
+    const maxResult = parseOptionalPositiveInteger(draft.maxPerUser, "子項上限");
+    if (!maxResult.ok) {
+      setFeedback(maxResult.message);
+      return;
+    }
+    const imageResult = await resolveImageUrlForSubmit(draft.imageFile, draft.imageUrl, "blind-items");
+    if (!imageResult.ok) {
+      setFeedback(imageResult.note);
+      return;
+    }
+    const result = system.adminUpdateBlindBoxItemRule({
+      blindBoxItemId: blindBoxItem.id,
+      name: draft.name,
+      character: draft.character,
+      imageUrl: imageResult.imageUrl,
+      price: priceResult.value,
+      stock: stockResult.value,
+      maxPerUser: maxResult.value,
+    });
+    setFeedback(imageResult.note ? `${result.message} ${imageResult.note}` : result.message);
+    if (result.ok) {
+      resetBlindBoxItemEditorDraft(blindBoxItem.id);
+    }
+  };
+
+  const handleCreateBlindBoxItemForProduct = async (productId: string): Promise<void> => {
+    const draft = getNewBlindBoxItemDraft(productId);
+    const priceResult = parseOptionalNonNegativeNumber(draft.price, "子項價格");
+    if (!priceResult.ok) {
+      setFeedback(priceResult.message);
+      return;
+    }
+    const stockResult = parseOptionalNonNegativeInteger(draft.stock, "子項庫存");
+    if (!stockResult.ok) {
+      setFeedback(stockResult.message);
+      return;
+    }
+    const maxResult = parseOptionalPositiveInteger(draft.maxPerUser, "子項上限");
+    if (!maxResult.ok) {
+      setFeedback(maxResult.message);
+      return;
+    }
+    const imageResult = await resolveImageUrlForSubmit(draft.imageFile, draft.imageUrl, "blind-items");
+    if (!imageResult.ok) {
+      setFeedback(imageResult.note);
+      return;
+    }
+    const result = system.adminCreateBlindBoxItem({
+      productId,
+      name: draft.name,
+      character: draft.character,
+      imageUrl: imageResult.imageUrl,
+      price: priceResult.value,
+      stock: stockResult.value,
+      maxPerUser: maxResult.value,
+    });
+    setFeedback(imageResult.note ? `${result.message} ${imageResult.note}` : result.message);
+    if (result.ok) {
+      resetNewBlindBoxItemDraft(productId);
     }
   };
 
@@ -434,7 +623,7 @@ export function AdminCatalogPanel(props: { system: UseOrderSystemReturn }): JSX.
       const result = system.adminCreateProduct({
         campaignId: productCampaignId,
         name: productName,
-        series: productSeries,
+        series: "未分類",
         type: productType,
         character: productType === "NORMAL" && productCharacter ? productCharacter : null,
         slotRestrictionEnabled: productSlotRestrictionEnabled,
@@ -643,166 +832,191 @@ export function AdminCatalogPanel(props: { system: UseOrderSystemReturn }): JSX.
 
   return (
     <section className="space-y-5">
-      <div className="section-frame">
-        <h2 className="text-2xl font-extrabold text-slate-900">商品管理</h2>
-        <div className="admin-chip-group mt-4">
+      <div className="section-frame admin-workspace-hero">
+        <div className="admin-section-head">
+          <div>
+            <p className="admin-brand-kicker">CATALOG FLOW</p>
+            <h2 className="mt-2 text-2xl font-extrabold text-slate-900">商品管理</h2>
+            <p className="mt-3 admin-section-copy">{catalogTabMeta[catalogTab].copy}</p>
+          </div>
+        </div>
+
+        <div className="admin-summary-grid">
+          <article className="admin-summary-card">
+            <span>活動數</span>
+            <strong>{system.state.campaigns.length}</strong>
+          </article>
+          <article className="admin-summary-card">
+            <span>商品數</span>
+            <strong>{system.state.products.length}</strong>
+          </article>
+          <article className="admin-summary-card">
+            <span>角色子項</span>
+            <strong>{system.state.blindBoxItems.length}</strong>
+          </article>
+        </div>
+
+        <div className="admin-subtabs">
           {catalogTabs.map((item) => (
             <button
               key={item.id}
               type="button"
-              className={catalogTab === item.id ? "admin-chip admin-chip-active" : "admin-chip"}
+              className={catalogTab === item.id ? "admin-subtab-button admin-subtab-button-active" : "admin-subtab-button"}
               onClick={() => setCatalogTab(item.id)}
             >
-              {item.label}
+              <strong>{item.label}</strong>
+              <span>{catalogTabMeta[item.id].copy}</span>
             </button>
           ))}
         </div>
-        {feedback && <p className="mt-3 text-sm font-semibold text-slate-800">{feedback}</p>}
+        {feedback ? <div className="admin-feedback-banner">{feedback}</div> : null}
       </div>
 
-      {catalogTab === "campaigns" && (
-        <CampaignsTab
-          categories={system.state.productCategories}
-          newCategoryName={newCategoryName}
-          onCategoryNameChange={setNewCategoryName}
-          onCreateCategory={() => {
-            const result = system.adminCreateCategory(newCategoryName);
-            setFeedback(result.message);
-            if (result.ok) setNewCategoryName("");
-          }}
-          onDeleteCategory={(category) => {
-            const ok = window.confirm(`刪除分類「${category}」後，商品會移到未分類。確定執行？`);
-            if (!ok) return;
-            const result = system.adminDeleteCategory(category);
-            setFeedback(result.message);
-          }}
-          campaignTitle={campaignTitle}
-          campaignDescription={campaignDescription}
-          campaignDeadlineAt={campaignDeadlineAt}
-          campaignReleaseStage={campaignReleaseStage}
-          onCampaignTitleChange={setCampaignTitle}
-          onCampaignDescriptionChange={setCampaignDescription}
-          onCampaignDeadlineAtChange={setCampaignDeadlineAt}
-          onCampaignReleaseStageChange={setCampaignReleaseStage}
-          onCreateCampaign={() => {
-            const result = system.adminCreateCampaign({
-              title: campaignTitle,
-              description: campaignDescription,
-              deadlineAt: campaignDeadlineAt,
-              releaseStage: campaignReleaseStage,
-            });
-            setFeedback(result.message);
-            if (result.ok) {
-              setCampaignTitle("");
-              setCampaignDescription("");
-              setCampaignDeadlineAt("");
-            }
-          }}
-        />
-      )}
+      <div className="space-y-5">
+        {catalogTab === "campaigns" && (
+          <CampaignsTab
+            campaignTitle={campaignTitle}
+            campaignDescription={campaignDescription}
+            campaignDeadlineAt={campaignDeadlineAt}
+            campaignReleaseStage={campaignReleaseStage}
+            onCampaignTitleChange={setCampaignTitle}
+            onCampaignDescriptionChange={setCampaignDescription}
+            onCampaignDeadlineAtChange={setCampaignDeadlineAt}
+            onCampaignReleaseStageChange={setCampaignReleaseStage}
+            onCreateCampaign={() => {
+              const result = system.adminCreateCampaign({
+                title: campaignTitle,
+                description: campaignDescription,
+                deadlineAt: campaignDeadlineAt,
+                releaseStage: campaignReleaseStage,
+              });
+              setFeedback(result.message);
+              if (result.ok) {
+                setCampaignTitle("");
+                setCampaignDescription("");
+                setCampaignDeadlineAt("");
+              }
+            }}
+          />
+        )}
 
-      {catalogTab === "imports" && (
-        <ImportsTab
-          system={system}
-          importMode={importMode}
-          importText={importText}
-          importModeDescription={importModeDescription}
-          importTemplateByMode={importTemplateByMode}
-          productCampaignId={productCampaignId}
-          onProductCampaignChange={setProductCampaignId}
-          onImportModeChange={setImportMode}
-          onImportTextChange={setImportText}
-          onLoadTemplate={() => setImportText(importTemplateByMode[importMode])}
-          onClearImportText={() => setImportText("")}
-          onImport={() => void handleImport()}
-        />
-      )}
+        {catalogTab === "imports" && (
+          <ImportsTab
+            system={system}
+            importMode={importMode}
+            importText={importText}
+            importModeDescription={importModeDescription}
+            importTemplateByMode={importTemplateByMode}
+            productCampaignId={productCampaignId}
+            onProductCampaignChange={setProductCampaignId}
+            onImportModeChange={setImportMode}
+            onImportTextChange={setImportText}
+            onLoadTemplate={() => setImportText(importTemplateByMode[importMode])}
+            onClearImportText={() => setImportText("")}
+            onImport={() => void handleImport()}
+          />
+        )}
 
-      {catalogTab === "builders" && (
-        <BuildersTab
-          system={system}
-          productCampaignId={productCampaignId}
-          productType={productType}
-          productSeries={productSeries}
-          productName={productName}
-          productCharacter={productCharacter}
-          productSlotRestrictionEnabled={productSlotRestrictionEnabled}
-          productSlotRestrictedCharacter={productSlotRestrictedCharacter}
-          productImageUrl={productImageUrl}
-          productPreviewImage={productPreviewImage}
-          productPrice={productPrice}
-          productStock={productStock}
-          productMaxPerUser={productMaxPerUser}
-          blindProductId={blindProductId}
-          blindProducts={blindProducts}
-          blindName={blindName}
-          blindCharacter={blindCharacter}
-          blindImageUrl={blindImageUrl}
-          blindPreviewImage={blindPreviewImage}
-          blindPrice={blindPrice}
-          blindStock={blindStock}
-          blindMaxPerUser={blindMaxPerUser}
-          onProductCampaignChange={setProductCampaignId}
-          onProductTypeChange={setProductType}
-          onProductSeriesChange={setProductSeries}
-          onProductNameChange={setProductName}
-          onProductCharacterChange={setProductCharacter}
-          onProductSlotRestrictionEnabledChange={setProductSlotRestrictionEnabled}
-          onProductSlotRestrictedCharacterChange={setProductSlotRestrictedCharacter}
-          onProductImageFileChange={setProductImageFile}
-          onProductImageUrlChange={setProductImageUrl}
-          onClearProductImage={() => {
-            setProductImageFile(null);
-            setProductImageUrl("");
-          }}
-          onProductPriceChange={setProductPrice}
-          onProductStockChange={setProductStock}
-          onProductMaxPerUserChange={setProductMaxPerUser}
-          onCreateProduct={() => void handleCreateProduct()}
-          onBlindProductChange={setBlindProductId}
-          onBlindNameChange={setBlindName}
-          onBlindCharacterChange={setBlindCharacter}
-          onBlindImageFileChange={setBlindImageFile}
-          onBlindImageUrlChange={setBlindImageUrl}
-          onClearBlindImage={() => {
-            setBlindImageFile(null);
-            setBlindImageUrl("");
-          }}
-          onBlindPriceChange={setBlindPrice}
-          onBlindStockChange={setBlindStock}
-          onBlindMaxPerUserChange={setBlindMaxPerUser}
-          onCreateBlindBoxItem={() => void handleCreateBlindBoxItem()}
-        />
-      )}
+        {catalogTab === "builders" && (
+          <BuildersTab
+            system={system}
+            productCampaignId={productCampaignId}
+            productType={productType}
+            productName={productName}
+            productCharacter={productCharacter}
+            productSlotRestrictionEnabled={productSlotRestrictionEnabled}
+            productSlotRestrictedCharacter={productSlotRestrictedCharacter}
+            productImageUrl={productImageUrl}
+            productPreviewImage={productPreviewImage}
+            productPrice={productPrice}
+            productStock={productStock}
+            productMaxPerUser={productMaxPerUser}
+            blindProductId={blindProductId}
+            blindProducts={blindProducts}
+            blindName={blindName}
+            blindCharacter={blindCharacter}
+            blindImageUrl={blindImageUrl}
+            blindPreviewImage={blindPreviewImage}
+            blindPrice={blindPrice}
+            blindStock={blindStock}
+            blindMaxPerUser={blindMaxPerUser}
+            onProductCampaignChange={setProductCampaignId}
+            onProductTypeChange={setProductType}
+            onProductNameChange={setProductName}
+            onProductCharacterChange={setProductCharacter}
+            onProductSlotRestrictionEnabledChange={setProductSlotRestrictionEnabled}
+            onProductSlotRestrictedCharacterChange={setProductSlotRestrictedCharacter}
+            onProductImageFileChange={setProductImageFile}
+            onProductImageUrlChange={setProductImageUrl}
+            onClearProductImage={() => {
+              setProductImageFile(null);
+              setProductImageUrl("");
+            }}
+            onProductPriceChange={setProductPrice}
+            onProductStockChange={setProductStock}
+            onProductMaxPerUserChange={setProductMaxPerUser}
+            onCreateProduct={() => void handleCreateProduct()}
+            onBlindProductChange={setBlindProductId}
+            onBlindNameChange={setBlindName}
+            onBlindCharacterChange={setBlindCharacter}
+            onBlindImageFileChange={setBlindImageFile}
+            onBlindImageUrlChange={setBlindImageUrl}
+            onClearBlindImage={() => {
+              setBlindImageFile(null);
+              setBlindImageUrl("");
+            }}
+            onBlindPriceChange={setBlindPrice}
+            onBlindStockChange={setBlindStock}
+            onBlindMaxPerUserChange={setBlindMaxPerUser}
+            onCreateBlindBoxItem={() => void handleCreateBlindBoxItem()}
+          />
+        )}
 
-      {catalogTab === "catalog" && (
-        <CatalogTableTab
-          system={system}
-          settingsProductKeyword={settingsProductKeyword}
-          onSettingsProductKeywordChange={setSettingsProductKeyword}
-          getProductEditorDraft={getProductEditorDraft}
-          patchProductEditorDraft={patchProductEditorDraft}
-          handleSelectProductDraftImage={handleSelectProductDraftImage}
-          handleSaveProductRow={handleSaveProductRow}
-          resetProductEditorDraft={resetProductEditorDraft}
-          onDeleteCampaign={(campaignId, title) => {
-            const ok = window.confirm(`確定要刪除活動「${title}」？\n會一併刪除此活動下的商品、喊單、訂單與物流資料。`);
-            if (!ok) return;
-            const result = system.adminDeleteCampaign(campaignId);
-            setFeedback(result.message);
-          }}
-          onUpdateCampaignReleaseStage={(campaignId, stage) => {
-            const result = system.adminUpdateCampaignReleaseStage(campaignId, stage);
-            setFeedback(result.message);
-          }}
-          onDeleteProduct={(productId, productName) => {
-            const ok = window.confirm(`確定要刪除商品「${productName}」？`);
-            if (!ok) return;
-            const result = system.adminDeleteProduct(productId);
-            setFeedback(result.message);
-          }}
-        />
-      )}
+        {catalogTab === "catalog" && (
+          <CatalogTableTab
+            system={system}
+            settingsProductKeyword={settingsProductKeyword}
+            onSettingsProductKeywordChange={setSettingsProductKeyword}
+            getProductEditorDraft={getProductEditorDraft}
+            patchProductEditorDraft={patchProductEditorDraft}
+            handleSelectProductDraftImage={handleSelectProductDraftImage}
+            handleSaveProductRow={handleSaveProductRow}
+            resetProductEditorDraft={resetProductEditorDraft}
+            getBlindBoxItemEditorDraft={getBlindBoxItemEditorDraft}
+            patchBlindBoxItemEditorDraft={patchBlindBoxItemEditorDraft}
+            handleSelectBlindBoxItemDraftImage={handleSelectBlindBoxItemDraftImage}
+            handleSaveBlindBoxItemRow={handleSaveBlindBoxItemRow}
+            resetBlindBoxItemEditorDraft={resetBlindBoxItemEditorDraft}
+            getNewBlindBoxItemDraft={getNewBlindBoxItemDraft}
+            patchNewBlindBoxItemDraft={patchNewBlindBoxItemDraft}
+            handleSelectNewBlindBoxItemDraftImage={handleSelectNewBlindBoxItemDraftImage}
+            handleCreateBlindBoxItemForProduct={handleCreateBlindBoxItemForProduct}
+            resetNewBlindBoxItemDraft={resetNewBlindBoxItemDraft}
+            onDeleteCampaign={(campaignId, title) => {
+              const ok = window.confirm(`確定要刪除活動「${title}」？\n會一併刪除此活動下的商品、喊單、訂單與物流資料。`);
+              if (!ok) return;
+              const result = system.adminDeleteCampaign(campaignId);
+              setFeedback(result.message);
+            }}
+            onUpdateCampaignReleaseStage={(campaignId, stage) => {
+              const result = system.adminUpdateCampaignReleaseStage(campaignId, stage);
+              setFeedback(result.message);
+            }}
+            onDeleteProduct={(productId, productName) => {
+              const ok = window.confirm(`確定要刪除商品「${productName}」？`);
+              if (!ok) return;
+              const result = system.adminDeleteProduct(productId);
+              setFeedback(result.message);
+            }}
+            onDeleteBlindBoxItem={(blindBoxItemId, blindBoxItemName) => {
+              const ok = window.confirm(`確定要刪除子項「${blindBoxItemName}」？`);
+              if (!ok) return;
+              const result = system.adminDeleteBlindBoxItem(blindBoxItemId);
+              setFeedback(result.message);
+            }}
+          />
+        )}
+      </div>
     </section>
   );
 }

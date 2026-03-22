@@ -305,7 +305,13 @@ export function useOrderSystem(): UseOrderSystemReturn {
     void loadOrderSystemStateFromSupabase(supabase)
       .then((remoteState) => {
         if (cancelled) return;
-        setState(remoteState);
+        setState((prev) => ({
+          ...remoteState,
+          productCategories: Array.from(new Set([
+            ...prev.productCategories,
+            ...remoteState.productCategories,
+          ])),
+        }));
         setStateHydrated(true);
       })
       .catch((error) => {
@@ -1718,6 +1724,10 @@ export function useOrderSystem(): UseOrderSystemReturn {
       return { ok: false, message: "找不到指定分類。" };
     }
 
+    const affectedProducts = state.products
+      .filter((product) => product.series === normalized)
+      .map((product) => ({ ...product, series: "未分類" }));
+
     setState((prev) => ({
       ...prev,
       productCategories: prev.productCategories.filter((item) => item !== normalized),
@@ -1725,6 +1735,12 @@ export function useOrderSystem(): UseOrderSystemReturn {
         product.series === normalized ? { ...product, series: "未分類" } : product,
       ),
     }));
+
+    if (affectedProducts.length > 0) {
+      runSupabaseWrite("delete product category", async () => {
+        await syncProductRecords(affectedProducts);
+      });
+    }
 
     return { ok: true, message: `已刪除分類「${normalized}」，原商品已歸入未分類。` };
   };

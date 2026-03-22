@@ -7,7 +7,7 @@
 :root {
   color-scheme: light;
   color: #34251a;
-  background: #f6efe4;
+  background: #07152f;
   font-family: "Noto Sans TC", sans-serif;
   --paper-bg:
     linear-gradient(180deg, rgba(252, 248, 241, 0.98), rgba(244, 236, 223, 0.98)),
@@ -29,8 +29,9 @@ body {
   margin: 0;
   min-height: 100vh;
   background:
-    linear-gradient(180deg, rgba(224, 210, 188, 0.34), rgba(214, 198, 176, 0.18)),
-    var(--paper-bg);
+    radial-gradient(circle at 50% 0%, rgba(171, 185, 255, 0.28), transparent 28%),
+    linear-gradient(180deg, rgba(4, 12, 28, 0.3), rgba(4, 12, 28, 0.75)),
+    linear-gradient(180deg, #0a1e47 0%, #07152f 38%, #061027 100%);
   color: var(--paper-text);
   overflow-x: hidden;
 }
@@ -74,10 +75,13 @@ body {
   inset: 0;
   pointer-events: none;
   background:
-    repeating-linear-gradient(60deg, rgba(156, 152, 240, 0.08) 0 2px, transparent 2px 96px),
-    repeating-linear-gradient(-60deg, rgba(156, 152, 240, 0.08) 0 2px, transparent 2px 96px),
-    repeating-linear-gradient(0deg, rgba(205, 190, 223, 0.08) 0 1px, transparent 1px 76px);
-  opacity: 0.44;
+    radial-gradient(circle at 12% 26%, rgba(77, 139, 255, 0.18), transparent 0.3rem),
+    radial-gradient(circle at 88% 28%, rgba(77, 139, 255, 0.18), transparent 0.3rem),
+    radial-gradient(circle at 14% 68%, rgba(77, 139, 255, 0.14), transparent 0.26rem),
+    radial-gradient(circle at 86% 72%, rgba(77, 139, 255, 0.14), transparent 0.26rem),
+    repeating-linear-gradient(90deg, rgba(118, 179, 255, 0.08) 0 1px, transparent 1px 96px),
+    repeating-linear-gradient(0deg, rgba(118, 179, 255, 0.08) 0 1px, transparent 1px 96px);
+  opacity: 0.26;
 }
 
 .site-shell::after {
@@ -86,10 +90,11 @@ body {
   inset: -8% -6%;
   pointer-events: none;
   background:
-    radial-gradient(circle at 76% 14%, rgba(155, 216, 255, 0.14), transparent 42%),
-    radial-gradient(circle at 18% 18%, rgba(255, 160, 198, 0.14), transparent 36%),
-    radial-gradient(circle at 50% 72%, rgba(255, 219, 170, 0.14), transparent 44%);
-  filter: blur(12px);
+    radial-gradient(circle at 74% 18%, rgba(124, 182, 255, 0.2), transparent 26%),
+    radial-gradient(circle at 18% 18%, rgba(255, 134, 188, 0.14), transparent 24%),
+    radial-gradient(circle at 50% 76%, rgba(255, 202, 112, 0.16), transparent 32%),
+    linear-gradient(180deg, rgba(255, 255, 255, 0.04), transparent 28%);
+  filter: blur(14px);
   animation: auroraFloat 12s ease-in-out infinite;
   z-index: -1;
 }
@@ -160,6 +165,85 @@ body {
   border-radius: 9999px;
   background: radial-gradient(circle, rgba(151, 232, 255, 0.12), transparent 62%);
   pointer-events: none;
+}
+
+.home-stage-panel {
+  background:
+    linear-gradient(180deg, rgba(255, 250, 242, 0.88), rgba(246, 239, 228, 0.8));
+}
+
+.home-stage-shell {
+  position: relative;
+}
+
+.home-stage-scene {
+  position: relative;
+  min-height: 30rem;
+  padding: clamp(0.7rem, 1.6vw, 1rem);
+  border-radius: 1.9rem;
+  background: rgba(255, 249, 241, 0.34);
+  overflow: hidden;
+}
+
+.home-stage-scene-image {
+  width: 100%;
+  min-height: 26rem;
+  max-height: 42rem;
+  object-fit: cover;
+  border-radius: 1.5rem;
+  box-shadow:
+    0 20px 36px -30px rgba(54, 33, 24, 0.28),
+    inset 0 0 0 1px rgba(255, 255, 255, 0.22);
+}
+
+.home-stage-scene-vignette {
+  position: absolute;
+  inset: 0.7rem;
+  border-radius: 1.5rem;
+  pointer-events: none;
+  background: linear-gradient(90deg, rgba(43, 24, 28, 0.14) 0%, rgba(43, 24, 28, 0.05) 30%, rgba(255, 255, 255, 0) 58%, rgba(255, 233, 209, 0.08) 100%);
+}
+
+.home-stage-scene-copy {
+  position: absolute;
+  left: clamp(2rem, 4vw, 3.5rem);
+  bottom: clamp(2rem, 4vw, 3rem);
+  width: min(34rem, calc(100% - 5rem));
+  padding: 1.5rem 1.6rem;
+  border-radius: 1.6rem;
+  border: 1px solid rgba(255, 249, 236, 0.52);
+  background:
+    linear-gradient(180deg, rgba(255, 249, 238, 0.68), rgba(246, 237, 223, 0.54));
+  color: #3c261d;
+  box-shadow:
+    0 24px 48px -38px rgba(62, 46, 31, 0.34),
+    inset 0 1px 0 rgba(255, 255, 255, 0.46);
+  backdrop-filter: blur(12px);
+}
+
+.home-stage-title {
+  margin: 0;
+  font-size: clamp(1.9rem, 3vw, 2.7rem);
+  line-height: 1.12;
+  font-weight: 900;
+  color: #3b251b;
+}
+
+.home-stage-actions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.85rem;
+  margin-top: 1rem;
+}
+
+.home-stage-notice {
+  margin-top: 1rem;
+  border-radius: 0.95rem;
+  border: 1px solid rgba(163, 114, 77, 0.22);
+  background: rgba(255, 246, 232, 0.56);
+  padding: 0.9rem 1rem;
+  color: #7c4f35;
+  font-size: 0.92rem;
 }
 
 .hero-grid {
@@ -261,6 +345,32 @@ body {
     linear-gradient(180deg, rgba(255, 251, 243, 0.88), rgba(248, 241, 230, 0.8));
 }
 
+@media (max-width: 1023px) {
+  .home-stage-scene {
+    min-height: unset;
+    padding: 0.85rem;
+  }
+
+  .home-stage-scene-image {
+    min-height: 19rem;
+  }
+
+  .home-stage-scene-copy {
+    position: relative;
+    inset: auto;
+    width: 100%;
+    margin-top: 1rem;
+  }
+
+  .home-stage-scene-vignette {
+    inset: 0.85rem;
+  }
+
+  .home-stage-title {
+    font-size: 2rem;
+  }
+}
+
 .campaign-card-top {
   @apply flex items-start justify-between gap-3;
 }
@@ -313,7 +423,7 @@ body {
   position: relative;
 }
 
-.product-figure img,
+.product-figure .product-lightbox-thumb,
 .product-figure [aria-label="no-image"] {
   height: 220px !important;
   border-radius: 1.35rem !important;
@@ -700,10 +810,39 @@ body {
   grid-template-columns: minmax(0, 280px) minmax(0, 1fr);
 }
 
+.admin-workbench {
+  display: grid;
+  gap: 1.25rem;
+  grid-template-columns: minmax(280px, 320px) minmax(0, 1fr);
+}
+
 .admin-sidebar {
   height: fit-content;
   position: sticky;
   top: 1.5rem;
+}
+
+.admin-rail-card {
+  display: grid;
+  gap: 1rem;
+}
+
+.admin-main-stack {
+  display: grid;
+  gap: 1rem;
+}
+
+.admin-brand-kicker {
+  margin: 0;
+  font-size: 0.72rem;
+  font-weight: 800;
+  letter-spacing: 0.28em;
+  color: var(--front-paper-accent-soft);
+}
+
+.admin-nav-stack {
+  display: grid;
+  gap: 0.85rem;
 }
 
 .admin-nav-button {
@@ -711,6 +850,158 @@ body {
   text-align: left;
   font-size: 0.92rem;
   font-weight: 700;
+}
+
+.admin-nav-title,
+.admin-nav-caption {
+  display: block;
+}
+
+.admin-nav-title {
+  font-size: 0.95rem;
+}
+
+.admin-nav-caption {
+  margin-top: 0.28rem;
+  font-size: 0.74rem;
+  font-weight: 600;
+  color: var(--front-paper-subtle);
+}
+
+.admin-command-card {
+  display: grid;
+  gap: 1rem;
+}
+
+.admin-command-head {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 1rem;
+}
+
+.admin-focus-chip {
+  flex: 0 0 auto;
+  align-self: flex-start;
+  padding: 0.65rem 0.9rem;
+  border: 1px solid rgba(123, 93, 63, 0.18);
+  background: rgba(255, 250, 241, 0.76);
+  color: var(--front-paper-muted);
+  font-size: 0.8rem;
+  font-weight: 700;
+}
+
+.admin-feedback-banner {
+  padding: 0.95rem 1rem;
+  border: 1px solid rgba(127, 34, 48, 0.16);
+  background: rgba(255, 247, 242, 0.88);
+  color: var(--front-paper-accent);
+  font-size: 0.9rem;
+  font-weight: 700;
+}
+
+.admin-overview-grid {
+  display: grid;
+  gap: 0.9rem;
+  grid-template-columns: repeat(4, minmax(0, 1fr));
+}
+
+.admin-content-panel {
+  display: grid;
+  gap: 1rem;
+}
+
+.admin-rail-stats {
+  display: grid;
+  gap: 0.8rem;
+}
+
+.admin-panel-grid {
+  display: grid;
+  gap: 1rem;
+  grid-template-columns: minmax(0, 1.2fr) minmax(320px, 0.8fr);
+}
+
+.admin-section-head {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 1rem;
+}
+
+.admin-section-copy {
+  max-width: 44rem;
+  font-size: 0.9rem;
+  color: var(--front-paper-muted);
+}
+
+.admin-summary-grid {
+  display: grid;
+  gap: 0.85rem;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+}
+
+.admin-summary-card {
+  padding: 1rem;
+  border: 1px solid rgba(123, 93, 63, 0.18);
+  background: rgba(255, 250, 241, 0.78);
+}
+
+.admin-summary-card strong {
+  display: block;
+  margin-top: 0.35rem;
+  font-size: 1.5rem;
+  line-height: 1;
+  color: var(--front-paper-text);
+}
+
+.admin-summary-card span {
+  font-size: 0.76rem;
+  font-weight: 700;
+  letter-spacing: 0.18em;
+  color: var(--front-paper-accent-soft);
+  text-transform: uppercase;
+}
+
+.admin-filter-card {
+  padding: 1rem;
+  border: 1px solid rgba(123, 93, 63, 0.18);
+  background: rgba(255, 250, 241, 0.72);
+}
+
+.admin-workspace-hero {
+  display: grid;
+  gap: 1rem;
+}
+
+.admin-subtabs {
+  display: grid;
+  gap: 0.75rem;
+  grid-template-columns: repeat(4, minmax(0, 1fr));
+}
+
+.admin-subtab-button {
+  display: grid;
+  gap: 0.3rem;
+  padding: 0.95rem 1rem;
+  border: 1px solid rgba(123, 93, 63, 0.18);
+  background: rgba(255, 250, 241, 0.72);
+  text-align: left;
+}
+
+.admin-subtab-button strong {
+  font-size: 0.95rem;
+  color: var(--front-paper-text);
+}
+
+.admin-subtab-button span {
+  font-size: 0.78rem;
+  color: var(--front-paper-subtle);
+}
+
+.admin-subtab-button-active {
+  border-color: rgba(127, 34, 48, 0.24);
+  background: rgba(255, 245, 239, 0.94);
 }
 
 .shop-front button,
@@ -813,7 +1104,7 @@ body {
   color: var(--front-paper-muted);
 }
 
-.shop-front .product-figure img,
+.shop-front .product-figure .product-lightbox-thumb,
 .shop-front .product-figure [aria-label="no-image"] {
   height: 220px !important;
   border-radius: 0 !important;
@@ -1104,7 +1395,7 @@ body {
     grid-template-columns: 1fr;
   }
 
-  .shop-front .product-figure img,
+  .shop-front .product-figure .product-lightbox-thumb,
   .shop-front .product-figure [aria-label="no-image"] {
     height: 180px !important;
   }
@@ -1301,6 +1592,11 @@ body {
     gap: 1rem;
   }
 
+  .admin-workbench {
+    grid-template-columns: 1fr;
+    gap: 1rem;
+  }
+
   .admin-front .admin-sidebar {
     position: static;
   }
@@ -1321,6 +1617,28 @@ body {
     width: auto;
     flex: 0 0 auto;
     white-space: nowrap;
+  }
+
+  .admin-nav-caption {
+    display: none;
+  }
+
+  .admin-command-head {
+    flex-direction: column;
+  }
+
+  .admin-focus-chip {
+    width: 100%;
+  }
+
+  .admin-overview-grid,
+  .admin-summary-grid,
+  .admin-subtabs {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+
+  .admin-panel-grid {
+    grid-template-columns: 1fr;
   }
 
   .admin-front .admin-sidebar-stats,
@@ -1349,5 +1667,11 @@ body {
   .shop-front .product-figure img,
   .shop-front .product-figure [aria-label="no-image"] {
     height: 164px !important;
+  }
+
+  .admin-overview-grid,
+  .admin-summary-grid,
+  .admin-subtabs {
+    grid-template-columns: 1fr;
   }
 }

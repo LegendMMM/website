@@ -59,10 +59,27 @@ export function AdminFulfillmentPanel(props: {
     [system],
   );
 
+  const fulfillmentStats = useMemo(() => ({
+    paymentsPending: allPayments.filter((payment) => !payment.reconciled).length,
+    ordersPlaced: allOrders.filter((order) => order.status === "PLACED").length,
+    shipmentsReady: allShipments.length,
+  }), [allOrders, allPayments, allShipments]);
+
   return (
     <section className="space-y-4">
+      <div className="admin-summary-grid">
+        <article className="admin-summary-card"><span>待對帳</span><strong>{fulfillmentStats.paymentsPending}</strong></article>
+        <article className="admin-summary-card"><span>待處理訂單</span><strong>{fulfillmentStats.ordersPlaced}</strong></article>
+        <article className="admin-summary-card"><span>物流資料</span><strong>{fulfillmentStats.shipmentsReady}</strong></article>
+      </div>
+
       <div className="section-frame">
-        <h3 className="text-lg font-bold text-slate-900">付款對帳</h3>
+        <div className="admin-section-head">
+          <div>
+            <h3 className="text-lg font-bold text-slate-900">付款對帳</h3>
+            <p className="admin-section-copy">先確認會員付款，再往下更新訂單狀態。</p>
+          </div>
+        </div>
         <div className="mt-4 space-y-3">
           {allPayments.length === 0 && <p className="text-sm text-slate-500">目前沒有付款資料。</p>}
           {allPayments.map((payment) => {
@@ -99,7 +116,12 @@ export function AdminFulfillmentPanel(props: {
       </div>
 
       <div className="section-frame">
-        <h3 className="text-lg font-bold text-slate-900">全站訂單</h3>
+        <div className="admin-section-head">
+          <div>
+            <h3 className="text-lg font-bold text-slate-900">全站訂單</h3>
+            <p className="admin-section-copy">每筆訂單可直接切換狀態，不用另外跳頁。</p>
+          </div>
+        </div>
         <div className="mt-4 space-y-3">
           {allOrders.length === 0 && <p className="text-sm text-slate-500">目前沒有訂單。</p>}
           {allOrders.map((order) => {
@@ -151,7 +173,12 @@ export function AdminFulfillmentPanel(props: {
       </div>
 
       <div className="section-frame">
-        <h3 className="text-lg font-bold text-slate-900">物流與賣貨便匯出</h3>
+        <div className="admin-section-head">
+          <div>
+            <h3 className="text-lg font-bold text-slate-900">物流與賣貨便匯出</h3>
+            <p className="admin-section-copy">按活動匯出 CSV，下面同步核對已填好的收件資訊。</p>
+          </div>
+        </div>
         <div className="mt-3 flex flex-wrap items-center gap-2">
           <select
             className="rounded-xl border border-slate-200 px-3 py-2 text-sm"
