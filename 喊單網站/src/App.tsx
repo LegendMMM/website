@@ -329,7 +329,16 @@ function HomeView(props: {
             />
             <div className="home-stage-scene-vignette" aria-hidden="true" />
             <div className="home-stage-scene-copy">
+              <p className="home-stage-overline">Moonlit Stage</p>
               <h2 className="home-stage-title">姬你太美專用網站</h2>
+              <p className="home-stage-lead">
+                把團務、活動與喊單入口收進同一個舞台，先看主視覺，再進商品。
+              </p>
+              <div className="home-stage-statbar">
+                <span>{system.visibleCampaigns.length} 檔活動</span>
+                <span>{isAuthenticated ? "登入中" : "訪客模式"}</span>
+                <span>{isAuthenticated ? "可直接加入購物車" : "可先預覽商品"}</span>
+              </div>
 
               <div className="home-stage-actions">
                 <button type="button" className="cta-primary" onClick={onBrowseCampaigns}>
@@ -360,7 +369,7 @@ function HomeView(props: {
         </div>
       </div>
 
-      <article className="section-frame space-y-4">
+      <article className="section-frame home-about-panel space-y-4">
         <div>
           <h3 className="mt-2 text-2xl font-extrabold text-slate-900">簡單介紹這網站在幹麻</h3>
         </div>
@@ -373,7 +382,7 @@ function HomeView(props: {
         </p>
       </article>
 
-      <div id="campaign-selection" className="section-frame">
+      <div id="campaign-selection" className="section-frame home-campaign-panel">
         <div className="flex flex-wrap items-end justify-between gap-3">
           <div>
             <h3 className="mt-2 text-2xl font-extrabold text-slate-900">活動選單</h3>
@@ -382,8 +391,16 @@ function HomeView(props: {
       </div>
 
       <div className="grid gap-5 md:grid-cols-2 xl:grid-cols-3">
-        {system.visibleCampaigns.map((campaign) => (
-          <article key={campaign.id} className="campaign-card">
+        {system.visibleCampaigns.map((campaign, index) => (
+          <article key={campaign.id} className={index === 0 ? "campaign-card campaign-card-stage is-featured" : "campaign-card campaign-card-stage"}>
+            <div className="campaign-card-visual">
+              <img
+                src={campaign.imageUrl ?? homeKaguyaStage}
+                alt={campaign.title}
+                className="campaign-card-visual-image"
+              />
+              <div className="campaign-card-visual-glow" aria-hidden="true" />
+            </div>
             <div className="campaign-card-top">
               <span className="state-pill bg-slate-100 text-slate-700">{releaseStageLabel(campaign.releaseStage)}</span>
             </div>
@@ -620,6 +637,9 @@ function CampaignView(props: {
                       ))}
                       {group.characters.length > 4 && <span className="meta-chip">+{group.characters.length - 4}</span>}
                     </div>
+                    <div className="campaign-story-card-action">
+                      <span>查看規格</span>
+                    </div>
                   </div>
                 </div>
               </article>
@@ -674,6 +694,9 @@ function CampaignView(props: {
                       <span>已加入 {reservedQty}</span>
                     </div>
                     {!access.ok ? <p className="campaign-story-card-copy">{access.reason}</p> : null}
+                    <div className="campaign-story-card-action">
+                      <span>查看規格</span>
+                    </div>
                   </div>
                 </div>
               </article>
@@ -721,6 +744,9 @@ function CampaignView(props: {
                   <div className="campaign-story-card-meta">
                     <span>{productTypeLabel(product.type)}</span>
                     <span>角色項目 {blindItemsCount} 項</span>
+                  </div>
+                  <div className="campaign-story-card-action">
+                    <span>查看規格</span>
                   </div>
                 </div>
               </div>
@@ -870,23 +896,6 @@ function ProductDetailView(props: {
                       {access.ok ? "目前可加入購物車" : access.reason}
                     </p>
                   ) : null}
-                  {isAuthenticated ? (
-                    <button
-                      type="button"
-                      disabled={!access?.ok}
-                      onClick={() => {
-                        const result = system.addToCart(campaign.id, selectedVariant.id);
-                        setFeedback(result.message);
-                      }}
-                      className={`campaign-product-buy-button ${access?.ok ? "cta-primary" : "is-disabled"}`}
-                    >
-                      加入購物車
-                    </button>
-                  ) : (
-                    <button type="button" className="campaign-product-buy-button cta-secondary" onClick={onRequireAuth}>
-                      登入後加入購物車
-                    </button>
-                  )}
                 </div>
               </div>
 
@@ -917,6 +926,25 @@ function ProductDetailView(props: {
                       </button>
                     );
                   })}
+                </div>
+                <div className="campaign-product-options-buy">
+                  {isAuthenticated ? (
+                    <button
+                      type="button"
+                      disabled={!access?.ok}
+                      onClick={() => {
+                        const result = system.addToCart(campaign.id, selectedVariant.id);
+                        setFeedback(result.message);
+                      }}
+                      className={`campaign-product-buy-button ${access?.ok ? "cta-primary" : "is-disabled"}`}
+                    >
+                      加入購物車
+                    </button>
+                  ) : (
+                    <button type="button" className="campaign-product-buy-button cta-secondary" onClick={onRequireAuth}>
+                      登入後加入購物車
+                    </button>
+                  )}
                 </div>
               </div>
             </div>
@@ -982,23 +1010,6 @@ function ProductDetailView(props: {
                     {selectedBlindAccess.ok ? "目前可加入購物車" : selectedBlindAccess.reason}
                   </p>
                 ) : null}
-                {isAuthenticated ? (
-                  <button
-                    type="button"
-                    disabled={!selectedBlindAccess?.ok}
-                    onClick={() => {
-                      const result = system.addToCart(campaign.id, product.id, selectedBlindItem.id);
-                      setFeedback(result.message);
-                    }}
-                    className={`campaign-product-buy-button ${selectedBlindAccess?.ok ? "cta-primary" : "is-disabled"}`}
-                  >
-                    加入購物車
-                  </button>
-                ) : (
-                  <button type="button" className="campaign-product-buy-button cta-secondary" onClick={onRequireAuth}>
-                    登入後加入購物車
-                  </button>
-                )}
               </div>
             </div>
 
@@ -1006,25 +1017,6 @@ function ProductDetailView(props: {
               <div className="campaign-product-options-head">
                 <h4>拆分規格</h4>
                 <span>{blindItems.length} 個子項</span>
-              </div>
-              <div className="campaign-option-pill-row">
-                {blindItems.map((item) => {
-                  const active = selectedBlindItem.id === item.id;
-                  return (
-                    <button
-                      key={`${item.id}:pill`}
-                      type="button"
-                      className={active ? "campaign-option-pill is-active" : "campaign-option-pill"}
-                      onClick={(event) => {
-                        event.stopPropagation();
-                        setSelectedBlindItemId(item.id);
-                        setFeedback("");
-                      }}
-                    >
-                      {item.name}
-                    </button>
-                  );
-                })}
               </div>
               <div className="campaign-option-grid">
                 {blindItems.map((item) => {
@@ -1048,6 +1040,25 @@ function ProductDetailView(props: {
                     </button>
                   );
                 })}
+              </div>
+              <div className="campaign-product-options-buy">
+                {isAuthenticated ? (
+                  <button
+                    type="button"
+                    disabled={!selectedBlindAccess?.ok}
+                    onClick={() => {
+                      const result = system.addToCart(campaign.id, product.id, selectedBlindItem.id);
+                      setFeedback(result.message);
+                    }}
+                    className={`campaign-product-buy-button ${selectedBlindAccess?.ok ? "cta-primary" : "is-disabled"}`}
+                  >
+                    加入購物車
+                  </button>
+                ) : (
+                  <button type="button" className="campaign-product-buy-button cta-secondary" onClick={onRequireAuth}>
+                    登入後加入購物車
+                  </button>
+                )}
               </div>
             </div>
           </div>
