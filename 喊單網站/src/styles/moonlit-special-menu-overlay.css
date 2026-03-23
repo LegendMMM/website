@@ -109,6 +109,8 @@
 .moonlit-menu-brand-title {
   margin-top: 0.16rem;
   font-size: 1rem;
+  line-height: 1.25;
+  letter-spacing: 0.06em;
   font-weight: 800;
   color: var(--menu-text);
   white-space: nowrap;

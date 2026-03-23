@@ -377,7 +377,6 @@ function HomeView(props: {
         <div className="flex flex-wrap items-end justify-between gap-3">
           <div>
             <h3 className="mt-2 text-2xl font-extrabold text-slate-900">活動選單</h3>
-            <p className="mt-2 text-sm text-slate-600">先選你想加入的活動，再進去看商品與喊單規則。</p>
           </div>
         </div>
       </div>
@@ -1346,6 +1345,11 @@ export default function App(): JSX.Element {
     setAuthNotice("");
   }, [system.currentUser]);
 
+  useEffect(() => {
+    if (typeof window === "undefined") return;
+    window.scrollTo({ top: 0, left: 0, behavior: "auto" });
+  }, [view, rootRoute, adminTab, selectedCampaignId, selectedBlindProductId]);
+
   const selectedCampaign = useMemo(
     () => system.state.campaigns.find((campaign) => campaign.id === selectedCampaignId) ?? null,
     [selectedCampaignId, system.state.campaigns],
@@ -1555,7 +1559,7 @@ export default function App(): JSX.Element {
         >
         <div className="hero-grid">
           <div>
-              <h1 className="mt-2 text-4xl font-extrabold text-slate-900">超時空輝耀姬</h1>
+              <h1 className="mt-2 text-4xl font-extrabold tracking-[0.04em] leading-[1.18] text-slate-900">超時空輝耀姬</h1>
               <p className="mt-3 text-sm text-slate-600">
                 {system.currentUser
                   ? `你好，${system.currentUser.fbNickname}`
