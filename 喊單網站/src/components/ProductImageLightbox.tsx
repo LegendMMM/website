@@ -1,23 +1,44 @@
 import { useState } from "react";
 
-export function ProductImageLightbox(props: { imageUrl: string | null; alt: string }): JSX.Element {
-  const { imageUrl, alt } = props;
+function classNames(...values: Array<string | null | undefined | false>): string {
+  return values.filter(Boolean).join(" ");
+}
+
+export function ProductImageLightbox(props: {
+  imageUrl: string | null;
+  alt: string;
+  frameClassName?: string;
+  thumbClassName?: string;
+  emptyClassName?: string;
+  zoomButtonClassName?: string;
+}): JSX.Element {
+  const {
+    imageUrl,
+    alt,
+    frameClassName,
+    thumbClassName,
+    emptyClassName,
+    zoomButtonClassName,
+  } = props;
   const [isZoomOpen, setIsZoomOpen] = useState(false);
 
   if (!imageUrl) {
-    return <div className="h-36 w-full rounded-xl bg-slate-100" aria-label="no-image" />;
+    return <div className={classNames("product-lightbox-empty rounded-xl bg-slate-100", emptyClassName)} aria-label="no-image" />;
   }
 
   return (
     <>
       <div
-        className="relative h-36 w-full cursor-zoom-in overflow-hidden rounded-xl bg-white/80"
+        className={classNames("product-lightbox-frame relative w-full cursor-zoom-in overflow-hidden rounded-xl bg-white/80", frameClassName)}
         onClick={() => setIsZoomOpen(true)}
       >
-        <img className="product-lightbox-thumb h-36 w-full rounded-xl object-contain" src={imageUrl} alt={alt} loading="lazy" />
+        <img className={classNames("product-lightbox-thumb w-full rounded-xl object-contain", thumbClassName)} src={imageUrl} alt={alt} loading="lazy" />
         <button
           type="button"
-          className="absolute bottom-2 right-2 rounded-full border border-white/70 bg-white/80 px-3 py-1 text-xs font-semibold text-slate-800 backdrop-blur"
+          className={classNames(
+            "absolute bottom-2 right-2 rounded-full border border-white/70 bg-white/80 px-3 py-1 text-xs font-semibold text-slate-800 backdrop-blur",
+            zoomButtonClassName,
+          )}
           onClick={(event) => {
             event.stopPropagation();
             setIsZoomOpen(true);

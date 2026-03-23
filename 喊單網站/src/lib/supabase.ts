@@ -132,7 +132,7 @@ export async function prepareImageForUpload(
 
 export async function uploadImageToSupabaseStorage(
   file: File,
-  folder: "products" | "blind-items",
+  folder: "campaigns" | "products" | "blind-items",
 ): Promise<{ ok: boolean; url: string | null; message: string }> {
   if (!supabase) {
     return { ok: false, url: null, message: "尚未設定 Supabase 環境變數。" };

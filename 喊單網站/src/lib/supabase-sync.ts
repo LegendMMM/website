@@ -41,6 +41,7 @@ export async function upsertCampaigns(client: SupabaseClient, campaigns: Campaig
     id: campaign.id,
     title: campaign.title,
     description: campaign.description,
+    image_url: campaign.imageUrl,
     deadline_at: campaign.deadlineAt,
     status: campaign.status,
     release_stage: campaign.releaseStage,
@@ -264,6 +265,7 @@ export async function loadOrderSystemStateFromSupabase(client: SupabaseClient): 
     id: String(row.id),
     title: String(row.title ?? ""),
     description: String(row.description ?? ""),
+    imageUrl: typeof row.image_url === "string" && row.image_url ? row.image_url : null,
     deadlineAt: typeof row.deadline_at === "string" ? row.deadline_at : new Date().toISOString(),
     status: row.status === "CLOSED" ? "CLOSED" : "OPEN",
     releaseStage:

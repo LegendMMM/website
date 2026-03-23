@@ -186,7 +186,14 @@ function InsightTile(props: {
   );
 }
 
-function ProductImage(props: { imageUrl: string | null; alt: string }): JSX.Element {
+function ProductImage(props: {
+  imageUrl: string | null;
+  alt: string;
+  frameClassName?: string;
+  thumbClassName?: string;
+  emptyClassName?: string;
+  zoomButtonClassName?: string;
+}): JSX.Element {
   return <ProductImageLightbox {...props} />;
 }
 
@@ -355,7 +362,6 @@ function HomeView(props: {
 
       <article className="section-frame space-y-4">
         <div>
-          <p className="text-xs font-semibold uppercase tracking-[0.28em] text-slate-400">About The Site</p>
           <h3 className="mt-2 text-2xl font-extrabold text-slate-900">簡單介紹這網站在幹麻</h3>
         </div>
         <p className="text-sm leading-7 text-slate-600">
@@ -365,13 +371,11 @@ function HomeView(props: {
         <p className="text-sm leading-7 text-slate-600">
           商品部分有些會設定只有某些角色固位可喊，沒寫就是全開放。另外，如果要拆盒等活動也都會改為在這網站上進行。
         </p>
-        <p className="text-sm leading-7 text-slate-600">以上</p>
       </article>
 
       <div id="campaign-selection" className="section-frame">
         <div className="flex flex-wrap items-end justify-between gap-3">
           <div>
-            <p className="text-xs font-semibold uppercase tracking-[0.28em] text-slate-400">Campaign Menu</p>
             <h3 className="mt-2 text-2xl font-extrabold text-slate-900">活動選單</h3>
             <p className="mt-2 text-sm text-slate-600">先選你想加入的活動，再進去看商品與喊單規則。</p>
           </div>
@@ -410,7 +414,6 @@ function HomeView(props: {
       {!isAuthenticated ? (
         <section id="auth-entry" className="section-frame space-y-4">
           <div>
-            <p className="text-xs font-semibold uppercase tracking-[0.28em] text-slate-400">Sign In</p>
             <h3 className="mt-2 text-2xl font-extrabold text-slate-900">登入後再喊單</h3>
             <p className="mt-2 text-sm leading-7 text-slate-600">
               訪客模式可以先看首頁與活動內容。需要加入購物車、查看個人主頁或正式喊單時，再登入或註冊即可。
@@ -437,10 +440,6 @@ function CampaignView(props: {
   onOpenProductDetail: (product: Product) => void;
 }): JSX.Element {
   const { system, campaign, isAuthenticated, onRequireAuth, onGoCart, onBack, onOpenProductDetail } = props;
-  const [keyword, setKeyword] = useState("");
-  const [onlyAvailable, setOnlyAvailable] = useState(false);
-  const [sortBy, setSortBy] = useState<"name" | "priceAsc" | "priceDesc">("name");
-  const [mobileFiltersOpen, setMobileFiltersOpen] = useState(false);
   const products = system.getProductsByCampaign(campaign.id);
   const cartItems = system.getMyCartItems(campaign.id);
   const cartMap = new Map(cartItems.map((item) => [`${item.productId}::${item.blindBoxItemId ?? "none"}`, item]));
@@ -485,58 +484,17 @@ function CampaignView(props: {
     return [...normalEntries, ...blindEntries];
   }, [products]);
 
+  const blindProductCount = useMemo(
+    () => browseEntries.filter((entry) => entry.kind === "product" && entry.product.type === "BLIND_BOX").length,
+    [browseEntries],
+  );
+  const normalProductCount = useMemo(
+    () => browseEntries.filter((entry) => entry.kind === "normalGroup" || (entry.kind === "product" && entry.product.type === "NORMAL")).length,
+    [browseEntries],
+  );
+
   const visibleEntries = useMemo(() => {
-    const normalizedKeyword = keyword.trim().toLowerCase();
-
-    const filtered = browseEntries.filter((entry) => {
-      const matchesKeyword = normalizedKeyword.length === 0 || (
-        entry.kind === "normalGroup"
-          ? (
-            entry.group.name.toLowerCase().includes(normalizedKeyword)
-            || entry.group.characters.some((character) => character.toLowerCase().includes(normalizedKeyword))
-            || entry.group.variants.some((variant) => (
-              variant.sku.toLowerCase().includes(normalizedKeyword)
-              || getNormalProductSpecName(variant).toLowerCase().includes(normalizedKeyword)
-              || (variant.character?.toLowerCase().includes(normalizedKeyword) ?? false)
-            ))
-          )
-          : (() => {
-            if (entry.product.type === "NORMAL") {
-              return (
-                getNormalProductGroupName(entry.product).toLowerCase().includes(normalizedKeyword)
-                || getNormalProductSpecName(entry.product).toLowerCase().includes(normalizedKeyword)
-                || entry.product.sku.toLowerCase().includes(normalizedKeyword)
-                || (entry.product.character?.toLowerCase().includes(normalizedKeyword) ?? false)
-              );
-            }
-            const blindItems = system.getBlindBoxItemsByProduct(entry.product.id);
-            return (
-              entry.product.name.toLowerCase().includes(normalizedKeyword)
-              || entry.product.sku.toLowerCase().includes(normalizedKeyword)
-              || blindItems.some((item) => (
-                item.name.toLowerCase().includes(normalizedKeyword)
-                || item.character.toLowerCase().includes(normalizedKeyword)
-                || item.sku.toLowerCase().includes(normalizedKeyword)
-              ))
-            );
-          })()
-      );
-
-      if (!matchesKeyword) return false;
-
-      if (!onlyAvailable) return true;
-
-      if (entry.kind === "normalGroup") {
-        return entry.group.variants.some((variant) => system.getProductAccessForCurrentUser(campaign.id, variant.id).ok);
-      }
-
-      const blindItems = system.getBlindBoxItemsByProduct(entry.product.id);
-      return blindItems.some((item) => system.getProductAccessForCurrentUser(campaign.id, entry.product.id, item.id).ok);
-    });
-
-    return [...filtered].sort((left, right) => {
-      const leftPrice = left.kind === "normalGroup" ? left.group.minPrice : left.product.price;
-      const rightPrice = right.kind === "normalGroup" ? right.group.minPrice : right.product.price;
+    return [...browseEntries].sort((left, right) => {
       const leftName = left.kind === "normalGroup"
         ? left.group.name
         : left.product.type === "NORMAL"
@@ -548,111 +506,62 @@ function CampaignView(props: {
           ? getNormalProductGroupName(right.product)
           : right.product.name;
 
-      if (sortBy === "priceAsc") return leftPrice - rightPrice;
-      if (sortBy === "priceDesc") return rightPrice - leftPrice;
       return leftName.localeCompare(rightName);
     });
-  }, [browseEntries, campaign.id, keyword, onlyAvailable, sortBy, system]);
+  }, [browseEntries]);
 
   return (
     <section className="space-y-6">
-      <div className="hero-panel">
-        <div className="front-toolbar flex flex-wrap items-center justify-between gap-2">
-          <button className="cta-secondary" type="button" onClick={onBack}>返回活動導覽</button>
-          <button className="cta-secondary" type="button" onClick={onGoCart}>前往購物車</button>
+      <article className="campaign-story-hero">
+        <div className="campaign-story-scene">
+          <img src={campaign.imageUrl ?? homeKaguyaStage} alt={campaign.title} className="campaign-story-scene-image" />
+          <div className="campaign-story-scene-vignette" aria-hidden="true" />
         </div>
 
-        <h2 className="mt-2 text-3xl font-extrabold text-slate-900">{campaign.title}</h2>
-        {campaign.description ? <p className="mt-3 max-w-3xl text-sm text-slate-600">{campaign.description}</p> : null}
+        <div className="campaign-story-copy">
+          <div className="campaign-story-topline">
+            <button className="cta-secondary" type="button" onClick={onBack}>返回活動導覽</button>
+            <button className="cta-secondary" type="button" onClick={onGoCart}>前往購物車</button>
+          </div>
 
-        <div className="mt-4 flex flex-wrap gap-2 text-xs">
-          <span className="state-pill bg-slate-100 text-slate-700">釋出：{releaseStageLabel(campaign.releaseStage)}</span>
-          <span className="state-pill bg-slate-100 text-slate-700">截止：{formatDate(campaign.deadlineAt)}</span>
+          <h2 className="campaign-story-title">{campaign.title}</h2>
+          <p className="campaign-story-body">
+            {campaign.description || "先看商品，再選你要的規格。"}
+          </p>
+
+          <div className="campaign-story-meta">
+            <span>釋出：{releaseStageLabel(campaign.releaseStage)}</span>
+            <span>截止：{formatDate(campaign.deadlineAt)}</span>
+            <span>一般商品 {normalProductCount} 項</span>
+            <span>盲盒拆分 {blindProductCount} 項</span>
+          </div>
+
+          {!isAuthenticated ? (
+            <div className="campaign-story-notice">
+              <p>需要喊單或加入購物車時再登入。</p>
+              <button type="button" className="cta-secondary" onClick={onRequireAuth}>
+                登入 / 註冊
+              </button>
+            </div>
+          ) : null}
+        </div>
+      </article>
+
+      <section className="section-frame campaign-curation-panel">
+        <div className="campaign-curation-head">
+          <div>
+            <h3 className="text-2xl font-extrabold text-slate-900">全部商品</h3>
+          </div>
+          <div className="campaign-curation-count">{visibleEntries.length} / {browseEntries.length}</div>
         </div>
 
-        {!isAuthenticated ? (
-          <div className="mt-4 flex flex-wrap items-center justify-between gap-3 rounded-2xl border border-amber-200 bg-amber-50 px-4 py-3 text-sm text-amber-900">
-            <p>目前是訪客模式，可以先看商品；要加入購物車或喊單時再登入。</p>
-            <button type="button" className="cta-secondary" onClick={onRequireAuth}>
-              登入 / 註冊
-            </button>
-          </div>
-        ) : null}
-      </div>
+        {visibleEntries.length === 0 && (
+          <div className="empty-panel">目前沒有符合條件的商品。</div>
+        )}
 
-      <div className="grid gap-4 lg:grid-cols-[280px_minmax(0,1fr)]">
-        <aside className="section-frame campaign-sidebar h-fit lg:sticky lg:top-6">
-          <div className="flex items-start justify-between gap-3">
-            <div>
-              <h3 className="text-base font-bold text-slate-900">商品列表</h3>
-            </div>
-            <div className="rounded-full border border-slate-200 px-3 py-1 text-xs text-slate-500">
-              {visibleEntries.length} / {browseEntries.length}
-            </div>
-          </div>
-
-          <div className="campaign-mobile-controls mt-4">
-            <button
-              type="button"
-              className={mobileFiltersOpen ? "campaign-mobile-filter-toggle is-open" : "campaign-mobile-filter-toggle"}
-              onClick={() => setMobileFiltersOpen((current) => !current)}
-            >
-              <span>搜尋與篩選</span>
-              <span>{mobileFiltersOpen ? "收起" : "展開"}</span>
-            </button>
-          </div>
-
-          <div className={`filter-panel campaign-filter-panel mt-5 space-y-3 text-sm ${mobileFiltersOpen ? "is-open" : ""}`}>
-            <label className="block">
-              搜尋關鍵字
-              <input
-                className="mt-1 w-full rounded-xl border px-3 py-2"
-                placeholder="商品名 / 角色"
-                value={keyword}
-                onChange={(event) => setKeyword(event.target.value)}
-              />
-            </label>
-
-            <label className="flex items-center gap-2 text-sm text-slate-700">
-              <input
-                type="checkbox"
-                checked={onlyAvailable}
-                onChange={(event) => setOnlyAvailable(event.target.checked)}
-              />
-              只看目前可喊
-            </label>
-
-            <label className="block">
-              排序
-              <select
-                className="mt-1 w-full rounded-xl border px-3 py-2"
-                value={sortBy}
-                onChange={(event) => setSortBy(event.target.value as "name" | "priceAsc" | "priceDesc")}
-              >
-                <option value="name">名稱排序</option>
-                <option value="priceAsc">價格由低到高</option>
-                <option value="priceDesc">價格由高到低</option>
-              </select>
-            </label>
-          </div>
-
-        </aside>
-
-        <div className="space-y-3">
-          <div className="section-frame campaign-product-header">
-            <div className="flex flex-wrap items-end justify-between gap-3">
-              <div>
-                <h3 className="text-2xl font-extrabold text-slate-900">全部商品</h3>
-              </div>
-            </div>
-          </div>
-
-          {visibleEntries.length === 0 && (
-            <div className="empty-panel">目前沒有符合條件的商品。</div>
-          )}
-
-      <div className="front-product-grid grid gap-4 md:grid-cols-2 2xl:grid-cols-3">
-        {visibleEntries.map((entry) => {
+        <div className="campaign-curation-grid">
+          {visibleEntries.map((entry, index) => {
+            const isFeatured = index % 5 === 0;
           if (entry.kind === "normalGroup") {
             const { group } = entry;
             const inCartQty = group.variants.reduce(
@@ -667,50 +576,54 @@ function CampaignView(props: {
               : `${twd(group.minPrice)} 起`;
 
             return (
-              <article key={group.key} className="product-stage-card">
-                <div className="product-figure">
-                  <ProductImage imageUrl={group.imageUrl} alt={group.name} />
-                  <div className="product-price-badge">
-                    <span className="text-[11px] uppercase tracking-[0.16em] text-slate-400">Price</span>
-                    <strong>{priceText}</strong>
+              <article
+                key={group.key}
+                className={isFeatured ? "campaign-story-card is-featured" : "campaign-story-card"}
+                role="button"
+                tabIndex={0}
+                onClick={() => onOpenProductDetail(group.variants[0])}
+                onKeyDown={(event) => {
+                  if (event.key === "Enter" || event.key === " ") {
+                    event.preventDefault();
+                    onOpenProductDetail(group.variants[0]);
+                  }
+                }}
+              >
+                <div className="campaign-story-card-hit">
+                  <div className="campaign-story-card-media">
+                    <div className="campaign-story-card-banner">
+                      <span className="campaign-story-card-type">角色商品</span>
+                      <span className="campaign-story-card-price">{priceText}</span>
+                    </div>
+                    <div className="product-figure campaign-story-card-figure">
+                      <div onClick={(event) => event.stopPropagation()}>
+                        <ProductImage
+                          imageUrl={group.imageUrl}
+                          alt={group.name}
+                          frameClassName="campaign-story-card-lightbox"
+                          thumbClassName="campaign-story-card-thumb"
+                          emptyClassName="campaign-story-card-empty"
+                          zoomButtonClassName="campaign-story-card-zoom"
+                        />
+                      </div>
+                    </div>
+                  </div>
+
+                  <div className="campaign-story-card-body">
+                    <h4 className="campaign-story-card-title">{group.name}</h4>
+                    <div className="campaign-story-card-meta">
+                      <span>{group.variants.length} 個規格</span>
+                      <span>已加入 {inCartQty}</span>
+                      <span>{availableCount > 0 ? `${availableCount} 款可喊` : "目前無可喊規格"}</span>
+                    </div>
+                    <div className="campaign-story-card-tags">
+                      {group.characters.slice(0, 4).map((character) => (
+                        <span key={`${group.key}:${character}`} className="meta-chip">{character}</span>
+                      ))}
+                      {group.characters.length > 4 && <span className="meta-chip">+{group.characters.length - 4}</span>}
+                    </div>
                   </div>
                 </div>
-
-                <div className="mt-4 flex items-start justify-between gap-3">
-                  <div>
-                    <h3 className="text-xl font-extrabold text-slate-900">{group.name}</h3>
-                    <p className="text-xs text-slate-500">角色商品</p>
-                  </div>
-                  <span className="state-pill bg-slate-100 text-slate-700">代購</span>
-                </div>
-
-                <div className="meta-chip-row">
-                  <span className="meta-chip">角色款 {group.variants.length} 項</span>
-                </div>
-
-                <div className="mt-4 flex flex-wrap gap-2">
-                  {group.characters.slice(0, 4).map((character) => (
-                    <span key={`${group.key}:${character}`} className="meta-chip">{character}</span>
-                  ))}
-                  {group.characters.length > 4 && <span className="meta-chip">+{group.characters.length - 4}</span>}
-                </div>
-
-                <div className="mt-4 space-y-1 text-sm text-slate-600">
-                  <p>這個品項已合併角色款，點進去再選你要的角色商品。</p>
-                  <p>已加入：{inCartQty}</p>
-                </div>
-
-                <p className={`status-note ${availableCount > 0 ? "status-note-ok" : "status-note-warn"}`}>
-                  {availableCount > 0 ? `${availableCount} 個角色款目前可喊` : "目前沒有可喊的角色款"}
-                </p>
-
-                <button
-                  type="button"
-                  className="cta-primary mt-5 w-full"
-                  onClick={() => onOpenProductDetail(group.variants[0])}
-                >
-                  查看角色商品
-                </button>
               </article>
             );
           }
@@ -719,46 +632,52 @@ function CampaignView(props: {
           if (product.type === "NORMAL") {
             const access = system.getProductAccessForCurrentUser(campaign.id, product.id);
             const reservedQty = getReservedQty(product.id);
+            const groupName = getNormalProductGroupName(product);
+            const specName = getNormalProductSpecName(product);
 
             return (
-              <article key={product.id} className="product-stage-card">
-                <div className="product-figure">
-                  <ProductImage imageUrl={product.imageUrl} alt={getNormalProductGroupName(product)} />
-                  <div className="product-price-badge">
-                    <span className="text-[11px] uppercase tracking-[0.16em] text-slate-400">Price</span>
-                    <strong>{twd(product.price)}</strong>
+              <article
+                key={product.id}
+                className={isFeatured ? "campaign-story-card is-featured" : "campaign-story-card"}
+                role="button"
+                tabIndex={0}
+                onClick={() => onOpenProductDetail(product)}
+                onKeyDown={(event) => {
+                  if (event.key === "Enter" || event.key === " ") {
+                    event.preventDefault();
+                    onOpenProductDetail(product);
+                  }
+                }}
+              >
+                <div className="campaign-story-card-hit">
+                  <div className="campaign-story-card-media">
+                    <div className="campaign-story-card-banner">
+                      <span className="campaign-story-card-type">單一規格</span>
+                      <span className="campaign-story-card-price">{twd(product.price)}</span>
+                    </div>
+                    <div className="product-figure campaign-story-card-figure">
+                      <div onClick={(event) => event.stopPropagation()}>
+                        <ProductImage
+                          imageUrl={product.imageUrl}
+                          alt={groupName}
+                          frameClassName="campaign-story-card-lightbox"
+                          thumbClassName="campaign-story-card-thumb"
+                          emptyClassName="campaign-story-card-empty"
+                          zoomButtonClassName="campaign-story-card-zoom"
+                        />
+                      </div>
+                    </div>
+                  </div>
+
+                  <div className="campaign-story-card-body">
+                    <h4 className="campaign-story-card-title">{groupName}</h4>
+                    <div className="campaign-story-card-meta">
+                      <span>{specName}</span>
+                      <span>已加入 {reservedQty}</span>
+                    </div>
+                    {!access.ok ? <p className="campaign-story-card-copy">{access.reason}</p> : null}
                   </div>
                 </div>
-
-                <div className="mt-4 flex items-start justify-between gap-3">
-                  <div>
-                    <h3 className="text-xl font-extrabold text-slate-900">{getNormalProductGroupName(product)}</h3>
-                    <p className="text-xs text-slate-500">角色商品</p>
-                  </div>
-                  <span className="state-pill bg-slate-100 text-slate-700">代購</span>
-                </div>
-
-                <div className="meta-chip-row">
-                  <span className="meta-chip">{getNormalProductSpecName(product)}</span>
-                  <span className="meta-chip">角色款 1 項</span>
-                </div>
-
-                <div className="mt-4 space-y-1 text-sm text-slate-600">
-                  <p>這個品項只有一個規格，點進去即可直接選購。</p>
-                  <p>已加入：{reservedQty}</p>
-                </div>
-
-                <p className={`status-note ${access.ok ? "status-note-ok" : "status-note-warn"}`}>
-                  {access.ok ? "目前可加入購物車" : access.reason}
-                </p>
-
-                <button
-                  type="button"
-                  className="cta-primary mt-5 w-full"
-                  onClick={() => onOpenProductDetail(product)}
-                >
-                  查看角色商品
-                </button>
               </article>
             );
           }
@@ -766,44 +685,52 @@ function CampaignView(props: {
           const blindItemsCount = system.getBlindBoxItemsByProduct(product.id).length;
 
           return (
-            <article key={product.id} className="product-stage-card">
-              <div className="product-figure">
-                <ProductImage imageUrl={product.imageUrl} alt={product.name} />
-                <div className="product-price-badge">
-                  <span className="text-[11px] uppercase tracking-[0.16em] text-slate-400">Price</span>
-                  <strong>{twd(product.price)}</strong>
+            <article
+              key={product.id}
+              className={isFeatured ? "campaign-story-card is-featured" : "campaign-story-card"}
+              role="button"
+              tabIndex={0}
+              onClick={() => onOpenProductDetail(product)}
+              onKeyDown={(event) => {
+                if (event.key === "Enter" || event.key === " ") {
+                  event.preventDefault();
+                  onOpenProductDetail(product);
+                }
+              }}
+            >
+              <div className="campaign-story-card-hit">
+                <div className="campaign-story-card-media">
+                  <div className="campaign-story-card-banner">
+                    <span className="campaign-story-card-type">盲盒拆分</span>
+                    <span className="campaign-story-card-price">{twd(product.price)}</span>
+                  </div>
+                  <div className="product-figure campaign-story-card-figure">
+                    <div onClick={(event) => event.stopPropagation()}>
+                      <ProductImage
+                        imageUrl={product.imageUrl}
+                        alt={product.name}
+                        frameClassName="campaign-story-card-lightbox"
+                        thumbClassName="campaign-story-card-thumb"
+                        emptyClassName="campaign-story-card-empty"
+                        zoomButtonClassName="campaign-story-card-zoom"
+                      />
+                    </div>
+                  </div>
+                </div>
+
+                <div className="campaign-story-card-body">
+                  <h4 className="campaign-story-card-title">{product.name}</h4>
+                  <div className="campaign-story-card-meta">
+                    <span>{productTypeLabel(product.type)}</span>
+                    <span>角色項目 {blindItemsCount} 項</span>
+                  </div>
                 </div>
               </div>
-
-              <div className="mt-4 flex items-start justify-between gap-3">
-                <div>
-                  <h3 className="text-xl font-extrabold text-slate-900">{product.name}</h3>
-                  <p className="text-xs text-slate-500">{productTypeLabel(product.type)}</p>
-                </div>
-                <span className="state-pill bg-slate-100 text-slate-700">拆分</span>
-              </div>
-
-              <div className="meta-chip-row">
-                <span className="meta-chip">子項 {blindItemsCount} 項</span>
-              </div>
-
-              <div className="mt-4 space-y-1 text-sm text-slate-600">
-                <p>角色項目：{blindItemsCount} 項</p>
-              </div>
-
-              <button
-                type="button"
-                className="cta-primary mt-5 w-full"
-                onClick={() => onOpenProductDetail(product)}
-              >
-                進入角色拆分
-              </button>
             </article>
           );
         })}
-      </div>
-      </div>
-      </div>
+        </div>
+      </section>
     </section>
   );
 }
@@ -865,192 +792,271 @@ function ProductDetailView(props: {
     const cartQty = blindBoxItemId ? (blindCartMap.get(blindBoxItemId) ?? 0) : (normalCartMap.get(productId) ?? 0);
     return cartQty + (personalClaimMap.get(key) ?? 0);
   };
+  const [selectedNormalVariantId, setSelectedNormalVariantId] = useState(product.id);
+  const [selectedBlindItemId, setSelectedBlindItemId] = useState<string | null>(blindItems[0]?.id ?? null);
+
+  useEffect(() => {
+    setFeedback("");
+  }, [product.id]);
+
+  useEffect(() => {
+    document.body.style.overflow = "hidden";
+    const handleKeydown = (event: KeyboardEvent): void => {
+      if (event.key === "Escape") onBack();
+    };
+
+    window.addEventListener("keydown", handleKeydown);
+    return () => {
+      document.body.style.overflow = "";
+      window.removeEventListener("keydown", handleKeydown);
+    };
+  }, [onBack]);
+
+  useEffect(() => {
+    if (product.type === "NORMAL") {
+      setSelectedNormalVariantId(product.id);
+    }
+  }, [product.id, product.type]);
+
+  useEffect(() => {
+    if (product.type === "BLIND_BOX") {
+      setSelectedBlindItemId(blindItems[0]?.id ?? null);
+    }
+  }, [product.id, product.type, blindItems.length]);
 
   if (product.type === "NORMAL") {
+    const selectedVariant = normalVariants.find((variant) => variant.id === selectedNormalVariantId) ?? normalVariants[0] ?? null;
+    const access = selectedVariant ? system.getProductAccessForCurrentUser(campaign.id, selectedVariant.id) : null;
+
     return (
-      <section className="space-y-6">
-        <div className="hero-panel">
-          <div className="front-toolbar flex flex-wrap items-center justify-between gap-2">
-            <button className="cta-secondary" type="button" onClick={onBack}>返回活動商品</button>
-            <button className="cta-secondary" type="button" onClick={onGoCart}>前往購物車</button>
-          </div>
-
-          <h2 className="mt-2 text-3xl font-extrabold text-slate-900">{selectedNormalProductName}</h2>
-          <div className="mt-4 flex flex-wrap gap-2 text-xs">
-            <span className="state-pill bg-slate-100 text-slate-700">角色款 {normalVariants.length} 項</span>
-          </div>
-          {!isAuthenticated ? (
-            <div className="mt-4 flex flex-wrap items-center justify-between gap-3 rounded-2xl border border-amber-200 bg-amber-50 px-4 py-3 text-sm text-amber-900">
-              <p>先看角色款內容，登入後才會正式加入購物車。</p>
-              <button type="button" className="cta-secondary" onClick={onRequireAuth}>
-                登入 / 註冊
-              </button>
+      <section className="campaign-drawer-overlay" onClick={onBack}>
+        <div className="campaign-drawer-backdrop" aria-hidden="true" />
+        <aside className="campaign-product-drawer" onClick={(event) => event.stopPropagation()} aria-label={`${selectedNormalProductName} 規格抽屜`}>
+          <div className="campaign-product-drawer-head">
+            <div>
+              <h3>{selectedNormalProductName}</h3>
             </div>
-          ) : null}
-          {feedback && <p className="mt-3 text-sm font-semibold text-slate-800">{feedback}</p>}
-        </div>
+            <div className="campaign-product-drawer-actions">
+              <button type="button" className="cta-secondary" onClick={onGoCart}>購物車</button>
+              <button type="button" className="cta-secondary" onClick={onBack}>關閉</button>
+            </div>
+          </div>
 
-        {normalVariants.length === 0 && <div className="empty-panel">這個品項目前還沒有可選的角色商品。</div>}
-
-        <div className="blind-item-grid grid gap-4 md:grid-cols-2 xl:grid-cols-3">
-          {normalVariants.map((variant) => {
-            const access = system.getProductAccessForCurrentUser(campaign.id, variant.id);
-
-            return (
-              <article key={variant.id} className="product-stage-card blind-item-card">
-                <div className="product-figure">
-                  <ProductImage imageUrl={variant.imageUrl} alt={getNormalProductSpecName(variant)} />
-                  <div className="product-price-badge">
-                    <span className="text-[11px] uppercase tracking-[0.16em] text-slate-400">Price</span>
-                    <strong>{twd(variant.price)}</strong>
+          {selectedVariant ? (
+            <div className="campaign-product-drawer-body">
+              <div className="campaign-product-showcase">
+                <div className="campaign-product-showcase-media">
+                  <ProductImage
+                    imageUrl={selectedVariant.imageUrl}
+                    alt={getNormalProductSpecName(selectedVariant)}
+                    frameClassName="campaign-product-showcase-lightbox"
+                    thumbClassName="campaign-product-showcase-thumb"
+                    emptyClassName="campaign-product-showcase-empty"
+                  />
+                </div>
+                <div className="campaign-product-showcase-copy">
+                  <div className="campaign-product-price">{twd(selectedVariant.price)}</div>
+                  <h4>{getNormalProductSpecName(selectedVariant)}</h4>
+                  <div className="campaign-product-meta">
+                    <span>角色：{selectedVariant.character ?? "一般款"}</span>
+                    <span>庫存：{selectedVariant.stock ?? "不限"}</span>
+                    <span>上限：{selectedVariant.maxPerUser ?? "不限"}</span>
+                    <span>已加入：{getReservedQty(selectedVariant.id)}</span>
                   </div>
+                  {selectedVariant.slotRestrictionEnabled ? (
+                    <p className="campaign-product-restriction">限制角色：{selectedVariant.slotRestrictedCharacter ?? selectedVariant.character ?? "未設定"}</p>
+                  ) : null}
+                  {feedback ? <p className="campaign-product-feedback">{feedback}</p> : null}
+                  {access ? (
+                    <p className={`status-note ${access.ok ? "status-note-ok" : "status-note-warn"}`}>
+                      {access.ok ? "目前可加入購物車" : access.reason}
+                    </p>
+                  ) : null}
+                  {isAuthenticated ? (
+                    <button
+                      type="button"
+                      disabled={!access?.ok}
+                      onClick={() => {
+                        const result = system.addToCart(campaign.id, selectedVariant.id);
+                        setFeedback(result.message);
+                      }}
+                      className={`campaign-product-buy-button ${access?.ok ? "cta-primary" : "is-disabled"}`}
+                    >
+                      加入購物車
+                    </button>
+                  ) : (
+                    <button type="button" className="campaign-product-buy-button cta-secondary" onClick={onRequireAuth}>
+                      登入後加入購物車
+                    </button>
+                  )}
                 </div>
-                <div className="mt-3">
-                  <h3 className="text-xl font-extrabold text-slate-900">{getNormalProductSpecName(variant)}</h3>
-                  <p className="text-sm text-slate-500">所屬商品：{selectedNormalProductName}</p>
+              </div>
+
+              <div className="campaign-product-options">
+                <div className="campaign-product-options-head">
+                  <h4>規格選擇</h4>
+                  <span>{normalVariants.length} 個規格</span>
                 </div>
-
-                <div className="meta-chip-row">
-                  <span className="meta-chip">{variant.character ?? "一般款"}</span>
-                  <span className="meta-chip">庫存 {variant.stock ?? "不限"}</span>
-                  <span className="meta-chip">上限 {variant.maxPerUser ?? "不限"}</span>
+                <div className="campaign-option-grid">
+                  {normalVariants.map((variant) => {
+                    const active = selectedVariant.id === variant.id;
+                    const variantAccess = system.getProductAccessForCurrentUser(campaign.id, variant.id);
+                    return (
+                      <button
+                        key={variant.id}
+                        type="button"
+                        className={active ? "campaign-option-card is-active" : "campaign-option-card"}
+                        onClick={(event) => {
+                          event.stopPropagation();
+                          setSelectedNormalVariantId(variant.id);
+                          setFeedback("");
+                        }}
+                      >
+                        <strong>{getNormalProductSpecName(variant)}</strong>
+                        <span>{variant.character ?? "一般款"}</span>
+                        <span>{twd(variant.price)}</span>
+                        <span>{variantAccess.ok ? "可加入" : variantAccess.reason}</span>
+                      </button>
+                    );
+                  })}
                 </div>
-
-                <p className="mt-3 text-sm text-slate-600">已加入：{getReservedQty(variant.id)}</p>
-                {variant.slotRestrictionEnabled && (
-                  <p className="mt-1 text-sm text-slate-600">限制角色：{variant.slotRestrictedCharacter ?? variant.character ?? "未設定"}</p>
-                )}
-
-                <p className={`status-note ${access.ok ? "status-note-ok" : "status-note-warn"}`}>
-                  {access.ok ? "可加入購物車" : access.reason}
-                </p>
-
-                {isAuthenticated ? (
-                  <button
-                    type="button"
-                    disabled={!access.ok}
-                    onClick={() => {
-                      const result = system.addToCart(campaign.id, variant.id);
-                      setFeedback(result.message);
-                    }}
-                    className={`mt-5 w-full rounded-2xl px-4 py-3 text-sm font-semibold ${
-                      access.ok
-                        ? "cta-primary"
-                        : "cursor-not-allowed rounded-2xl border border-slate-200 bg-slate-100 text-slate-500"
-                    }`}
-                  >
-                    加入購物車
-                  </button>
-                ) : (
-                  <button
-                    type="button"
-                    className="cta-secondary mt-5 w-full"
-                    onClick={onRequireAuth}
-                  >
-                    登入後加入購物車
-                  </button>
-                )}
-              </article>
-            );
-          })}
-        </div>
+              </div>
+            </div>
+          ) : (
+            <div className="empty-panel">這個品項目前沒有可選規格。</div>
+          )}
+        </aside>
       </section>
     );
   }
 
+  const selectedBlindItem = blindItems.find((item) => item.id === selectedBlindItemId) ?? blindItems[0] ?? null;
+  const selectedBlindAccess = selectedBlindItem
+    ? system.getProductAccessForCurrentUser(campaign.id, product.id, selectedBlindItem.id)
+    : null;
+  const selectedBlindTier = selectedBlindItem && system.currentUser
+    ? system.getUserCharacterTier(system.currentUser.id, selectedBlindItem.character)
+    : null;
+
   return (
-    <section className="space-y-6">
-      <div className="hero-panel">
-        <div className="front-toolbar flex flex-wrap items-center justify-between gap-2">
-          <button className="cta-secondary" type="button" onClick={onBack}>返回活動商品</button>
-          <button className="cta-secondary" type="button" onClick={onGoCart}>前往購物車</button>
-        </div>
-
-        <h2 className="mt-2 text-3xl font-extrabold text-slate-900">{product.name}</h2>
-        <div className="mt-4 flex flex-wrap gap-2 text-xs">
-          <span className="state-pill bg-slate-100 text-slate-700">
-            {product.slotRestrictionEnabled ? "此盲盒啟用固位限制" : "此盲盒全員可喊"}
-          </span>
-          {product.slotRestrictionEnabled && (
-            <span className="state-pill bg-slate-100 text-slate-700">活動釋出：{releaseStageLabel(campaign.releaseStage)}</span>
-          )}
-        </div>
-        {!isAuthenticated ? (
-          <div className="mt-4 flex flex-wrap items-center justify-between gap-3 rounded-2xl border border-amber-200 bg-amber-50 px-4 py-3 text-sm text-amber-900">
-            <p>角色子項可以先看，登入後才會正式加入購物車。</p>
-            <button type="button" className="cta-secondary" onClick={onRequireAuth}>
-              登入 / 註冊
-            </button>
+    <section className="campaign-drawer-overlay" onClick={onBack}>
+      <div className="campaign-drawer-backdrop" aria-hidden="true" />
+      <aside className="campaign-product-drawer" onClick={(event) => event.stopPropagation()} aria-label={`${product.name} 規格抽屜`}>
+        <div className="campaign-product-drawer-head">
+          <div>
+            <h3>{product.name}</h3>
           </div>
-        ) : null}
-        {feedback && <p className="mt-3 text-sm font-semibold text-slate-800">{feedback}</p>}
-      </div>
+          <div className="campaign-product-drawer-actions">
+            <button type="button" className="cta-secondary" onClick={onGoCart}>購物車</button>
+            <button type="button" className="cta-secondary" onClick={onBack}>關閉</button>
+          </div>
+        </div>
 
-      {blindItems.length === 0 && <div className="empty-panel">此盲盒尚未建立任何角色子項。</div>}
-
-      <div className="blind-item-grid grid gap-4 md:grid-cols-2 xl:grid-cols-3">
-        {blindItems.map((item) => {
-          const access = system.getProductAccessForCurrentUser(campaign.id, product.id, item.id);
-          const myTier = system.currentUser ? system.getUserCharacterTier(system.currentUser.id, item.character) : null;
-
-          return (
-            <article key={item.id} className="product-stage-card blind-item-card">
-              <div className="product-figure">
-                <ProductImage imageUrl={item.imageUrl} alt={item.name} />
-                <div className="product-price-badge">
-                  <span className="text-[11px] uppercase tracking-[0.16em] text-slate-400">Price</span>
-                  <strong>{twd(calculateUnitPrice(product, item))}</strong>
+        {selectedBlindItem ? (
+          <div className="campaign-product-drawer-body">
+            <div className="campaign-product-showcase">
+              <div className="campaign-product-showcase-media">
+                <ProductImage
+                  imageUrl={selectedBlindItem.imageUrl ?? product.imageUrl}
+                  alt={selectedBlindItem.name}
+                  frameClassName="campaign-product-showcase-lightbox"
+                  thumbClassName="campaign-product-showcase-thumb"
+                  emptyClassName="campaign-product-showcase-empty"
+                />
+              </div>
+              <div className="campaign-product-showcase-copy">
+                <div className="campaign-product-price">{twd(calculateUnitPrice(product, selectedBlindItem))}</div>
+                <h4>{selectedBlindItem.name}</h4>
+                <div className="campaign-product-meta">
+                  <span>角色：{selectedBlindItem.character}</span>
+                  <span>庫存：{selectedBlindItem.stock ?? "不限"}</span>
+                  <span>上限：{selectedBlindItem.maxPerUser ?? "不限"}</span>
+                  <span>已加入：{getReservedQty(product.id, selectedBlindItem.id)}</span>
                 </div>
+                <p className="campaign-product-restriction">
+                  {product.slotRestrictionEnabled
+                    ? `固位 ${selectedBlindTier ? fixedTierLabel(selectedBlindTier) : "未分配"} / 活動釋出 ${releaseStageLabel(campaign.releaseStage)}`
+                    : "可直接喊單"}
+                </p>
+                {feedback ? <p className="campaign-product-feedback">{feedback}</p> : null}
+                {selectedBlindAccess ? (
+                  <p className={`status-note ${selectedBlindAccess.ok ? "status-note-ok" : "status-note-warn"}`}>
+                    {selectedBlindAccess.ok ? "目前可加入購物車" : selectedBlindAccess.reason}
+                  </p>
+                ) : null}
+                {isAuthenticated ? (
+                  <button
+                    type="button"
+                    disabled={!selectedBlindAccess?.ok}
+                    onClick={() => {
+                      const result = system.addToCart(campaign.id, product.id, selectedBlindItem.id);
+                      setFeedback(result.message);
+                    }}
+                    className={`campaign-product-buy-button ${selectedBlindAccess?.ok ? "cta-primary" : "is-disabled"}`}
+                  >
+                    加入購物車
+                  </button>
+                ) : (
+                  <button type="button" className="campaign-product-buy-button cta-secondary" onClick={onRequireAuth}>
+                    登入後加入購物車
+                  </button>
+                )}
               </div>
-              <div className="mt-3">
-                <h3 className="text-xl font-extrabold text-slate-900">{item.name}</h3>
-                <p className="text-sm text-slate-500">角色：{item.character}</p>
+            </div>
+
+            <div className="campaign-product-options">
+              <div className="campaign-product-options-head">
+                <h4>拆分規格</h4>
+                <span>{blindItems.length} 個子項</span>
               </div>
-
-              <div className="meta-chip-row">
-                <span className="meta-chip">{item.character}</span>
-                <span className="meta-chip">
-                  {product.slotRestrictionEnabled ? `固位 ${myTier ? fixedTierLabel(myTier) : "未分配"}` : "全員可喊"}
-                </span>
-                <span className="meta-chip">庫存 {item.stock ?? "不限"}</span>
-                <span className="meta-chip">上限 {item.maxPerUser ?? "不限"}</span>
+              <div className="campaign-option-pill-row">
+                {blindItems.map((item) => {
+                  const active = selectedBlindItem.id === item.id;
+                  return (
+                    <button
+                      key={`${item.id}:pill`}
+                      type="button"
+                      className={active ? "campaign-option-pill is-active" : "campaign-option-pill"}
+                      onClick={(event) => {
+                        event.stopPropagation();
+                        setSelectedBlindItemId(item.id);
+                        setFeedback("");
+                      }}
+                    >
+                      {item.name}
+                    </button>
+                  );
+                })}
               </div>
-
-              <p className="mt-3 text-sm text-slate-600">已加入：{getReservedQty(product.id, item.id)}</p>
-
-              <p className={`status-note ${access.ok ? "status-note-ok" : "status-note-warn"}`}>
-                {access.ok ? "可加入購物車" : access.reason}
-              </p>
-
-              {isAuthenticated ? (
-                <button
-                  type="button"
-                  disabled={!access.ok}
-                  onClick={() => {
-                    const result = system.addToCart(campaign.id, product.id, item.id);
-                    setFeedback(result.message);
-                  }}
-                  className={`mt-5 w-full rounded-2xl px-4 py-3 text-sm font-semibold ${
-                    access.ok
-                      ? "cta-primary"
-                      : "cursor-not-allowed rounded-2xl border border-slate-200 bg-slate-100 text-slate-500"
-                  }`}
-                >
-                  加入購物車
-                </button>
-              ) : (
-                <button
-                  type="button"
-                  className="cta-secondary mt-5 w-full"
-                  onClick={onRequireAuth}
-                >
-                  登入後加入購物車
-                </button>
-              )}
-            </article>
-          );
-        })}
-      </div>
+              <div className="campaign-option-grid">
+                {blindItems.map((item) => {
+                  const active = selectedBlindItem.id === item.id;
+                  const access = system.getProductAccessForCurrentUser(campaign.id, product.id, item.id);
+                  return (
+                    <button
+                      key={item.id}
+                      type="button"
+                      className={active ? "campaign-option-card is-active" : "campaign-option-card"}
+                      onClick={(event) => {
+                        event.stopPropagation();
+                        setSelectedBlindItemId(item.id);
+                        setFeedback("");
+                      }}
+                    >
+                      <strong>{item.name}</strong>
+                      <span>{item.character}</span>
+                      <span>{twd(calculateUnitPrice(product, item))}</span>
+                      <span>{access.ok ? "可加入" : access.reason}</span>
+                    </button>
+                  );
+                })}
+              </div>
+            </div>
+          </div>
+        ) : (
+          <div className="empty-panel">此盲盒尚未建立任何角色子項。</div>
+        )}
+      </aside>
     </section>
   );
 }
@@ -1594,7 +1600,7 @@ export default function App(): JSX.Element {
           />
         )}
 
-        {view === "campaign" && selectedCampaign && (
+        {(view === "campaign" || view === "blindBox") && selectedCampaign && (
           <CampaignView
             system={system}
             campaign={selectedCampaign}
@@ -1621,7 +1627,7 @@ export default function App(): JSX.Element {
           />
         )}
 
-        {view === "campaign" && !selectedCampaign && (
+        {(view === "campaign" || view === "blindBox") && !selectedCampaign && (
           <div className="empty-panel">請先從大主頁選擇活動。</div>
         )}
 

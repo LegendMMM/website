@@ -92,8 +92,17 @@ interface TargetDescriptor {
 interface CreateCampaignInput {
   title: string;
   description: string;
+  imageUrl: string | null;
   deadlineAt: string;
   releaseStage: ReleaseStage;
+}
+
+interface CampaignUpdateInput {
+  campaignId: string;
+  title?: string;
+  description?: string;
+  imageUrl?: string | null;
+  deadlineAt?: string;
 }
 
 interface CreateProductInput {
@@ -180,6 +189,7 @@ export interface UseOrderSystemReturn {
   getOrderItems: (orderId: string) => OrderItem[];
   getProductAccessForCurrentUser: (campaignId: string, productId: string, blindBoxItemId?: string) => ProductAccessInfo;
   getUserCharacterTier: (userId: string, character: CharacterName) => CharacterTier | null;
+  adminUpdateCampaign: (input: CampaignUpdateInput) => ActionResult;
   adminUpdateCampaignReleaseStage: (campaignId: string, stage: ReleaseStage) => ActionResult;
   adminUpdateCampaignMaxClaims: (campaignId: string, maxClaims: number | null) => ActionResult;
   adminUpdateProductRule: (args: ProductRuleUpdateInput) => ActionResult;
@@ -1614,6 +1624,52 @@ export function useOrderSystem(): UseOrderSystemReturn {
     return { ok: true, message: "已更新活動釋出階段。" };
   };
 
+  const adminUpdateCampaign = (input: CampaignUpdateInput): ActionResult => {
+    if (!currentUser?.isAdmin) {
+      return { ok: false, message: "只有團主可以更新活動。" };
+    }
+
+    const currentCampaign = state.campaigns.find((campaign) => campaign.id === input.campaignId);
+    if (!currentCampaign) {
+      return { ok: false, message: "找不到活動。" };
+    }
+
+    const nextTitle = input.title === undefined ? currentCampaign.title : input.title.trim();
+    if (!nextTitle) {
+      return { ok: false, message: "活動名稱不可空白。" };
+    }
+
+    const nextDescription = input.description === undefined ? currentCampaign.description : input.description.trim();
+    const nextDeadlineAt = input.deadlineAt === undefined
+      ? currentCampaign.deadlineAt
+      : new Date(input.deadlineAt).toISOString();
+
+    if (Number.isNaN(new Date(nextDeadlineAt).getTime())) {
+      return { ok: false, message: "活動截止時間格式不正確。" };
+    }
+
+    const nextCampaign: Campaign = {
+      ...currentCampaign,
+      title: nextTitle,
+      description: nextDescription,
+      imageUrl: input.imageUrl === undefined ? currentCampaign.imageUrl : input.imageUrl,
+      deadlineAt: nextDeadlineAt,
+    };
+
+    setState((prev) => ({
+      ...prev,
+      campaigns: prev.campaigns.map((campaign) =>
+        campaign.id === input.campaignId ? nextCampaign : campaign,
+      ),
+    }));
+
+    runSupabaseWrite("update campaign", async () => {
+      await syncCampaignRecords([nextCampaign]);
+    });
+
+    return { ok: true, message: `已更新活動「${nextCampaign.title}」。` };
+  };
+
   const adminUpdateCampaignMaxClaims = (campaignId: string, maxClaims: number | null): ActionResult => {
     if (!currentUser?.isAdmin) {
       return { ok: false, message: "只有團主可以調整上限。" };
@@ -1998,6 +2054,7 @@ export function useOrderSystem(): UseOrderSystemReturn {
       id: crypto.randomUUID(),
       title: input.title.trim(),
       description: input.description.trim(),
+      imageUrl: input.imageUrl,
       deadlineAt: new Date(input.deadlineAt).toISOString(),
       status: "OPEN",
       releaseStage: input.releaseStage,
@@ -2523,6 +2580,7 @@ export function useOrderSystem(): UseOrderSystemReturn {
     getOrderItems,
     getProductAccessForCurrentUser,
     getUserCharacterTier,
+    adminUpdateCampaign,
     adminUpdateCampaignReleaseStage,
     adminUpdateCampaignMaxClaims,
     adminUpdateProductRule,

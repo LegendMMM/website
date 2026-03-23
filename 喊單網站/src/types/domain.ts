@@ -38,6 +38,7 @@ export interface Campaign {
   id: string;
   title: string;
   description: string;
+  imageUrl: string | null;
   deadlineAt: string;
   status: CampaignStatus;
   releaseStage: ReleaseStage;

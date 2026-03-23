@@ -218,8 +218,14 @@ export function AdminCatalogPanel(props: { system: UseOrderSystemReturn }): JSX.
   const [workspaceMode, setWorkspaceMode] = useState<WorkspaceMode>("browse");
   const [campaignTitle, setCampaignTitle] = useState("");
   const [campaignDescription, setCampaignDescription] = useState("");
+  const [campaignImageUrl, setCampaignImageUrl] = useState("");
+  const [campaignImageFile, setCampaignImageFile] = useState<File | null>(null);
+  const [campaignImagePreviewUrl, setCampaignImagePreviewUrl] = useState<string | null>(null);
   const [campaignDeadlineAt, setCampaignDeadlineAt] = useState("");
   const [campaignReleaseStage, setCampaignReleaseStage] = useState<ReleaseStage>("FIXED_1_ONLY");
+  const [campaignEditorImageUrl, setCampaignEditorImageUrl] = useState("");
+  const [campaignEditorImageFile, setCampaignEditorImageFile] = useState<File | null>(null);
+  const [campaignEditorImagePreviewUrl, setCampaignEditorImagePreviewUrl] = useState<string | null>(null);
   const [productCampaignId, setProductCampaignId] = useState(system.state.campaigns[0]?.id ?? "");
   const [productType, setProductType] = useState<ProductType>("NORMAL");
   const [productName, setProductName] = useState("");
@@ -242,7 +248,6 @@ export function AdminCatalogPanel(props: { system: UseOrderSystemReturn }): JSX.
   const [newNormalVariantDrafts, setNewNormalVariantDrafts] = useState<Record<string, ProductEditorDraft>>({});
   const [normalGroupNameDrafts, setNormalGroupNameDrafts] = useState<Record<string, string>>({});
   const [expandedSpecPanels, setExpandedSpecPanels] = useState<Record<string, string | null>>({});
-  const [specComposerOpen, setSpecComposerOpen] = useState<Record<string, boolean>>({});
   const [importMode, setImportMode] = useState<ImportMode>("NORMAL_PRODUCT_CSV");
   const [importText, setImportText] = useState("");
 
@@ -264,6 +269,7 @@ export function AdminCatalogPanel(props: { system: UseOrderSystemReturn }): JSX.
     BLIND_ITEM_JSON: BLIND_ITEM_IMPORT_JSON_TEMPLATE,
   };
 
+  const campaignPreviewImage = campaignImagePreviewUrl ?? (campaignImageUrl.trim() || null);
   const productPreviewImage = productImagePreviewUrl ?? (productImageUrl.trim() || null);
 
   useEffect(() => {
@@ -271,6 +277,16 @@ export function AdminCatalogPanel(props: { system: UseOrderSystemReturn }): JSX.
       setProductCampaignId(system.state.campaigns[0].id);
     }
   }, [productCampaignId, system.state.campaigns]);
+
+  useEffect(() => {
+    if (!campaignImageFile) {
+      setCampaignImagePreviewUrl(null);
+      return;
+    }
+    const objectUrl = URL.createObjectURL(campaignImageFile);
+    setCampaignImagePreviewUrl(objectUrl);
+    return () => URL.revokeObjectURL(objectUrl);
+  }, [campaignImageFile]);
 
   useEffect(() => {
     if (!productImageFile) {
@@ -286,6 +302,24 @@ export function AdminCatalogPanel(props: { system: UseOrderSystemReturn }): JSX.
     () => system.state.campaigns.find((campaign) => campaign.id === productCampaignId) ?? null,
     [productCampaignId, system.state.campaigns],
   );
+  const selectedCampaignPreviewImage = campaignEditorImagePreviewUrl
+    ?? (campaignEditorImageUrl.trim() || selectedCampaign?.imageUrl || null);
+
+  useEffect(() => {
+    if (!campaignEditorImageFile) {
+      setCampaignEditorImagePreviewUrl(null);
+      return;
+    }
+    const objectUrl = URL.createObjectURL(campaignEditorImageFile);
+    setCampaignEditorImagePreviewUrl(objectUrl);
+    return () => URL.revokeObjectURL(objectUrl);
+  }, [campaignEditorImageFile]);
+
+  useEffect(() => {
+    setCampaignEditorImageUrl(selectedCampaign?.imageUrl ?? "");
+    setCampaignEditorImageFile(null);
+    setCampaignEditorImagePreviewUrl(null);
+  }, [selectedCampaign?.id, selectedCampaign?.imageUrl]);
 
   const families = useMemo(() => {
     if (!selectedCampaign) return [] satisfies CatalogFamily[];
@@ -567,15 +601,6 @@ export function AdminCatalogPanel(props: { system: UseOrderSystemReturn }): JSX.
     }));
   };
 
-  const isSpecComposerOpen = (familyKey: string): boolean => specComposerOpen[familyKey] ?? false;
-
-  const toggleSpecComposerOpen = (familyKey: string): void => {
-    setSpecComposerOpen((prev) => ({
-      ...prev,
-      [familyKey]: !(prev[familyKey] ?? false),
-    }));
-  };
-
   const assignGeneratedSkus = <T extends { sku: string }>(prefix: string, rows: T[], existingSkus: string[]): T[] => {
     let sequence = existingSkus.reduce((max, sku) => {
       const match = sku.toUpperCase().match(new RegExp(`^${prefix}-(\\d+)$`));
@@ -593,7 +618,7 @@ export function AdminCatalogPanel(props: { system: UseOrderSystemReturn }): JSX.
   const resolveImageUrlForSubmit = async (
     file: File | null,
     manualUrl: string,
-    folder: "products" | "blind-items",
+    folder: "campaigns" | "products" | "blind-items",
   ): Promise<{ ok: boolean; imageUrl: string | null; note: string }> => {
     const normalizedUrl = manualUrl.trim();
     if (!file) {
@@ -1000,19 +1025,60 @@ export function AdminCatalogPanel(props: { system: UseOrderSystemReturn }): JSX.
     }
   };
 
-  const handleCreateCampaign = (): void => {
-    const result = system.adminCreateCampaign({
-      title: campaignTitle,
-      description: campaignDescription,
-      deadlineAt: campaignDeadlineAt,
-      releaseStage: campaignReleaseStage,
-    });
-    setFeedback(result.message);
-    if (!result.ok) return;
-    setCampaignTitle("");
-    setCampaignDescription("");
-    setCampaignDeadlineAt("");
-    setWorkspaceMode("browse");
+  const handleCreateCampaign = async (): Promise<void> => {
+    try {
+      const imageResult = await resolveImageUrlForSubmit(campaignImageFile, campaignImageUrl, "campaigns");
+      if (!imageResult.ok) {
+        setFeedback(imageResult.note);
+        return;
+      }
+
+      const result = system.adminCreateCampaign({
+        title: campaignTitle,
+        description: campaignDescription,
+        imageUrl: imageResult.imageUrl,
+        deadlineAt: campaignDeadlineAt,
+        releaseStage: campaignReleaseStage,
+      });
+      setFeedback(imageResult.note ? `${result.message} ${imageResult.note}` : result.message);
+      if (!result.ok) return;
+      setCampaignTitle("");
+      setCampaignDescription("");
+      setCampaignImageUrl("");
+      setCampaignImageFile(null);
+      setCampaignImagePreviewUrl(null);
+      setCampaignDeadlineAt("");
+      setWorkspaceMode("browse");
+    } catch (error) {
+      setFeedback(error instanceof Error ? error.message : "活動圖片處理失敗。");
+    }
+  };
+
+  const handleSaveCampaignImage = async (): Promise<void> => {
+    if (!selectedCampaign) {
+      setFeedback("請先選一個活動。");
+      return;
+    }
+
+    try {
+      const imageResult = await resolveImageUrlForSubmit(campaignEditorImageFile, campaignEditorImageUrl, "campaigns");
+      if (!imageResult.ok) {
+        setFeedback(imageResult.note);
+        return;
+      }
+
+      const result = system.adminUpdateCampaign({
+        campaignId: selectedCampaign.id,
+        imageUrl: imageResult.imageUrl,
+      });
+      setFeedback(imageResult.note ? `${result.message} ${imageResult.note}` : result.message);
+      if (!result.ok) return;
+      setCampaignEditorImageFile(null);
+      setCampaignEditorImagePreviewUrl(null);
+      setCampaignEditorImageUrl(imageResult.imageUrl ?? "");
+    } catch (error) {
+      setFeedback(error instanceof Error ? error.message : "活動圖片更新失敗。");
+    }
   };
 
   const handleImport = async (): Promise<void> => {
@@ -1202,10 +1268,42 @@ export function AdminCatalogPanel(props: { system: UseOrderSystemReturn }): JSX.
             ))}
           </select>
         </label>
+        <div className="md:col-span-2 rounded-2xl border border-slate-200 bg-white/70 p-4">
+          <p className="text-sm font-semibold text-slate-900">活動主視覺</p>
+          <p className="mt-1 text-xs text-slate-500">有上傳就用活動圖片；沒上傳時，前台會回退到預設主視覺。</p>
+          <div className="mt-4 grid gap-4 xl:grid-cols-[260px_minmax(0,1fr)]">
+            <ProductImage
+              imageUrl={campaignPreviewImage}
+              alt={campaignTitle || "活動主視覺預覽"}
+              frameClassName="catalog-campaign-visual"
+              thumbClassName="catalog-campaign-visual-thumb"
+              emptyClassName="catalog-campaign-visual"
+            />
+            <div className="space-y-3">
+              <label className="block text-sm">
+                圖片網址
+                <input className="mt-1 w-full rounded-xl border border-slate-200 px-3 py-2" value={campaignImageUrl} onChange={(event) => setCampaignImageUrl(event.target.value)} placeholder="可直接貼圖片網址" />
+              </label>
+              <div className="flex flex-wrap gap-2">
+                <label className="file-picker !w-fit">
+                  <span>選擇活動圖片</span>
+                  <input className="hidden" type="file" accept="image/*" onChange={(event) => setCampaignImageFile(event.target.files?.[0] ?? null)} />
+                </label>
+                <button type="button" className="cta-secondary" onClick={() => {
+                  setCampaignImageFile(null);
+                  setCampaignImageUrl("");
+                  setCampaignImagePreviewUrl(null);
+                }}>
+                  清除圖片
+                </button>
+              </div>
+            </div>
+          </div>
+        </div>
       </div>
 
       <div className="flex flex-wrap gap-2">
-        <button type="button" className="cta-primary" onClick={handleCreateCampaign}>建立活動</button>
+        <button type="button" className="cta-primary" onClick={() => void handleCreateCampaign()}>建立活動</button>
         <button type="button" className="cta-secondary" onClick={() => setWorkspaceMode("browse")}>取消</button>
       </div>
     </section>
@@ -1756,7 +1854,6 @@ export function AdminCatalogPanel(props: { system: UseOrderSystemReturn }): JSX.
   const renderNormalFamilyWorkspace = (family: Extract<CatalogFamily, { kind: "NORMAL_GROUP" }>): JSX.Element => {
     const groupName = getNormalGroupNameDraft(family);
     const expandedSpecId = getExpandedSpecId(family.key, family.products[0]?.id ?? null);
-    const composerOpen = isSpecComposerOpen(family.key);
     return (
       <section className="space-y-5">
         <div className="section-frame catalog-editor-header">
@@ -1799,13 +1896,10 @@ export function AdminCatalogPanel(props: { system: UseOrderSystemReturn }): JSX.
           <div className="admin-section-head">
             <div>
               <h4 className="text-lg font-bold text-slate-900">規格管理</h4>
-              <p className="admin-section-copy">一般商品的規格就是角色款或不同版本。先新增，再往下逐筆調整。</p>
+              <p className="admin-section-copy">一般商品的規格就是角色款或不同版本。新增與刪除都固定放在這裡，不再另外收起。</p>
             </div>
-            <button type="button" className="cta-secondary" onClick={() => toggleSpecComposerOpen(family.key)}>
-              {composerOpen ? "收起新增規格" : "新增規格"}
-            </button>
           </div>
-          {composerOpen ? renderNewNormalVariantCard(family) : null}
+          {renderNewNormalVariantCard(family)}
           <div className="admin-section-head">
             <div>
               <h5 className="text-base font-bold text-slate-900">現有規格</h5>
@@ -1823,7 +1917,6 @@ export function AdminCatalogPanel(props: { system: UseOrderSystemReturn }): JSX.
   const renderBlindFamilyWorkspace = (family: Extract<CatalogFamily, { kind: "BLIND_BOX" }>): JSX.Element => {
     const draft = getProductEditorDraft(family.product);
     const expandedSpecId = getExpandedSpecId(family.key, family.blindItems[0]?.id ?? null);
-    const composerOpen = isSpecComposerOpen(family.key);
     return (
       <section className="space-y-5">
         <div className="section-frame catalog-editor-header">
@@ -1924,13 +2017,10 @@ export function AdminCatalogPanel(props: { system: UseOrderSystemReturn }): JSX.
           <div className="admin-section-head">
             <div>
               <h4 className="text-lg font-bold text-slate-900">規格管理</h4>
-              <p className="admin-section-copy">這裡直接補角色規格，不用再跳到別的頁面。</p>
+              <p className="admin-section-copy">新增、刪除與調整角色規格都固定留在這裡，不再另外收起。</p>
             </div>
-            <button type="button" className="cta-secondary" onClick={() => toggleSpecComposerOpen(family.key)}>
-              {composerOpen ? "收起新增規格" : "新增規格"}
-            </button>
           </div>
-          {composerOpen ? renderNewBlindBoxItemCard(family) : null}
+          {renderNewBlindBoxItemCard(family)}
           <div className="admin-section-head">
             <div>
               <h5 className="text-base font-bold text-slate-900">現有規格</h5>
@@ -2003,6 +2093,44 @@ export function AdminCatalogPanel(props: { system: UseOrderSystemReturn }): JSX.
               <div className="rounded-2xl border border-slate-200 bg-white/70 p-4 text-sm text-slate-600">
                 <p>釋出：{releaseStageLabel(selectedCampaign.releaseStage)}</p>
                 <p className="mt-1">截止：{new Date(selectedCampaign.deadlineAt).toLocaleString("zh-TW")}</p>
+              </div>
+            ) : null}
+
+            {selectedCampaign ? (
+              <div className="rounded-2xl border border-slate-200 bg-white/70 p-4">
+                <p className="text-sm font-semibold text-slate-900">活動主視覺</p>
+                <p className="mt-1 text-xs text-slate-500">這張圖會顯示在活動頁最上方；留空時前台會自動用預設主圖。</p>
+                <div className="mt-3 space-y-3">
+                  <ProductImage
+                    imageUrl={selectedCampaignPreviewImage}
+                    alt={selectedCampaign.title}
+                    frameClassName="catalog-campaign-visual catalog-campaign-visual-compact"
+                    thumbClassName="catalog-campaign-visual-thumb"
+                    emptyClassName="catalog-campaign-visual catalog-campaign-visual-compact"
+                  />
+                  <input
+                    className="w-full rounded-xl border border-slate-200 px-3 py-2 text-sm"
+                    value={campaignEditorImageUrl}
+                    onChange={(event) => setCampaignEditorImageUrl(event.target.value)}
+                    placeholder="貼上活動圖片網址"
+                  />
+                  <div className="flex flex-wrap gap-2">
+                    <label className="file-picker !w-fit">
+                      <span>上傳活動圖</span>
+                      <input className="hidden" type="file" accept="image/*" onChange={(event) => setCampaignEditorImageFile(event.target.files?.[0] ?? null)} />
+                    </label>
+                    <button type="button" className="cta-secondary" onClick={() => {
+                      setCampaignEditorImageFile(null);
+                      setCampaignEditorImagePreviewUrl(null);
+                      setCampaignEditorImageUrl("");
+                    }}>
+                      清除
+                    </button>
+                    <button type="button" className="cta-primary" onClick={() => void handleSaveCampaignImage()}>
+                      儲存活動圖
+                    </button>
+                  </div>
+                </div>
               </div>
             ) : null}
 

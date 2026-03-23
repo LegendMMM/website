@@ -312,7 +312,6 @@ export default function MoonlitSpecialMenuOverlay(props: MoonlitSpecialMenuOverl
           <div className="moonlit-menu-brand">
             <BrandPortraitOrb />
             <div className="moonlit-menu-brand-copy">
-              <span className="moonlit-menu-brand-overline">TSUKUYOMI SPECIAL SITE</span>
               <strong className="moonlit-menu-brand-title">超時空輝耀姬 導覽選單</strong>
             </div>
           </div>
