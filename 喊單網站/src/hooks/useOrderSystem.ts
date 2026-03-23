@@ -16,8 +16,10 @@ import {
   upsertClaims,
   upsertOrderItems,
   upsertOrders,
+  upsertPayments,
   upsertProducts,
   upsertProfiles,
+  upsertShipments,
 } from "../lib/supabase-sync";
 import { supabase } from "../lib/supabase";
 import {
@@ -334,7 +336,10 @@ export function useOrderSystem(): UseOrderSystemReturn {
     void supabase.auth.getSession().then(({ data }) => {
       if (!active) return;
       const authUser = data.session?.user ?? null;
-      if (!authUser) return;
+      if (!authUser) {
+        setSessionUserId(null);
+        return;
+      }
       hydrateVerifiedAuthUser(authUser);
     });
 
@@ -343,7 +348,10 @@ export function useOrderSystem(): UseOrderSystemReturn {
     } = supabase.auth.onAuthStateChange((_event, session) => {
       if (!active) return;
       const authUser = session?.user ?? null;
-      if (!authUser) return;
+      if (!authUser) {
+        setSessionUserId(null);
+        return;
+      }
       hydrateVerifiedAuthUser(authUser);
     });
 
@@ -394,6 +402,8 @@ export function useOrderSystem(): UseOrderSystemReturn {
     const normalizedEmail = normalizeEmail(authUser.email ?? "");
     if (!normalizedEmail) return null;
 
+    const existingProfile = state.users.find((item) => item.id === authUser.id) ?? null;
+
     const nicknameFromMeta = typeof authUser.user_metadata?.fb_nickname === "string"
       ? authUser.user_metadata.fb_nickname
       : "";
@@ -401,14 +411,20 @@ export function useOrderSystem(): UseOrderSystemReturn {
     const nextProfile: UserProfile = {
       id: authUser.id,
       email: normalizedEmail,
-      fbNickname: (fbNickname?.trim() || nicknameFromMeta.trim() || normalizedEmail.split("@")[0] || "新團員"),
-      pickupRate: 100,
-      isAdmin: false,
-      createdAt: authUser.created_at ?? new Date().toISOString(),
+      fbNickname: (
+        existingProfile?.fbNickname?.trim()
+        || fbNickname?.trim()
+        || nicknameFromMeta.trim()
+        || normalizedEmail.split("@")[0]
+        || "新團員"
+      ),
+      pickupRate: existingProfile?.pickupRate ?? 100,
+      isAdmin: existingProfile?.isAdmin ?? false,
+      createdAt: existingProfile?.createdAt ?? authUser.created_at ?? new Date().toISOString(),
     };
 
     return nextProfile;
-  }, []);
+  }, [state.users]);
 
   const syncUsersByIds = useCallback(async (userIds: string[]): Promise<void> => {
     if (!supabase) return;
@@ -974,15 +990,18 @@ export function useOrderSystem(): UseOrderSystemReturn {
   };
 
   const login = async (identifier: string): Promise<ActionResult> => {
-    const normalized = normalizeEmail(identifier);
-    if (!normalized) {
+    const rawIdentifier = identifier.trim();
+    const normalizedEmail = normalizeEmail(rawIdentifier);
+    const normalizedNickname = normalizeNickname(rawIdentifier);
+    if (!normalizedEmail && !normalizedNickname) {
       return { ok: false, message: "請輸入 Email 或 FB 暱稱。" };
     }
 
     const user = state.users.find((item) => {
       const email = normalizeEmail(item.email);
       const nickname = normalizeNickname(item.fbNickname);
-      return email === normalized || nickname === normalized;
+      return (normalizedEmail ? email === normalizedEmail : false)
+        || (normalizedNickname ? nickname === normalizedNickname : false);
     });
 
     if (!user) {
@@ -1466,6 +1485,9 @@ export function useOrderSystem(): UseOrderSystemReturn {
     };
 
     setState((prev) => ({ ...prev, payments: [...prev.payments, payment] }));
+    runSupabaseWrite("submit payment", async () => {
+      await upsertPayments(supabase!, [payment]);
+    });
     return { ok: true, message: "已送出付款資料。" };
   };
 
@@ -1483,6 +1505,10 @@ export function useOrderSystem(): UseOrderSystemReturn {
         payment.id === paymentId ? { ...payment, reconciled: true } : payment,
       ),
     }));
+
+    runSupabaseWrite("reconcile payment", async () => {
+      await upsertPayments(supabase!, [{ ...target, reconciled: true }]);
+    });
 
     return { ok: true, message: "已標記完成對帳。" };
   };
@@ -1506,21 +1532,31 @@ export function useOrderSystem(): UseOrderSystemReturn {
       return { ok: false, message: "請完整填寫收件人、電話與門市代碼。" };
     }
 
-    const shipment = buildShipmentDraft({
-      campaignId: input.campaignId,
-      user: currentUser,
-      amount,
-      paymentMethod: input.paymentMethod,
-      receiverName: input.receiverName,
-      receiverPhone: input.receiverPhone,
-      receiverStoreCode: input.receiverStoreCode,
-    });
+    const existingShipment = state.shipments.find(
+      (item) => item.campaignId === input.campaignId && item.userId === currentUser.id,
+    );
+    const shipment = {
+      ...buildShipmentDraft({
+        campaignId: input.campaignId,
+        user: currentUser,
+        amount,
+        paymentMethod: input.paymentMethod,
+        receiverName: input.receiverName,
+        receiverPhone: input.receiverPhone,
+        receiverStoreCode: input.receiverStoreCode,
+      }),
+      id: existingShipment?.id ?? crypto.randomUUID(),
+    };
 
     setState((prev) => {
       const filtered = prev.shipments.filter(
         (item) => !(item.campaignId === input.campaignId && item.userId === currentUser.id),
       );
       return { ...prev, shipments: [...filtered, shipment] };
+    });
+
+    runSupabaseWrite("create shipment", async () => {
+      await upsertShipments(supabase!, [shipment]);
     });
 
     return { ok: true, message: "已建立物流資料，可供賣貨便匯出。" };

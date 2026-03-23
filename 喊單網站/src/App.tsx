@@ -21,6 +21,7 @@ import {
 import { calculateUnitPrice } from "./lib/business-rules";
 import { isSupabaseEnabled } from "./lib/supabase";
 import type {
+  BlindBoxItem,
   Campaign,
   CharacterTier,
   Product,
@@ -28,6 +29,125 @@ import type {
 
 type PageView = "home" | "campaign" | "blindBox" | "cart" | "me";
 type RootRoute = "shop" | "admin";
+
+const NORMAL_SPEC_NAME_SEPARATORS = ["｜", "|"] as const;
+
+type NormalProductBrowseGroup = {
+  key: string;
+  name: string;
+  imageUrl: string | null;
+  variants: Product[];
+  characters: string[];
+  minPrice: number;
+  maxPrice: number;
+};
+
+function splitNormalProductName(name: string): { productName: string; specName: string } {
+  const trimmed = name.trim();
+  if (!trimmed) {
+    return { productName: "", specName: "" };
+  }
+
+  for (const separator of NORMAL_SPEC_NAME_SEPARATORS) {
+    const index = trimmed.indexOf(separator);
+    if (index >= 0) {
+      return {
+        productName: trimmed.slice(0, index).trim() || trimmed,
+        specName: trimmed.slice(index + 1).trim(),
+      };
+    }
+  }
+
+  return { productName: trimmed, specName: "" };
+}
+
+function hasExplicitNormalSpec(product: Product): boolean {
+  if (product.type !== "NORMAL") return false;
+  return Boolean(splitNormalProductName(product.name).specName);
+}
+
+function getNormalProductGroupName(product: Product): string {
+  const parsed = splitNormalProductName(product.name);
+  return parsed.specName ? parsed.productName : product.name.trim();
+}
+
+function getNormalProductSpecName(product: Product): string {
+  const parsed = splitNormalProductName(product.name);
+  return parsed.specName || product.character || "一般款";
+}
+
+function formatProductDisplayLabel(product: Product | undefined, blindItem?: BlindBoxItem | null): string {
+  if (!product) return "未知商品";
+  if (blindItem) {
+    return `${product.name} / ${blindItem.name}`;
+  }
+  if (product.type === "NORMAL") {
+    const parsed = splitNormalProductName(product.name);
+    return parsed.specName ? `${parsed.productName} / ${parsed.specName}` : parsed.productName;
+  }
+  return product.name;
+}
+
+function buildNormalProductBrowseGroups(products: Product[]): {
+  groups: NormalProductBrowseGroup[];
+  standaloneProducts: Product[];
+  groupByProductId: Map<string, NormalProductBrowseGroup>;
+} {
+  const normalProducts = products.filter((item) => item.type === "NORMAL");
+  const explicitGroupKeys = new Set(
+    normalProducts
+      .filter((item) => hasExplicitNormalSpec(item))
+      .map((item) => splitNormalProductName(item.name).productName.trim().toLowerCase()),
+  );
+  const groupedVariants = new Map<string, Product[]>();
+  const standaloneProducts: Product[] = [];
+
+  normalProducts.forEach((item) => {
+    const parsedName = splitNormalProductName(item.name);
+    const key = parsedName.productName.trim().toLowerCase();
+
+    if (!explicitGroupKeys.has(key)) {
+      standaloneProducts.push(item);
+      return;
+    }
+
+    const existing = groupedVariants.get(key);
+    if (existing) {
+      existing.push(item);
+      return;
+    }
+    groupedVariants.set(key, [item]);
+  });
+
+  const groups = Array.from(groupedVariants.values()).map((variants) => {
+    const sortedVariants = [...variants].sort((a, b) => {
+      const left = a.character ?? "";
+      const right = b.character ?? "";
+      return left.localeCompare(right) || a.sku.localeCompare(b.sku);
+    });
+    const prices = sortedVariants.map((item) => item.price);
+    const representative = sortedVariants.find((item) => item.imageUrl) ?? sortedVariants[0];
+
+    return {
+      key: `${representative.campaignId}:${getNormalProductGroupName(representative).toLowerCase()}`,
+      name: getNormalProductGroupName(representative),
+      imageUrl: representative.imageUrl,
+      variants: sortedVariants,
+      characters: sortedVariants.map((item) => getNormalProductSpecName(item)),
+      minPrice: Math.min(...prices),
+      maxPrice: Math.max(...prices),
+    };
+  });
+
+  const groupByProductId = new Map<string, NormalProductBrowseGroup>();
+  groups.forEach((group) => {
+    group.variants.forEach((variant) => {
+      groupByProductId.set(variant.id, group);
+    });
+  });
+
+  return { groups, standaloneProducts, groupByProductId };
+}
 
 function readRootRoute(): RootRoute {
   if (typeof window === "undefined") return "shop";
@@ -308,7 +428,6 @@ function HomeView(props: {
 
 
 function CampaignView(props: {
-
   system: UseOrderSystemReturn;
   campaign: Campaign;
   isAuthenticated: boolean;
@@ -325,58 +444,39 @@ function CampaignView(props: {
   const products = system.getProductsByCampaign(campaign.id);
   const cartItems = system.getMyCartItems(campaign.id);
   const cartMap = new Map(cartItems.map((item) => [`${item.productId}::${item.blindBoxItemId ?? "none"}`, item]));
+  const personalClaimMap = useMemo(() => {
+    const next = new Map<string, number>();
+    if (!system.currentUser) return next;
 
-  type NormalProductGroup = {
-    key: string;
-    name: string;
-    imageUrl: string | null;
-    variants: Product[];
-    characters: string[];
-    minPrice: number;
-    maxPrice: number;
-  };
+    system.state.claims
+      .filter((claim) => (
+        claim.campaignId === campaign.id
+        && claim.userId === system.currentUser?.id
+        && claim.status !== "CANCELLED_BY_ADMIN"
+      ))
+      .forEach((claim) => {
+        const key = `${claim.productId}::${claim.blindBoxItemId ?? "none"}`;
+        next.set(key, (next.get(key) ?? 0) + 1);
+      });
+
+    return next;
+  }, [campaign.id, system.currentUser, system.state.claims]);
 
   type CampaignBrowseEntry =
-    | { kind: "normalGroup"; group: NormalProductGroup }
+    | { kind: "normalGroup"; group: NormalProductBrowseGroup }
     | { kind: "product"; product: Product };
 
+  const getReservedQty = (productId: string, blindBoxItemId?: string | null): number => {
+    const key = `${productId}::${blindBoxItemId ?? "none"}`;
+    return (cartMap.get(key)?.qty ?? 0) + (personalClaimMap.get(key) ?? 0);
+  };
+
   const browseEntries = useMemo(() => {
-    const normalGroupMap = new Map<string, Product[]>();
-
-    products
-      .filter((item) => item.type === "NORMAL")
-      .forEach((item) => {
-        const key = item.name.trim().toLowerCase();
-        const existing = normalGroupMap.get(key);
-        if (existing) {
-          existing.push(item);
-          return;
-        }
-        normalGroupMap.set(key, [item]);
-      });
-
-    const normalEntries: CampaignBrowseEntry[] = Array.from(normalGroupMap.values()).map((variants) => {
-      const sortedVariants = [...variants].sort((a, b) => {
-        const left = a.character ?? "";
-        const right = b.character ?? "";
-        return left.localeCompare(right) || a.sku.localeCompare(b.sku);
-      });
-      const prices = sortedVariants.map((item) => item.price);
-      const representative = sortedVariants.find((item) => item.imageUrl) ?? sortedVariants[0];
-
-      return {
-        kind: "normalGroup",
-        group: {
-          key: representative.name.trim().toLowerCase(),
-          name: representative.name,
-          imageUrl: representative.imageUrl,
-          variants: sortedVariants,
-          characters: sortedVariants.map((item) => item.character ?? "一般款"),
-          minPrice: Math.min(...prices),
-          maxPrice: Math.max(...prices),
-        },
-      };
-    });
+    const normalGrouping = buildNormalProductBrowseGroups(products);
+    const normalEntries: CampaignBrowseEntry[] = [
+      ...normalGrouping.groups.map((group) => ({ kind: "normalGroup", group }) as const),
+      ...normalGrouping.standaloneProducts.map((product) => ({ kind: "product", product }) as const),
+    ];
 
     const blindEntries: CampaignBrowseEntry[] = products
       .filter((item) => item.type === "BLIND_BOX")
@@ -394,9 +494,21 @@ function CampaignView(props: {
           ? (
             entry.group.name.toLowerCase().includes(normalizedKeyword)
             || entry.group.characters.some((character) => character.toLowerCase().includes(normalizedKeyword))
-            || entry.group.variants.some((variant) => variant.sku.toLowerCase().includes(normalizedKeyword))
+            || entry.group.variants.some((variant) => (
+              variant.sku.toLowerCase().includes(normalizedKeyword)
+              || getNormalProductSpecName(variant).toLowerCase().includes(normalizedKeyword)
+              || (variant.character?.toLowerCase().includes(normalizedKeyword) ?? false)
+            ))
           )
           : (() => {
+            if (entry.product.type === "NORMAL") {
+              return (
+                getNormalProductGroupName(entry.product).toLowerCase().includes(normalizedKeyword)
+                || getNormalProductSpecName(entry.product).toLowerCase().includes(normalizedKeyword)
+                || entry.product.sku.toLowerCase().includes(normalizedKeyword)
+                || (entry.product.character?.toLowerCase().includes(normalizedKeyword) ?? false)
+              );
+            }
             const blindItems = system.getBlindBoxItemsByProduct(entry.product.id);
             return (
               entry.product.name.toLowerCase().includes(normalizedKeyword)
@@ -425,8 +537,16 @@ function CampaignView(props: {
     return [...filtered].sort((left, right) => {
       const leftPrice = left.kind === "normalGroup" ? left.group.minPrice : left.product.price;
       const rightPrice = right.kind === "normalGroup" ? right.group.minPrice : right.product.price;
-      const leftName = left.kind === "normalGroup" ? left.group.name : left.product.name;
-      const rightName = right.kind === "normalGroup" ? right.group.name : right.product.name;
+      const leftName = left.kind === "normalGroup"
+        ? left.group.name
+        : left.product.type === "NORMAL"
+          ? getNormalProductGroupName(left.product)
+          : left.product.name;
+      const rightName = right.kind === "normalGroup"
+        ? right.group.name
+        : right.product.type === "NORMAL"
+          ? getNormalProductGroupName(right.product)
+          : right.product.name;
 
       if (sortBy === "priceAsc") return leftPrice - rightPrice;
       if (sortBy === "priceDesc") return rightPrice - leftPrice;
@@ -536,7 +656,7 @@ function CampaignView(props: {
           if (entry.kind === "normalGroup") {
             const { group } = entry;
             const inCartQty = group.variants.reduce(
-              (sum, variant) => sum + (cartMap.get(`${variant.id}::none`)?.qty ?? 0),
+              (sum, variant) => sum + getReservedQty(variant.id),
               0,
             );
             const availableCount = group.variants.filter(
@@ -596,6 +716,53 @@ function CampaignView(props: {
           }
 
           const product = entry.product;
+          if (product.type === "NORMAL") {
+            const access = system.getProductAccessForCurrentUser(campaign.id, product.id);
+            const reservedQty = getReservedQty(product.id);
+
+            return (
+              <article key={product.id} className="product-stage-card">
+                <div className="product-figure">
+                  <ProductImage imageUrl={product.imageUrl} alt={getNormalProductGroupName(product)} />
+                  <div className="product-price-badge">
+                    <span className="text-[11px] uppercase tracking-[0.16em] text-slate-400">Price</span>
+                    <strong>{twd(product.price)}</strong>
+                  </div>
+                </div>
+
+                <div className="mt-4 flex items-start justify-between gap-3">
+                  <div>
+                    <h3 className="text-xl font-extrabold text-slate-900">{getNormalProductGroupName(product)}</h3>
+                    <p className="text-xs text-slate-500">角色商品</p>
+                  </div>
+                  <span className="state-pill bg-slate-100 text-slate-700">代購</span>
+                </div>
+
+                <div className="meta-chip-row">
+                  <span className="meta-chip">{getNormalProductSpecName(product)}</span>
+                  <span className="meta-chip">角色款 1 項</span>
+                </div>
+
+                <div className="mt-4 space-y-1 text-sm text-slate-600">
+                  <p>這個品項只有一個規格，點進去即可直接選購。</p>
+                  <p>已加入：{reservedQty}</p>
+                </div>
+
+                <p className={`status-note ${access.ok ? "status-note-ok" : "status-note-warn"}`}>
+                  {access.ok ? "目前可加入購物車" : access.reason}
+                </p>
+
+                <button
+                  type="button"
+                  className="cta-primary mt-5 w-full"
+                  onClick={() => onOpenProductDetail(product)}
+                >
+                  查看角色商品
+                </button>
+              </article>
+            );
+          }
+
           const blindItemsCount = system.getBlindBoxItemsByProduct(product.id).length;
 
           return (
@@ -635,7 +802,7 @@ function CampaignView(props: {
           );
         })}
       </div>
-        </div>
+      </div>
       </div>
     </section>
   );
@@ -653,16 +820,36 @@ function ProductDetailView(props: {
   const { system, campaign, product, isAuthenticated, onRequireAuth, onBack, onGoCart } = props;
   const [feedback, setFeedback] = useState("");
   const blindItems = system.getBlindBoxItemsByProduct(product.id);
+  const normalGrouping = useMemo(
+    () => buildNormalProductBrowseGroups(system.getProductsByCampaign(campaign.id)),
+    [campaign.id, system],
+  );
+  const selectedNormalGroup = product.type === "NORMAL"
+    ? normalGrouping.groupByProductId.get(product.id) ?? null
+    : null;
+  const selectedNormalProductName = selectedNormalGroup?.name ?? getNormalProductGroupName(product);
   const normalVariants = useMemo(
-    () => system.getProductsByCampaign(campaign.id)
-      .filter((item) => (
-        item.type === "NORMAL"
-        && item.name === product.name
-      ))
-      .sort((a, b) => (a.character ?? "").localeCompare(b.character ?? "") || a.sku.localeCompare(b.sku)),
-    [campaign.id, product.name, system],
+    () => selectedNormalGroup?.variants ?? [product],
+    [product, selectedNormalGroup],
   );
   const cartItems = system.getMyCartItems(campaign.id);
+  const personalClaimMap = useMemo(() => {
+    const next = new Map<string, number>();
+    if (!system.currentUser) return next;
+
+    system.state.claims
+      .filter((claim) => (
+        claim.campaignId === campaign.id
+        && claim.userId === system.currentUser?.id
+        && claim.status !== "CANCELLED_BY_ADMIN"
+      ))
+      .forEach((claim) => {
+        const key = `${claim.productId}::${claim.blindBoxItemId ?? "none"}`;
+        next.set(key, (next.get(key) ?? 0) + 1);
+      });
+
+    return next;
+  }, [campaign.id, system.currentUser, system.state.claims]);
   const blindCartMap = new Map(
     cartItems
       .filter((item) => item.productId === product.id && item.blindBoxItemId)
@@ -673,6 +860,11 @@ function ProductDetailView(props: {
       .filter((item) => item.blindBoxItemId === null && normalVariants.some((variant) => variant.id === item.productId))
       .map((item) => [item.productId, item.qty]),
   );
+  const getReservedQty = (productId: string, blindBoxItemId?: string | null): number => {
+    const key = `${productId}::${blindBoxItemId ?? "none"}`;
+    const cartQty = blindBoxItemId ? (blindCartMap.get(blindBoxItemId) ?? 0) : (normalCartMap.get(productId) ?? 0);
+    return cartQty + (personalClaimMap.get(key) ?? 0);
+  };
 
   if (product.type === "NORMAL") {
     return (
@@ -683,7 +875,7 @@ function ProductDetailView(props: {
             <button className="cta-secondary" type="button" onClick={onGoCart}>前往購物車</button>
           </div>
 
-          <h2 className="mt-2 text-3xl font-extrabold text-slate-900">{product.name}</h2>
+          <h2 className="mt-2 text-3xl font-extrabold text-slate-900">{selectedNormalProductName}</h2>
           <div className="mt-4 flex flex-wrap gap-2 text-xs">
             <span className="state-pill bg-slate-100 text-slate-700">角色款 {normalVariants.length} 項</span>
           </div>
@@ -703,20 +895,19 @@ function ProductDetailView(props: {
         <div className="blind-item-grid grid gap-4 md:grid-cols-2 xl:grid-cols-3">
           {normalVariants.map((variant) => {
             const access = system.getProductAccessForCurrentUser(campaign.id, variant.id);
-            const inCartQty = normalCartMap.get(variant.id) ?? 0;
 
             return (
               <article key={variant.id} className="product-stage-card blind-item-card">
                 <div className="product-figure">
-                  <ProductImage imageUrl={variant.imageUrl} alt={variant.name} />
+                  <ProductImage imageUrl={variant.imageUrl} alt={getNormalProductSpecName(variant)} />
                   <div className="product-price-badge">
                     <span className="text-[11px] uppercase tracking-[0.16em] text-slate-400">Price</span>
                     <strong>{twd(variant.price)}</strong>
                   </div>
                 </div>
                 <div className="mt-3">
-                  <h3 className="text-xl font-extrabold text-slate-900">{variant.character ?? "一般款"}</h3>
-                  <p className="text-sm text-slate-500">所屬商品：{variant.name}</p>
+                  <h3 className="text-xl font-extrabold text-slate-900">{getNormalProductSpecName(variant)}</h3>
+                  <p className="text-sm text-slate-500">所屬商品：{selectedNormalProductName}</p>
                 </div>
 
                 <div className="meta-chip-row">
@@ -725,7 +916,7 @@ function ProductDetailView(props: {
                   <span className="meta-chip">上限 {variant.maxPerUser ?? "不限"}</span>
                 </div>
 
-                <p className="mt-3 text-sm text-slate-600">已加入：{inCartQty}</p>
+                <p className="mt-3 text-sm text-slate-600">已加入：{getReservedQty(variant.id)}</p>
                 {variant.slotRestrictionEnabled && (
                   <p className="mt-1 text-sm text-slate-600">限制角色：{variant.slotRestrictedCharacter ?? variant.character ?? "未設定"}</p>
                 )}
@@ -801,7 +992,6 @@ function ProductDetailView(props: {
         {blindItems.map((item) => {
           const access = system.getProductAccessForCurrentUser(campaign.id, product.id, item.id);
           const myTier = system.currentUser ? system.getUserCharacterTier(system.currentUser.id, item.character) : null;
-          const inCartQty = blindCartMap.get(item.id) ?? 0;
 
           return (
             <article key={item.id} className="product-stage-card blind-item-card">
@@ -826,7 +1016,7 @@ function ProductDetailView(props: {
                 <span className="meta-chip">上限 {item.maxPerUser ?? "不限"}</span>
               </div>
 
-              <p className="mt-3 text-sm text-slate-600">已加入：{inCartQty}</p>
+              <p className="mt-3 text-sm text-slate-600">已加入：{getReservedQty(product.id, item.id)}</p>
 
               <p className={`status-note ${access.ok ? "status-note-ok" : "status-note-warn"}`}>
                 {access.ok ? "可加入購物車" : access.reason}
@@ -936,9 +1126,7 @@ function CartView(props: {
               {items.map((item) => {
                 const product = productById.get(item.productId);
                 const blindItem = item.blindBoxItemId ? blindItemById.get(item.blindBoxItemId) : null;
-                const title = blindItem
-                  ? `${product?.name ?? "未知商品"} / ${blindItem.name}`
-                  : product?.name ?? "未知商品";
+                const title = formatProductDisplayLabel(product, blindItem);
                 const character = blindItem?.character ?? product?.character ?? "-";
 
                 return (
@@ -1068,9 +1256,7 @@ function MeView(props: { system: UseOrderSystemReturn }): JSX.Element {
                     {items.map((item) => {
                       const product = productById.get(item.productId);
                       const blindItem = item.blindBoxItemId ? blindItemById.get(item.blindBoxItemId) : null;
-                      const label = blindItem
-                        ? `${product?.name ?? "未知商品"} / ${blindItem.name}`
-                        : product?.name ?? "未知商品";
+                      const label = formatProductDisplayLabel(product, blindItem);
                       return <p key={item.id}>- {label} x {item.qty}</p>;
                     })}
                   </div>
@@ -1088,9 +1274,7 @@ function MeView(props: { system: UseOrderSystemReturn }): JSX.Element {
               const product = productById.get(claim.productId);
               const campaign = campaignById.get(claim.campaignId);
               const blindItem = claim.blindBoxItemId ? blindItemById.get(claim.blindBoxItemId) : null;
-              const label = blindItem
-                ? `${product?.name ?? "未知商品"} / ${blindItem.name}`
-                : product?.name ?? "未知商品";
+              const label = formatProductDisplayLabel(product, blindItem);
 
               return (
                 <article key={claim.id} className="row-card text-sm">

@@ -5,10 +5,12 @@ import type {
   Campaign,
   CharacterSlot,
   Claim,
+  Payment,
   OrderSystemState,
   Order,
   OrderItem,
   Product,
+  ShipmentDraft,
   UserProfile,
 } from "../types/domain";
 
@@ -164,6 +166,43 @@ export async function upsertOrderItems(client: SupabaseClient, orderItems: Order
   }));
 
   const { error } = await client.from("order_items").upsert(payload, { onConflict: "id" });
+  if (error) throw error;
+}
+
+export async function upsertPayments(client: SupabaseClient, payments: Payment[]): Promise<void> {
+  if (payments.length === 0) return;
+
+  const payload = uniqueById(payments).map((payment) => ({
+    id: payment.id,
+    campaign_id: payment.campaignId,
+    user_id: payment.userId,
+    amount: payment.amount,
+    method: payment.method,
+    last_five_code: payment.lastFiveCode,
+    reconciled: payment.reconciled,
+    created_at: payment.createdAt,
+  }));
+
+  const { error } = await client.from("payments").upsert(payload, { onConflict: "id" });
+  if (error) throw error;
+}
+
+export async function upsertShipments(client: SupabaseClient, shipments: ShipmentDraft[]): Promise<void> {
+  if (shipments.length === 0) return;
+
+  const payload = uniqueById(shipments).map((shipment) => ({
+    id: shipment.id,
+    campaign_id: shipment.campaignId,
+    user_id: shipment.userId,
+    order_amount: shipment.orderAmount,
+    payment_method: shipment.paymentMethod,
+    can_use_cod: shipment.canUseCod,
+    receiver_name: shipment.receiverName,
+    receiver_phone: shipment.receiverPhone,
+    receiver_store_code: shipment.receiverStoreCode,
+  }));
+
+  const { error } = await client.from("shipments").upsert(payload, { onConflict: "id" });
   if (error) throw error;
 }
 

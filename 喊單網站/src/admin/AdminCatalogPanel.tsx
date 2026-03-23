@@ -60,6 +60,48 @@ interface PendingFamilySelection {
   title: string;
 }
 
+const NORMAL_SPEC_NAME_SEPARATORS = ["｜", "|"] as const;
+
+function containsReservedNormalSeparator(value: string): boolean {
+  return NORMAL_SPEC_NAME_SEPARATORS.some((separator) => value.includes(separator));
+}
+
+function validateNormalNameParts(productName: string, specName: string): string | null {
+  if (containsReservedNormalSeparator(productName)) {
+    return "商品名稱不可包含 ｜ 或 |，這兩個符號保留給規格分隔使用。";
+  }
+  if (containsReservedNormalSeparator(specName)) {
+    return "規格名稱不可包含 ｜ 或 |，這兩個符號保留給規格分隔使用。";
+  }
+  return null;
+}
+
+function splitNormalProductName(name: string): { productName: string; specName: string } {
+  const trimmed = name.trim();
+  if (!trimmed) {
+    return { productName: "", specName: "" };
+  }
+
+  for (const separator of NORMAL_SPEC_NAME_SEPARATORS) {
+    const index = trimmed.indexOf(separator);
+    if (index >= 0) {
+      return {
+        productName: trimmed.slice(0, index).trim() || trimmed,
+        specName: trimmed.slice(index + 1).trim(),
+      };
+    }
+  }
+
+  return { productName: trimmed, specName: "" };
+}
+
+function composeNormalProductName(productName: string, specName: string): string {
+  const normalizedProductName = productName.trim();
+  const normalizedSpecName = specName.trim();
+  if (!normalizedSpecName) return normalizedProductName;
+  return `${normalizedProductName}｜${normalizedSpecName}`;
+}
+
 function readFileAsDataUrl(file: File): Promise<string> {
   return new Promise((resolve, reject) => {
     const reader = new FileReader();
@@ -117,12 +159,13 @@ function parseOptionalNonNegativeNumber(value: string, label: string): { ok: tru
 }
 
 function normalFamilyKey(campaignId: string, name: string): string {
-  return `normal:${campaignId}:${name.trim().toLowerCase()}`;
+  return `normal:${campaignId}:${splitNormalProductName(name).productName.toLowerCase()}`;
 }
 
 function blankProductDraft(name = "", type: ProductType = "NORMAL"): ProductEditorDraft {
   return {
     name,
+    specName: "",
     series: "未分類",
     character: "",
     imageUrl: "",
@@ -156,6 +199,7 @@ function filterFamilyByKeyword(family: CatalogFamily, keyword: string): boolean 
     return family.title.toLowerCase().includes(lowered)
       || family.products.some((product) => (
         product.sku.toLowerCase().includes(lowered)
+        || splitNormalProductName(product.name).specName.toLowerCase().includes(lowered)
         || (product.character?.toLowerCase().includes(lowered) ?? false)
       ));
   }
@@ -179,6 +223,7 @@ export function AdminCatalogPanel(props: { system: UseOrderSystemReturn }): JSX.
   const [productCampaignId, setProductCampaignId] = useState(system.state.campaigns[0]?.id ?? "");
   const [productType, setProductType] = useState<ProductType>("NORMAL");
   const [productName, setProductName] = useState("");
+  const [productSpecName, setProductSpecName] = useState("");
   const [productCharacter, setProductCharacter] = useState<CharacterName | "">("");
   const [productSlotRestrictionEnabled, setProductSlotRestrictionEnabled] = useState(false);
   const [productSlotRestrictedCharacter, setProductSlotRestrictedCharacter] = useState<CharacterName | "">("");
@@ -196,6 +241,8 @@ export function AdminCatalogPanel(props: { system: UseOrderSystemReturn }): JSX.
   const [newBlindBoxItemDrafts, setNewBlindBoxItemDrafts] = useState<Record<string, BlindBoxItemEditorDraft>>({});
   const [newNormalVariantDrafts, setNewNormalVariantDrafts] = useState<Record<string, ProductEditorDraft>>({});
   const [normalGroupNameDrafts, setNormalGroupNameDrafts] = useState<Record<string, string>>({});
+  const [expandedSpecPanels, setExpandedSpecPanels] = useState<Record<string, string | null>>({});
+  const [specComposerOpen, setSpecComposerOpen] = useState<Record<string, boolean>>({});
   const [importMode, setImportMode] = useState<ImportMode>("NORMAL_PRODUCT_CSV");
   const [importText, setImportText] = useState("");
 
@@ -274,7 +321,7 @@ export function AdminCatalogPanel(props: { system: UseOrderSystemReturn }): JSX.
         key,
         kind: "NORMAL_GROUP" as const,
         campaign: selectedCampaign,
-        title: representative.name,
+        title: splitNormalProductName(representative.name).productName,
         products: sortedProducts,
         representative,
         imageUrl: representative.imageUrl,
@@ -318,19 +365,25 @@ export function AdminCatalogPanel(props: { system: UseOrderSystemReturn }): JSX.
   }, [families, pendingFamilySelection, selectedFamilyKey]);
 
   const getProductEditorDraft = (product: Product): ProductEditorDraft => (
-    productEditorDrafts[product.id] ?? {
-      name: product.name,
-      series: product.series,
-      character: product.character ?? "",
-      imageUrl: product.imageUrl ?? "",
-      imageFile: null,
-      imagePreviewUrl: null,
-      price: String(product.price),
-      stock: product.stock === null ? "" : String(product.stock),
-      maxPerUser: product.maxPerUser === null ? "" : String(product.maxPerUser),
-      slotRestrictionEnabled: product.slotRestrictionEnabled,
-      slotRestrictedCharacter: product.slotRestrictedCharacter ?? "",
-    }
+    productEditorDrafts[product.id] ?? (() => {
+      const parsedName = product.type === "NORMAL"
+        ? splitNormalProductName(product.name)
+        : { productName: product.name, specName: "" };
+      return {
+        name: parsedName.productName,
+        specName: parsedName.specName,
+        series: product.series,
+        character: product.character ?? "",
+        imageUrl: product.imageUrl ?? "",
+        imageFile: null,
+        imagePreviewUrl: null,
+        price: String(product.price),
+        stock: product.stock === null ? "" : String(product.stock),
+        maxPerUser: product.maxPerUser === null ? "" : String(product.maxPerUser),
+        slotRestrictionEnabled: product.slotRestrictionEnabled,
+        slotRestrictedCharacter: product.slotRestrictedCharacter ?? "",
+      };
+    })()
   );
 
   const patchProductEditorDraft = (productId: string, patch: Partial<ProductEditorDraft>): void => {
@@ -501,6 +554,28 @@ export function AdminCatalogPanel(props: { system: UseOrderSystemReturn }): JSX.
     });
   };
 
+  const getExpandedSpecId = (familyKey: string, fallbackId: string | null): string | null => (
+    Object.prototype.hasOwnProperty.call(expandedSpecPanels, familyKey)
+      ? expandedSpecPanels[familyKey] ?? null
+      : fallbackId
+  );
+
+  const toggleExpandedSpecId = (familyKey: string, itemId: string): void => {
+    setExpandedSpecPanels((prev) => ({
+      ...prev,
+      [familyKey]: prev[familyKey] === itemId ? null : itemId,
+    }));
+  };
+
+  const isSpecComposerOpen = (familyKey: string): boolean => specComposerOpen[familyKey] ?? false;
+
+  const toggleSpecComposerOpen = (familyKey: string): void => {
+    setSpecComposerOpen((prev) => ({
+      ...prev,
+      [familyKey]: !(prev[familyKey] ?? false),
+    }));
+  };
+
   const assignGeneratedSkus = <T extends { sku: string }>(prefix: string, rows: T[], existingSkus: string[]): T[] => {
     let sequence = existingSkus.reduce((max, sku) => {
       const match = sku.toUpperCase().match(new RegExp(`^${prefix}-(\\d+)$`));
@@ -565,6 +640,13 @@ export function AdminCatalogPanel(props: { system: UseOrderSystemReturn }): JSX.
       ...getProductEditorDraft(product),
       ...overrides,
     };
+    if (product.type === "NORMAL") {
+      const validationMessage = validateNormalNameParts(draft.name, draft.specName);
+      if (validationMessage) {
+        setFeedback(validationMessage);
+        return;
+      }
+    }
     const priceResult = parseRequiredNonNegativeNumber(draft.price, "商品價格");
     if (!priceResult.ok) {
       setFeedback(priceResult.message);
@@ -587,9 +669,13 @@ export function AdminCatalogPanel(props: { system: UseOrderSystemReturn }): JSX.
       return;
     }
 
+    const resolvedName = product.type === "NORMAL"
+      ? composeNormalProductName(draft.name || product.name, draft.specName)
+      : draft.name;
+
     const result = system.adminUpdateProductRule({
       productId: product.id,
-      name: draft.name,
+      name: resolvedName,
       series: "未分類",
       character: product.type === "NORMAL" ? (draft.character || null) : null,
       imageUrl: imageResult.imageUrl,
@@ -687,7 +773,12 @@ export function AdminCatalogPanel(props: { system: UseOrderSystemReturn }): JSX.
   const handleCreateNormalVariantForFamily = async (family: Extract<CatalogFamily, { kind: "NORMAL_GROUP" }>): Promise<void> => {
     const familyName = getNormalGroupNameDraft(family).trim() || family.title;
     const draft = getNewNormalVariantDraft(family.key);
-    const variantName = draft.name.trim() || familyName;
+    const validationMessage = validateNormalNameParts(familyName, draft.specName);
+    if (validationMessage) {
+      setFeedback(validationMessage);
+      return;
+    }
+    const variantName = composeNormalProductName(familyName, draft.specName);
     const imageResult = await resolveImageUrlForSubmit(draft.imageFile, draft.imageUrl, "products");
     if (!imageResult.ok) {
       setFeedback(imageResult.note);
@@ -712,7 +803,7 @@ export function AdminCatalogPanel(props: { system: UseOrderSystemReturn }): JSX.
       setPendingFamilySelection({
         campaignId: family.campaign.id,
         kind: "NORMAL_GROUP",
-        title: variantName,
+        title: familyName,
       });
     }
   };
@@ -723,6 +814,10 @@ export function AdminCatalogPanel(props: { system: UseOrderSystemReturn }): JSX.
       setFeedback("母商品名稱不可空白。");
       return;
     }
+    if (containsReservedNormalSeparator(nextName)) {
+      setFeedback("商品名稱不可包含 ｜ 或 |，這兩個符號保留給規格分隔使用。");
+      return;
+    }
     if (nextName === family.title) {
       setFeedback("母商品名稱沒有變更。");
       return;
@@ -730,9 +825,10 @@ export function AdminCatalogPanel(props: { system: UseOrderSystemReturn }): JSX.
     let firstError = "";
     let successCount = 0;
     family.products.forEach((product) => {
+      const parsedName = splitNormalProductName(product.name);
       const result = system.adminUpdateProductRule({
         productId: product.id,
-        name: nextName,
+        name: composeNormalProductName(nextName, parsedName.specName),
       });
       if (result.ok) successCount += 1;
       else if (!firstError) firstError = result.message;
@@ -844,11 +940,13 @@ export function AdminCatalogPanel(props: { system: UseOrderSystemReturn }): JSX.
   const resetComposerProductDraft = (nextType: ProductType): void => {
     setProductType(nextType);
     setProductName("");
+    setProductSpecName("");
     setProductCharacter("");
     setProductSlotRestrictionEnabled(false);
     setProductSlotRestrictedCharacter("");
     setProductImageUrl("");
     setProductImageFile(null);
+    setProductImagePreviewUrl(null);
     setProductPrice(nextType === "NORMAL" ? "120" : "800");
     setProductStock("");
     setProductMaxPerUser("");
@@ -856,15 +954,27 @@ export function AdminCatalogPanel(props: { system: UseOrderSystemReturn }): JSX.
 
   const handleCreateComposerProduct = async (): Promise<void> => {
     try {
+      if (productType === "NORMAL") {
+        const validationMessage = validateNormalNameParts(productName, productSpecName);
+        if (validationMessage) {
+          setFeedback(validationMessage);
+          return;
+        }
+      }
+
       const imageResult = await resolveImageUrlForSubmit(productImageFile, productImageUrl, "products");
       if (!imageResult.ok) {
         setFeedback(imageResult.note);
         return;
       }
 
+      const resolvedProductName = productType === "NORMAL"
+        ? composeNormalProductName(productName, productSpecName)
+        : productName;
+
       const result = system.adminCreateProduct({
         campaignId: productCampaignId,
-        name: productName,
+        name: resolvedProductName,
         series: "未分類",
         type: productType,
         character: productType === "NORMAL" && productCharacter ? productCharacter : null,
@@ -1106,12 +1216,12 @@ export function AdminCatalogPanel(props: { system: UseOrderSystemReturn }): JSX.
       <div className="admin-section-head">
         <div>
           <h3 className="text-xl font-bold text-slate-900">
-            {productType === "NORMAL" ? "新增一般商品母項" : "新增盲盒母商品"}
+            {productType === "NORMAL" ? "新增一般商品" : "新增盲盒商品"}
           </h3>
           <p className="admin-section-copy">
             {productType === "NORMAL"
-              ? "這裡會先建立第一個一般商品子項；之後在右側工作區補齊其他角色款。"
-              : "先建立盲盒母商品，再進入子項區逐個補角色子項。"}
+              ? "先建立一個商品，接著再到右側補齊不同角色或版本規格。"
+              : "先建立盲盒商品，再到右側補齊拆分規格。"}
           </p>
         </div>
       </div>
@@ -1144,23 +1254,34 @@ export function AdminCatalogPanel(props: { system: UseOrderSystemReturn }): JSX.
           </label>
 
           <label className="block text-sm md:col-span-2">
-            母商品名稱
+            商品名稱
             <input className="mt-1 w-full rounded-xl border border-slate-200 px-3 py-2" value={productName} onChange={(event) => setProductName(event.target.value)} />
           </label>
 
           {productType === "NORMAL" ? (
-            <label className="block text-sm">
-              第一個子項角色
-              <select className="mt-1 w-full rounded-xl border border-slate-200 px-3 py-2" value={productCharacter} onChange={(event) => setProductCharacter(event.target.value as CharacterName | "")}>
-                <option value="">不指定角色</option>
-                {CHARACTER_OPTIONS.map((character) => (
-                  <option key={character} value={character}>{character}</option>
-                ))}
-              </select>
-            </label>
+            <>
+              <label className="block text-sm">
+                第一個規格名稱（可留空）
+                <input
+                  className="mt-1 w-full rounded-xl border border-slate-200 px-3 py-2"
+                  value={productSpecName}
+                  onChange={(event) => setProductSpecName(event.target.value)}
+                  placeholder="例如：左 / 右 / 一般款"
+                />
+              </label>
+              <label className="block text-sm">
+                第一個規格角色
+                <select className="mt-1 w-full rounded-xl border border-slate-200 px-3 py-2" value={productCharacter} onChange={(event) => setProductCharacter(event.target.value as CharacterName | "")}>
+                  <option value="">不指定角色</option>
+                  {CHARACTER_OPTIONS.map((character) => (
+                    <option key={character} value={character}>{character}</option>
+                  ))}
+                </select>
+              </label>
+            </>
           ) : (
             <div className="rounded-xl border border-dashed border-slate-300 px-3 py-2 text-xs text-slate-500">
-              盲盒母商品本身不指定角色，角色都放在子項裡。
+              盲盒商品本身不指定角色，角色都放在規格裡。
             </div>
           )}
 
@@ -1175,12 +1296,12 @@ export function AdminCatalogPanel(props: { system: UseOrderSystemReturn }): JSX.
           </label>
 
           <label className="block text-sm">
-            {productType === "NORMAL" ? "第一個子項庫存" : "母商品庫存"}
+            {productType === "NORMAL" ? "第一個規格庫存" : "商品庫存"}
             {productType === "NORMAL" ? (
               <input className="mt-1 w-full rounded-xl border border-slate-200 px-3 py-2" type="number" min={0} value={productStock} onChange={(event) => setProductStock(event.target.value)} />
             ) : (
               <div className="mt-1 rounded-xl border border-dashed border-slate-300 px-3 py-2 text-xs text-slate-500">
-                盲盒母商品不直接控庫存，真正名額放在子項上。
+                盲盒商品不直接控庫存，真正名額放在規格上。
               </div>
             )}
           </label>
@@ -1203,7 +1324,7 @@ export function AdminCatalogPanel(props: { system: UseOrderSystemReturn }): JSX.
                 disabled={!productSlotRestrictionEnabled}
                 onChange={(event) => setProductSlotRestrictedCharacter(event.target.value as CharacterName | "")}
               >
-                <option value="">{productType === "BLIND_BOX" ? "依子項角色" : "依展示角色"}</option>
+                <option value="">{productType === "BLIND_BOX" ? "依規格角色" : "依展示角色"}</option>
                 {CHARACTER_OPTIONS.map((character) => (
                   <option key={character} value={character}>{character}</option>
                 ))}
@@ -1215,16 +1336,21 @@ export function AdminCatalogPanel(props: { system: UseOrderSystemReturn }): JSX.
 
       <div className="flex flex-wrap gap-2">
         <button type="button" className="cta-primary" onClick={() => void handleCreateComposerProduct()}>
-          {productType === "NORMAL" ? "建立商品組與第一個子項" : "建立盲盒母商品"}
+          {productType === "NORMAL" ? "建立商品與第一個規格" : "建立盲盒商品"}
         </button>
         <button type="button" className="cta-secondary" onClick={() => setWorkspaceMode("browse")}>取消</button>
       </div>
     </section>
   );
 
-  const renderNormalVariantCard = (family: Extract<CatalogFamily, { kind: "NORMAL_GROUP" }>, product: Product): JSX.Element => {
+  const renderNormalVariantCard = (
+    family: Extract<CatalogFamily, { kind: "NORMAL_GROUP" }>,
+    product: Product,
+    expanded: boolean,
+  ): JSX.Element => {
     const draft = getProductEditorDraft(product);
     const groupName = getNormalGroupNameDraft(family).trim() || family.title;
+    const specTitle = draft.specName.trim() || draft.character || product.character || "未命名規格";
 
     return (
       <article key={product.id} className="rounded-2xl border border-slate-200 bg-white/70 p-4">
@@ -1232,118 +1358,143 @@ export function AdminCatalogPanel(props: { system: UseOrderSystemReturn }): JSX.
           <div>
             <div className="flex flex-wrap items-center gap-2">
               <span className="rounded-full border border-slate-200 px-3 py-1 text-[11px] font-semibold text-slate-600">{product.sku}</span>
-              <span className="rounded-full border border-slate-200 px-3 py-1 text-[11px] font-semibold text-slate-600">{draft.character || "未指定角色"}</span>
+              <span className="rounded-full border border-slate-200 px-3 py-1 text-[11px] font-semibold text-slate-600">{specTitle}</span>
             </div>
             <h5 className="mt-2 text-base font-bold text-slate-900">{groupName}</h5>
+            <p className="mt-2 text-xs text-slate-500">
+              {draft.character || "未指定角色"} / NT$ {draft.price || product.price} / 庫存 {draft.stock || (product.stock ?? "不限")}
+            </p>
           </div>
-          <button
-            type="button"
-            className="rounded-lg border border-rose-300 bg-rose-50 px-3 py-1.5 text-xs font-semibold text-rose-700"
-            onClick={() => {
-              const ok = window.confirm(`確定要刪除子項「${product.character || product.sku}」？`);
-              if (!ok) return;
-              const result = system.adminDeleteProduct(product.id);
-              setFeedback(result.message);
-            }}
-          >
-            刪除子項
-          </button>
+          <div className="flex flex-wrap gap-2">
+            <button
+              type="button"
+              className="rounded-lg border border-slate-200 px-3 py-1.5 text-xs font-semibold text-slate-700"
+              onClick={() => toggleExpandedSpecId(family.key, product.id)}
+            >
+              {expanded ? "收合" : "展開"}
+            </button>
+            <button
+              type="button"
+              className="rounded-lg border border-rose-300 bg-rose-50 px-3 py-1.5 text-xs font-semibold text-rose-700"
+              onClick={() => {
+                const ok = window.confirm(`確定要刪除規格「${specTitle}」？`);
+                if (!ok) return;
+                const result = system.adminDeleteProduct(product.id);
+                setFeedback(result.message);
+              }}
+            >
+              刪除規格
+            </button>
+          </div>
         </div>
 
-        <div className="mt-4 grid gap-4 2xl:grid-cols-[180px_minmax(0,1fr)]">
-          <div className="space-y-3">
-            <ProductImage imageUrl={(draft.imagePreviewUrl ?? draft.imageUrl) || product.imageUrl} alt={groupName} />
-            <input
-              className="w-full rounded-lg border border-slate-200 px-3 py-2 text-sm"
-              value={draft.imageUrl}
-              placeholder="圖片 URL"
-              onChange={(event) => patchProductEditorDraft(product.id, { imageUrl: event.target.value })}
-            />
-            <div className="flex flex-wrap gap-2">
-              <label className="file-picker !w-fit !rounded-lg !px-3 !py-2">
-                <span>上傳圖片</span>
-                <input className="hidden" type="file" accept="image/*" onChange={(event) => void handleSelectProductDraftImage(product.id, event.target.files?.[0] ?? null)} />
-              </label>
-              <button
-                type="button"
-                className="rounded-lg border border-slate-200 px-3 py-2 text-xs font-semibold"
-                onClick={() => patchProductEditorDraft(product.id, { imageUrl: "", imageFile: null, imagePreviewUrl: null })}
-              >
-                清圖
-              </button>
-            </div>
-          </div>
+        {expanded ? (
+          <>
+            <div className="mt-4 grid gap-4 2xl:grid-cols-[180px_minmax(0,1fr)]">
+              <div className="space-y-3">
+                <ProductImage imageUrl={(draft.imagePreviewUrl ?? draft.imageUrl) || product.imageUrl} alt={groupName} />
+                <input
+                  className="w-full rounded-lg border border-slate-200 px-3 py-2 text-sm"
+                  value={draft.imageUrl}
+                  placeholder="圖片 URL"
+                  onChange={(event) => patchProductEditorDraft(product.id, { imageUrl: event.target.value })}
+                />
+                <div className="flex flex-wrap gap-2">
+                  <label className="file-picker !w-fit !rounded-lg !px-3 !py-2">
+                    <span>上傳圖片</span>
+                    <input className="hidden" type="file" accept="image/*" onChange={(event) => void handleSelectProductDraftImage(product.id, event.target.files?.[0] ?? null)} />
+                  </label>
+                  <button
+                    type="button"
+                    className="rounded-lg border border-slate-200 px-3 py-2 text-xs font-semibold"
+                    onClick={() => patchProductEditorDraft(product.id, { imageUrl: "", imageFile: null, imagePreviewUrl: null })}
+                  >
+                    清圖
+                  </button>
+                </div>
+              </div>
 
-          <div className="grid gap-3 md:grid-cols-2">
-            <label className="block text-sm">
-              角色
-              <select
-                className="mt-1 w-full rounded-lg border border-slate-200 px-3 py-2"
-                value={draft.character}
-                onChange={(event) => patchProductEditorDraft(product.id, { character: event.target.value as CharacterName | "" })}
-              >
-                <option value="">不指定角色</option>
-                {CHARACTER_OPTIONS.map((character) => (
-                  <option key={character} value={character}>{character}</option>
-                ))}
-              </select>
-            </label>
-            <label className="block text-sm">
-              價格
-              <input className="mt-1 w-full rounded-lg border border-slate-200 px-3 py-2" type="number" min={0} value={draft.price} onChange={(event) => patchProductEditorDraft(product.id, { price: event.target.value })} />
-            </label>
-            <label className="block text-sm">
-              庫存
-              <input className="mt-1 w-full rounded-lg border border-slate-200 px-3 py-2" type="number" min={0} value={draft.stock} placeholder="不限" onChange={(event) => patchProductEditorDraft(product.id, { stock: event.target.value })} />
-            </label>
-            <label className="block text-sm">
-              每人上限
-              <input className="mt-1 w-full rounded-lg border border-slate-200 px-3 py-2" type="number" min={1} value={draft.maxPerUser} placeholder="不限" onChange={(event) => patchProductEditorDraft(product.id, { maxPerUser: event.target.value })} />
-            </label>
-            <div className="block text-sm md:col-span-2">
-              <span>固位限制</span>
-              <div className="mt-2 space-y-2 rounded-lg border border-slate-200 bg-white/70 p-3">
-                <label className="flex items-center gap-2 text-xs text-slate-600">
-                  <input
-                    type="checkbox"
-                    checked={draft.slotRestrictionEnabled}
-                    onChange={(event) => patchProductEditorDraft(product.id, {
-                      slotRestrictionEnabled: event.target.checked,
-                      slotRestrictedCharacter: event.target.checked ? draft.slotRestrictedCharacter : "",
-                    })}
-                  />
-                  啟用固位限制
+              <div className="grid gap-3 md:grid-cols-2">
+                <label className="block text-sm md:col-span-2">
+                  規格名稱
+                  <input className="mt-1 w-full rounded-lg border border-slate-200 px-3 py-2" value={draft.specName} placeholder={draft.character || "可留空"} onChange={(event) => patchProductEditorDraft(product.id, { specName: event.target.value })} />
                 </label>
-                <select
-                  className="w-full rounded-lg border border-slate-200 px-3 py-2"
-                  value={draft.slotRestrictedCharacter}
-                  disabled={!draft.slotRestrictionEnabled}
-                  onChange={(event) => patchProductEditorDraft(product.id, { slotRestrictedCharacter: event.target.value as CharacterName | "" })}
-                >
-                  <option value="">依展示角色</option>
-                  {CHARACTER_OPTIONS.map((character) => (
-                    <option key={character} value={character}>{character}</option>
-                  ))}
-                </select>
+                <label className="block text-sm">
+                  角色
+                  <select
+                    className="mt-1 w-full rounded-lg border border-slate-200 px-3 py-2"
+                    value={draft.character}
+                    onChange={(event) => patchProductEditorDraft(product.id, { character: event.target.value as CharacterName | "" })}
+                  >
+                    <option value="">不指定角色</option>
+                    {CHARACTER_OPTIONS.map((character) => (
+                      <option key={character} value={character}>{character}</option>
+                    ))}
+                  </select>
+                </label>
+                <label className="block text-sm">
+                  價格
+                  <input className="mt-1 w-full rounded-lg border border-slate-200 px-3 py-2" type="number" min={0} value={draft.price} onChange={(event) => patchProductEditorDraft(product.id, { price: event.target.value })} />
+                </label>
+                <label className="block text-sm">
+                  庫存
+                  <input className="mt-1 w-full rounded-lg border border-slate-200 px-3 py-2" type="number" min={0} value={draft.stock} placeholder="不限" onChange={(event) => patchProductEditorDraft(product.id, { stock: event.target.value })} />
+                </label>
+                <label className="block text-sm">
+                  每人上限
+                  <input className="mt-1 w-full rounded-lg border border-slate-200 px-3 py-2" type="number" min={1} value={draft.maxPerUser} placeholder="不限" onChange={(event) => patchProductEditorDraft(product.id, { maxPerUser: event.target.value })} />
+                </label>
+                <div className="block text-sm md:col-span-2">
+                  <span>固位限制</span>
+                  <div className="mt-2 space-y-2 rounded-lg border border-slate-200 bg-white/70 p-3">
+                    <label className="flex items-center gap-2 text-xs text-slate-600">
+                      <input
+                        type="checkbox"
+                        checked={draft.slotRestrictionEnabled}
+                        onChange={(event) => patchProductEditorDraft(product.id, {
+                          slotRestrictionEnabled: event.target.checked,
+                          slotRestrictedCharacter: event.target.checked ? draft.slotRestrictedCharacter : "",
+                        })}
+                      />
+                      啟用固位限制
+                    </label>
+                    <select
+                      className="w-full rounded-lg border border-slate-200 px-3 py-2"
+                      value={draft.slotRestrictedCharacter}
+                      disabled={!draft.slotRestrictionEnabled}
+                      onChange={(event) => patchProductEditorDraft(product.id, { slotRestrictedCharacter: event.target.value as CharacterName | "" })}
+                    >
+                      <option value="">依展示角色</option>
+                      {CHARACTER_OPTIONS.map((character) => (
+                        <option key={character} value={character}>{character}</option>
+                      ))}
+                    </select>
+                  </div>
+                </div>
               </div>
             </div>
-          </div>
-        </div>
 
-        <div className="mt-4 flex flex-wrap gap-2">
-          <button type="button" className="rounded-lg border border-slate-200 px-3 py-2 text-xs font-semibold" onClick={() => void handleSaveProductRow(product, { name: groupName })}>
-            儲存子項
-          </button>
-          <button type="button" className="rounded-lg border border-slate-200 px-3 py-2 text-xs font-semibold" onClick={() => resetProductEditorDraft(product.id)}>
-            還原
-          </button>
-        </div>
+            <div className="mt-4 flex flex-wrap gap-2">
+              <button type="button" className="rounded-lg border border-slate-200 px-3 py-2 text-xs font-semibold" onClick={() => void handleSaveProductRow(product, { name: groupName })}>
+                儲存規格
+              </button>
+              <button type="button" className="rounded-lg border border-slate-200 px-3 py-2 text-xs font-semibold" onClick={() => resetProductEditorDraft(product.id)}>
+                還原
+              </button>
+            </div>
+          </>
+        ) : null}
       </article>
     );
   };
 
-  const renderBlindBoxItemCard = (item: BlindBoxItem): JSX.Element => {
+  const renderBlindBoxItemCard = (
+    family: Extract<CatalogFamily, { kind: "BLIND_BOX" }>,
+    item: BlindBoxItem,
+    expanded: boolean,
+  ): JSX.Element => {
     const draft = getBlindBoxItemEditorDraft(item);
+    const specTitle = draft.name || item.name;
     return (
       <article key={item.id} className="rounded-2xl border border-slate-200 bg-white/70 p-4">
         <div className="flex flex-wrap items-start justify-between gap-2">
@@ -1352,77 +1503,93 @@ export function AdminCatalogPanel(props: { system: UseOrderSystemReturn }): JSX.
               <span className="rounded-full border border-slate-200 px-3 py-1 text-[11px] font-semibold text-slate-600">{item.sku}</span>
               <span className="rounded-full border border-slate-200 px-3 py-1 text-[11px] font-semibold text-slate-600">{draft.character}</span>
             </div>
-            <h5 className="mt-2 text-base font-bold text-slate-900">{draft.name || item.name}</h5>
+            <h5 className="mt-2 text-base font-bold text-slate-900">{specTitle}</h5>
+            <p className="mt-2 text-xs text-slate-500">
+              {draft.character} / NT$ {draft.price || item.price || "跟商品相同"} / 庫存 {draft.stock || (item.stock ?? "不限")}
+            </p>
           </div>
-          <button
-            type="button"
-            className="rounded-lg border border-rose-300 bg-rose-50 px-3 py-1.5 text-xs font-semibold text-rose-700"
-            onClick={() => {
-              const ok = window.confirm(`確定要刪除子項「${item.name}」？`);
-              if (!ok) return;
-              const result = system.adminDeleteBlindBoxItem(item.id);
-              setFeedback(result.message);
-            }}
-          >
-            刪除子項
-          </button>
+          <div className="flex flex-wrap gap-2">
+            <button
+              type="button"
+              className="rounded-lg border border-slate-200 px-3 py-1.5 text-xs font-semibold text-slate-700"
+              onClick={() => toggleExpandedSpecId(family.key, item.id)}
+            >
+              {expanded ? "收合" : "展開"}
+            </button>
+            <button
+              type="button"
+              className="rounded-lg border border-rose-300 bg-rose-50 px-3 py-1.5 text-xs font-semibold text-rose-700"
+              onClick={() => {
+                const ok = window.confirm(`確定要刪除規格「${item.name}」？`);
+                if (!ok) return;
+                const result = system.adminDeleteBlindBoxItem(item.id);
+                setFeedback(result.message);
+              }}
+            >
+              刪除規格
+            </button>
+          </div>
         </div>
 
-        <div className="mt-4 grid gap-4 2xl:grid-cols-[180px_minmax(0,1fr)]">
-          <div className="space-y-3">
-            <ProductImage imageUrl={(draft.imagePreviewUrl ?? draft.imageUrl) || item.imageUrl} alt={draft.name || item.name} />
-            <input className="w-full rounded-lg border border-slate-200 px-3 py-2 text-sm" value={draft.imageUrl} placeholder="圖片 URL" onChange={(event) => patchBlindBoxItemEditorDraft(item.id, { imageUrl: event.target.value })} />
-            <div className="flex flex-wrap gap-2">
-              <label className="file-picker !w-fit !rounded-lg !px-3 !py-2">
-                <span>上傳圖片</span>
-                <input className="hidden" type="file" accept="image/*" onChange={(event) => void handleSelectBlindBoxItemDraftImage(item.id, event.target.files?.[0] ?? null)} />
-              </label>
-              <button
-                type="button"
-                className="rounded-lg border border-slate-200 px-3 py-2 text-xs font-semibold"
-                onClick={() => patchBlindBoxItemEditorDraft(item.id, { imageUrl: "", imageFile: null, imagePreviewUrl: null })}
-              >
-                清圖
+        {expanded ? (
+          <>
+            <div className="mt-4 grid gap-4 2xl:grid-cols-[180px_minmax(0,1fr)]">
+              <div className="space-y-3">
+                <ProductImage imageUrl={(draft.imagePreviewUrl ?? draft.imageUrl) || item.imageUrl} alt={draft.name || item.name} />
+                <input className="w-full rounded-lg border border-slate-200 px-3 py-2 text-sm" value={draft.imageUrl} placeholder="圖片 URL" onChange={(event) => patchBlindBoxItemEditorDraft(item.id, { imageUrl: event.target.value })} />
+                <div className="flex flex-wrap gap-2">
+                  <label className="file-picker !w-fit !rounded-lg !px-3 !py-2">
+                    <span>上傳圖片</span>
+                    <input className="hidden" type="file" accept="image/*" onChange={(event) => void handleSelectBlindBoxItemDraftImage(item.id, event.target.files?.[0] ?? null)} />
+                  </label>
+                  <button
+                    type="button"
+                    className="rounded-lg border border-slate-200 px-3 py-2 text-xs font-semibold"
+                    onClick={() => patchBlindBoxItemEditorDraft(item.id, { imageUrl: "", imageFile: null, imagePreviewUrl: null })}
+                  >
+                    清圖
+                  </button>
+                </div>
+              </div>
+
+              <div className="grid gap-3 md:grid-cols-2">
+                <label className="block text-sm">
+                  規格名稱
+                  <input className="mt-1 w-full rounded-lg border border-slate-200 px-3 py-2" value={draft.name} onChange={(event) => patchBlindBoxItemEditorDraft(item.id, { name: event.target.value })} />
+                </label>
+                <label className="block text-sm">
+                  角色
+                  <select className="mt-1 w-full rounded-lg border border-slate-200 px-3 py-2" value={draft.character} onChange={(event) => patchBlindBoxItemEditorDraft(item.id, { character: event.target.value as CharacterName })}>
+                    {CHARACTER_OPTIONS.map((character) => (
+                      <option key={character} value={character}>{character}</option>
+                    ))}
+                  </select>
+                </label>
+                <label className="block text-sm">
+                  價格
+                  <input className="mt-1 w-full rounded-lg border border-slate-200 px-3 py-2" type="number" min={0} value={draft.price} placeholder="跟母商品相同" onChange={(event) => patchBlindBoxItemEditorDraft(item.id, { price: event.target.value })} />
+                </label>
+                <label className="block text-sm">
+                  庫存
+                  <input className="mt-1 w-full rounded-lg border border-slate-200 px-3 py-2" type="number" min={0} value={draft.stock} placeholder="不限" onChange={(event) => patchBlindBoxItemEditorDraft(item.id, { stock: event.target.value })} />
+                </label>
+                <label className="block text-sm md:col-span-2">
+                  每人上限
+                  <input className="mt-1 w-full rounded-lg border border-slate-200 px-3 py-2" type="number" min={1} value={draft.maxPerUser} placeholder="不限" onChange={(event) => patchBlindBoxItemEditorDraft(item.id, { maxPerUser: event.target.value })} />
+                </label>
+              </div>
+            </div>
+
+            <div className="mt-4 flex flex-wrap gap-2">
+              <button type="button" className="rounded-lg border border-slate-200 px-3 py-2 text-xs font-semibold" onClick={() => void handleSaveBlindBoxItemRow(item)}>
+                儲存規格
+              </button>
+              <button type="button" className="rounded-lg border border-slate-200 px-3 py-2 text-xs font-semibold" onClick={() => resetBlindBoxItemEditorDraft(item.id)}>
+                還原
               </button>
             </div>
-          </div>
-
-          <div className="grid gap-3 md:grid-cols-2">
-            <label className="block text-sm">
-              子項名稱
-              <input className="mt-1 w-full rounded-lg border border-slate-200 px-3 py-2" value={draft.name} onChange={(event) => patchBlindBoxItemEditorDraft(item.id, { name: event.target.value })} />
-            </label>
-            <label className="block text-sm">
-              角色
-              <select className="mt-1 w-full rounded-lg border border-slate-200 px-3 py-2" value={draft.character} onChange={(event) => patchBlindBoxItemEditorDraft(item.id, { character: event.target.value as CharacterName })}>
-                {CHARACTER_OPTIONS.map((character) => (
-                  <option key={character} value={character}>{character}</option>
-                ))}
-              </select>
-            </label>
-            <label className="block text-sm">
-              價格
-              <input className="mt-1 w-full rounded-lg border border-slate-200 px-3 py-2" type="number" min={0} value={draft.price} placeholder="跟母商品相同" onChange={(event) => patchBlindBoxItemEditorDraft(item.id, { price: event.target.value })} />
-            </label>
-            <label className="block text-sm">
-              庫存
-              <input className="mt-1 w-full rounded-lg border border-slate-200 px-3 py-2" type="number" min={0} value={draft.stock} placeholder="不限" onChange={(event) => patchBlindBoxItemEditorDraft(item.id, { stock: event.target.value })} />
-            </label>
-            <label className="block text-sm md:col-span-2">
-              每人上限
-              <input className="mt-1 w-full rounded-lg border border-slate-200 px-3 py-2" type="number" min={1} value={draft.maxPerUser} placeholder="不限" onChange={(event) => patchBlindBoxItemEditorDraft(item.id, { maxPerUser: event.target.value })} />
-            </label>
-          </div>
-        </div>
-
-        <div className="mt-4 flex flex-wrap gap-2">
-          <button type="button" className="rounded-lg border border-slate-200 px-3 py-2 text-xs font-semibold" onClick={() => void handleSaveBlindBoxItemRow(item)}>
-            儲存子項
-          </button>
-          <button type="button" className="rounded-lg border border-slate-200 px-3 py-2 text-xs font-semibold" onClick={() => resetBlindBoxItemEditorDraft(item.id)}>
-            還原
-          </button>
-        </div>
+          </>
+        ) : null}
       </article>
     );
   };
@@ -1434,8 +1601,8 @@ export function AdminCatalogPanel(props: { system: UseOrderSystemReturn }): JSX.
       <article className="rounded-2xl border border-dashed border-slate-300 bg-white/55 p-4">
         <div className="admin-section-head">
           <div>
-            <h5 className="text-base font-bold text-slate-900">新增一般商品子項</h5>
-            <p className="text-xs text-slate-500">子項名稱可留空；留空時會自動沿用「{familyName}」。</p>
+            <h5 className="text-base font-bold text-slate-900">新增一般商品規格</h5>
+            <p className="text-xs text-slate-500">規格名稱可留空；留空時會自動沿用「{familyName}」。</p>
           </div>
         </div>
         <div className="mt-4 grid gap-4 2xl:grid-cols-[180px_minmax(0,1fr)]">
@@ -1455,8 +1622,8 @@ export function AdminCatalogPanel(props: { system: UseOrderSystemReturn }): JSX.
 
           <div className="grid gap-3 md:grid-cols-2">
             <label className="block text-sm md:col-span-2">
-              子項名稱（可留空）
-              <input className="mt-1 w-full rounded-lg border border-slate-200 px-3 py-2" value={draft.name} placeholder={familyName} onChange={(event) => patchNewNormalVariantDraft(family.key, { name: event.target.value })} />
+              規格名稱（可留空）
+              <input className="mt-1 w-full rounded-lg border border-slate-200 px-3 py-2" value={draft.specName} placeholder={familyName} onChange={(event) => patchNewNormalVariantDraft(family.key, { specName: event.target.value })} />
             </label>
             <label className="block text-sm">
               角色
@@ -1511,7 +1678,7 @@ export function AdminCatalogPanel(props: { system: UseOrderSystemReturn }): JSX.
 
         <div className="mt-4 flex flex-wrap gap-2">
           <button type="button" className="rounded-lg border border-slate-200 px-3 py-2 text-xs font-semibold" onClick={() => void handleCreateNormalVariantForFamily(family)}>
-            新增子項
+            新增規格
           </button>
           <button type="button" className="rounded-lg border border-slate-200 px-3 py-2 text-xs font-semibold" onClick={() => resetNewNormalVariantDraft(family.key)}>
             清空
@@ -1528,7 +1695,7 @@ export function AdminCatalogPanel(props: { system: UseOrderSystemReturn }): JSX.
         <div className="admin-section-head">
           <div>
             <h5 className="text-base font-bold text-slate-900">新增盲盒子項</h5>
-            <p className="text-xs text-slate-500">子項名稱可留空；留空時會自動沿用母商品「{family.title}」。</p>
+            <p className="text-xs text-slate-500">規格名稱可留空；留空時會自動沿用商品「{family.title}」。</p>
           </div>
         </div>
         <div className="mt-4 grid gap-4 2xl:grid-cols-[180px_minmax(0,1fr)]">
@@ -1548,7 +1715,7 @@ export function AdminCatalogPanel(props: { system: UseOrderSystemReturn }): JSX.
 
           <div className="grid gap-3 md:grid-cols-2">
             <label className="block text-sm">
-              子項名稱（可留空）
+              規格名稱（可留空）
               <input className="mt-1 w-full rounded-lg border border-slate-200 px-3 py-2" value={draft.name} placeholder={family.title} onChange={(event) => patchNewBlindBoxItemDraft(family.product.id, { name: event.target.value })} />
             </label>
             <label className="block text-sm">
@@ -1576,7 +1743,7 @@ export function AdminCatalogPanel(props: { system: UseOrderSystemReturn }): JSX.
 
         <div className="mt-4 flex flex-wrap gap-2">
           <button type="button" className="rounded-lg border border-slate-200 px-3 py-2 text-xs font-semibold" onClick={() => void handleCreateBlindBoxItemForProduct(family.product.id)}>
-            新增子項
+            新增規格
           </button>
           <button type="button" className="rounded-lg border border-slate-200 px-3 py-2 text-xs font-semibold" onClick={() => resetNewBlindBoxItemDraft(family.product.id)}>
             清空
@@ -1588,17 +1755,19 @@ export function AdminCatalogPanel(props: { system: UseOrderSystemReturn }): JSX.
 
   const renderNormalFamilyWorkspace = (family: Extract<CatalogFamily, { kind: "NORMAL_GROUP" }>): JSX.Element => {
     const groupName = getNormalGroupNameDraft(family);
+    const expandedSpecId = getExpandedSpecId(family.key, family.products[0]?.id ?? null);
+    const composerOpen = isSpecComposerOpen(family.key);
     return (
       <section className="space-y-5">
-        <div className="section-frame">
+        <div className="section-frame catalog-editor-header">
           <div className="admin-section-head">
             <div>
-              <p className="admin-brand-kicker">NORMAL GROUP</p>
+              <p className="admin-brand-kicker">NORMAL PRODUCT</p>
               <h3 className="mt-2 text-2xl font-extrabold text-slate-900">{family.title}</h3>
-              <p className="mt-2 text-sm text-slate-600">這個母商品是由同名的一般商品子項自動組成。前台會先看母商品，再點進去選角色款。</p>
+              <p className="mt-2 text-sm text-slate-600">這個商品是由同名的一般商品規格自動組成。前台會先看到商品，再進去選角色或版本。</p>
             </div>
             <div className="rounded-2xl border border-slate-200 bg-white/70 px-4 py-3 text-sm text-slate-600">
-              子項 {family.products.length} 個
+              規格 {family.products.length} 個
             </div>
           </div>
         </div>
@@ -1606,45 +1775,45 @@ export function AdminCatalogPanel(props: { system: UseOrderSystemReturn }): JSX.
         <section className="section-frame space-y-4">
           <div className="admin-section-head">
             <div>
-              <h4 className="text-lg font-bold text-slate-900">步驟 1：母商品設定</h4>
-              <p className="admin-section-copy">先把母商品名稱定好，右邊子項會全部沿用這個名稱。</p>
+              <h4 className="text-lg font-bold text-slate-900">商品基本資料</h4>
+              <p className="admin-section-copy">商品名稱會同步到這個商品底下的所有規格，做法跟賣貨便的商品主體一致。</p>
             </div>
           </div>
 
           <label className="block text-sm">
-            母商品名稱
+            商品名稱
             <input className="mt-1 w-full rounded-xl border border-slate-200 px-3 py-2" value={groupName} onChange={(event) => patchNormalGroupNameDraft(family.key, event.target.value)} />
           </label>
 
           <div className="flex flex-wrap gap-2">
-            <button type="button" className="cta-primary" onClick={() => handleRenameNormalGroup(family)}>同步名稱到所有子項</button>
+            <button type="button" className="cta-primary" onClick={() => handleRenameNormalGroup(family)}>同步名稱到所有規格</button>
             <button type="button" className="cta-secondary" onClick={() => resetNormalGroupNameDraft(family.key)}>還原</button>
           </div>
 
           <div className="rounded-2xl border border-dashed border-slate-300 px-4 py-3 text-sm text-slate-600">
-            子項角色：{family.products.map((product) => product.character ?? "未指定角色").join(" / ")}
+            目前規格角色：{family.products.map((product) => product.character ?? "未指定角色").join(" / ")}
           </div>
         </section>
 
         <section className="section-frame space-y-4">
           <div className="admin-section-head">
             <div>
-              <h4 className="text-lg font-bold text-slate-900">步驟 2：新增子項</h4>
-              <p className="admin-section-copy">一般商品的子項就是角色款或不同版本，新增後會直接進到下面清單。</p>
+              <h4 className="text-lg font-bold text-slate-900">規格管理</h4>
+              <p className="admin-section-copy">一般商品的規格就是角色款或不同版本。先新增，再往下逐筆調整。</p>
             </div>
+            <button type="button" className="cta-secondary" onClick={() => toggleSpecComposerOpen(family.key)}>
+              {composerOpen ? "收起新增規格" : "新增規格"}
+            </button>
           </div>
-          {renderNewNormalVariantCard(family)}
-        </section>
-
-        <section className="section-frame space-y-4">
+          {composerOpen ? renderNewNormalVariantCard(family) : null}
           <div className="admin-section-head">
             <div>
-              <h4 className="text-lg font-bold text-slate-900">步驟 3：子項清單</h4>
-              <p className="admin-section-copy">每一張卡都是一個真正會進前台的角色子項。</p>
+              <h5 className="text-base font-bold text-slate-900">現有規格</h5>
+              <p className="admin-section-copy">每一張卡都是一個真正會進前台的商品規格。</p>
             </div>
           </div>
-          <div className="grid gap-4 xl:grid-cols-2">
-            {family.products.map((product) => renderNormalVariantCard(family, product))}
+          <div className="grid gap-4">
+            {family.products.map((product) => renderNormalVariantCard(family, product, expandedSpecId === product.id))}
           </div>
         </section>
       </section>
@@ -1653,14 +1822,16 @@ export function AdminCatalogPanel(props: { system: UseOrderSystemReturn }): JSX.
 
   const renderBlindFamilyWorkspace = (family: Extract<CatalogFamily, { kind: "BLIND_BOX" }>): JSX.Element => {
     const draft = getProductEditorDraft(family.product);
+    const expandedSpecId = getExpandedSpecId(family.key, family.blindItems[0]?.id ?? null);
+    const composerOpen = isSpecComposerOpen(family.key);
     return (
       <section className="space-y-5">
-        <div className="section-frame">
+        <div className="section-frame catalog-editor-header">
           <div className="admin-section-head">
             <div>
-              <p className="admin-brand-kicker">BLIND BOX</p>
+              <p className="admin-brand-kicker">BLIND PRODUCT</p>
               <h3 className="mt-2 text-2xl font-extrabold text-slate-900">{family.title}</h3>
-              <p className="mt-2 text-sm text-slate-600">盲盒維持「母商品 + 子項」結構，但現在會和一般商品共用同一個工作台心智。</p>
+              <p className="mt-2 text-sm text-slate-600">盲盒商品沿用同一套商品/規格邏輯，只是規格會是拆分角色。</p>
             </div>
             <button
               type="button"
@@ -1672,7 +1843,7 @@ export function AdminCatalogPanel(props: { system: UseOrderSystemReturn }): JSX.
                 setFeedback(result.message);
               }}
             >
-              刪除母商品
+              刪除商品
             </button>
           </div>
         </div>
@@ -1680,8 +1851,8 @@ export function AdminCatalogPanel(props: { system: UseOrderSystemReturn }): JSX.
         <section className="section-frame space-y-4">
           <div className="admin-section-head">
             <div>
-              <h4 className="text-lg font-bold text-slate-900">步驟 1：母商品設定</h4>
-              <p className="admin-section-copy">盲盒母商品管商品名、主圖、價格與固位規則，庫存與角色都放在子項層。</p>
+              <h4 className="text-lg font-bold text-slate-900">商品基本資料</h4>
+              <p className="admin-section-copy">盲盒商品管理商品名、主圖、價格與固位規則，庫存與角色都放在規格層。</p>
             </div>
           </div>
 
@@ -1702,7 +1873,7 @@ export function AdminCatalogPanel(props: { system: UseOrderSystemReturn }): JSX.
 
             <div className="grid gap-3 md:grid-cols-2">
               <label className="block text-sm md:col-span-2">
-                母商品名稱
+                商品名稱
                 <input className="mt-1 w-full rounded-lg border border-slate-200 px-3 py-2" value={draft.name} onChange={(event) => patchProductEditorDraft(family.product.id, { name: event.target.value })} />
               </label>
               <label className="block text-sm">
@@ -1733,7 +1904,7 @@ export function AdminCatalogPanel(props: { system: UseOrderSystemReturn }): JSX.
                     disabled={!draft.slotRestrictionEnabled}
                     onChange={(event) => patchProductEditorDraft(family.product.id, { slotRestrictedCharacter: event.target.value as CharacterName | "" })}
                   >
-                    <option value="">依子項角色</option>
+                    <option value="">依規格角色</option>
                     {CHARACTER_OPTIONS.map((character) => (
                       <option key={character} value={character}>{character}</option>
                     ))}
@@ -1744,7 +1915,7 @@ export function AdminCatalogPanel(props: { system: UseOrderSystemReturn }): JSX.
           </div>
 
           <div className="flex flex-wrap gap-2">
-            <button type="button" className="cta-primary" onClick={() => void handleSaveProductRow(family.product)}>儲存母商品</button>
+            <button type="button" className="cta-primary" onClick={() => void handleSaveProductRow(family.product)}>儲存商品</button>
             <button type="button" className="cta-secondary" onClick={() => resetProductEditorDraft(family.product.id)}>還原</button>
           </div>
         </section>
@@ -1752,23 +1923,23 @@ export function AdminCatalogPanel(props: { system: UseOrderSystemReturn }): JSX.
         <section className="section-frame space-y-4">
           <div className="admin-section-head">
             <div>
-              <h4 className="text-lg font-bold text-slate-900">步驟 2：新增子項</h4>
-              <p className="admin-section-copy">這裡直接補角色子項，不用再跳到別的頁面。</p>
+              <h4 className="text-lg font-bold text-slate-900">規格管理</h4>
+              <p className="admin-section-copy">這裡直接補角色規格，不用再跳到別的頁面。</p>
             </div>
+            <button type="button" className="cta-secondary" onClick={() => toggleSpecComposerOpen(family.key)}>
+              {composerOpen ? "收起新增規格" : "新增規格"}
+            </button>
           </div>
-          {renderNewBlindBoxItemCard(family)}
-        </section>
-
-        <section className="section-frame space-y-4">
+          {composerOpen ? renderNewBlindBoxItemCard(family) : null}
           <div className="admin-section-head">
             <div>
-              <h4 className="text-lg font-bold text-slate-900">步驟 3：盲盒子項</h4>
-              <p className="admin-section-copy">每一張卡都是一個可被喊單的角色子項。</p>
+              <h5 className="text-base font-bold text-slate-900">現有規格</h5>
+              <p className="admin-section-copy">每一張卡都是一個可被喊單的角色規格。</p>
             </div>
           </div>
-          <div className="grid gap-4 xl:grid-cols-2">
-            {family.blindItems.map((item) => renderBlindBoxItemCard(item))}
-            {family.blindItems.length === 0 ? <div className="empty-panel">這個盲盒母商品目前還沒有任何子項。</div> : null}
+          <div className="grid gap-4">
+            {family.blindItems.map((item) => renderBlindBoxItemCard(family, item, expandedSpecId === item.id))}
+            {family.blindItems.length === 0 ? <div className="empty-panel">這個盲盒商品目前還沒有任何規格。</div> : null}
           </div>
         </section>
       </section>
@@ -1780,9 +1951,9 @@ export function AdminCatalogPanel(props: { system: UseOrderSystemReturn }): JSX.
       <div className="section-frame admin-workspace-hero">
         <div className="admin-section-head">
           <div>
-            <p className="admin-brand-kicker">CATALOG WORKBENCH</p>
-            <h2 className="mt-2 text-2xl font-extrabold text-slate-900">商品工作台</h2>
-            <p className="mt-3 admin-section-copy">這版把商品管理改成「活動 / 母商品 / 子項」的單一工作流。一般商品和盲盒都走同一套心智，不再左一塊右一塊。</p>
+            <p className="admin-brand-kicker">MERCH EDITOR</p>
+            <h2 className="mt-2 text-2xl font-extrabold text-slate-900">商品管理</h2>
+            <p className="mt-3 admin-section-copy">改成接近賣貨便的操作方式：左邊先挑活動和商品，右邊只編一個商品，底下再管理它的規格。</p>
           </div>
         </div>
         <div className="admin-summary-grid">
@@ -1791,155 +1962,150 @@ export function AdminCatalogPanel(props: { system: UseOrderSystemReturn }): JSX.
             <strong>{system.state.campaigns.length}</strong>
           </article>
           <article className="admin-summary-card">
-            <span>母商品數</span>
+            <span>商品數</span>
             <strong>{families.length}</strong>
           </article>
           <article className="admin-summary-card">
-            <span>一般商品子項</span>
+            <span>一般商品規格</span>
             <strong>{families.filter((family) => family.kind === "NORMAL_GROUP").reduce((sum, family) => sum + family.products.length, 0)}</strong>
           </article>
           <article className="admin-summary-card">
-            <span>盲盒子項</span>
+            <span>盲盒規格</span>
             <strong>{system.state.blindBoxItems.length}</strong>
           </article>
         </div>
         {feedback ? <div className="admin-feedback-banner">{feedback}</div> : null}
       </div>
 
-      <div className="space-y-5">
-        <section className="section-frame space-y-4">
-          <div className="admin-section-head">
+      <div className="catalog-marketplace-shell">
+        <aside className="catalog-marketplace-sidebar">
+          <section className="section-frame space-y-4">
             <div>
-              <h3 className="text-lg font-bold text-slate-900">步驟 0：選活動與操作</h3>
-              <p className="admin-section-copy">先選活動，再決定要新增活動、建立母商品，或直接編輯既有資料。</p>
-            </div>
-          </div>
-
-          <div className="grid gap-4 xl:grid-cols-[minmax(0,0.9fr)_minmax(0,1.1fr)]">
-            <div className="space-y-4">
-              <label className="block text-sm">
-                當前活動
-                <select className="mt-1 w-full rounded-xl border border-slate-200 px-3 py-2" value={productCampaignId} onChange={(event) => {
-                  setProductCampaignId(event.target.value);
-                  setWorkspaceMode("browse");
-                  setSettingsProductKeyword("");
-                }}>
-                  {system.state.campaigns.map((campaign) => (
-                    <option key={campaign.id} value={campaign.id}>{campaign.title}</option>
-                  ))}
-                </select>
-              </label>
-
-              {selectedCampaign ? (
-                <div className="rounded-2xl border border-slate-200 bg-white/70 p-4 text-sm text-slate-600">
-                  <p>釋出：{releaseStageLabel(selectedCampaign.releaseStage)}</p>
-                  <p className="mt-1">截止：{new Date(selectedCampaign.deadlineAt).toLocaleString("zh-TW")}</p>
-                </div>
-              ) : null}
-
-              {selectedCampaign ? (
-                <div className="grid grid-cols-2 gap-2">
-                  {stageOptions.map((stage) => (
-                    <button
-                      key={stage}
-                      type="button"
-                      className={selectedCampaign.releaseStage === stage ? "rounded-lg border border-slate-900 bg-slate-900 px-2 py-2 text-xs font-semibold text-white" : "rounded-lg border border-slate-200 bg-white px-2 py-2 text-xs font-semibold text-slate-700"}
-                      onClick={() => {
-                        const result = system.adminUpdateCampaignReleaseStage(selectedCampaign.id, stage);
-                        setFeedback(result.message);
-                      }}
-                    >
-                      {releaseStageLabel(stage)}
-                    </button>
-                  ))}
-                </div>
-              ) : null}
+              <p className="admin-brand-kicker">ACTIVITY</p>
+              <h3 className="text-lg font-bold text-slate-900">活動與商品</h3>
+              <p className="admin-section-copy mt-2">先選活動，再從同一欄位挑商品，編輯區就固定顯示在右邊。</p>
             </div>
 
-            <div className="space-y-3">
-              <div className="grid gap-2 sm:grid-cols-2 xl:grid-cols-3">
-                <button type="button" className={workspaceMode === "createCampaign" ? "admin-nav-button admin-nav-button-active" : "admin-nav-button"} onClick={() => setWorkspaceMode("createCampaign")}>
-                  <span className="admin-nav-title">新增活動</span>
-                  <span className="admin-nav-caption">先建立活動架構</span>
-                </button>
-                <button type="button" className={workspaceMode === "createNormalGroup" ? "admin-nav-button admin-nav-button-active" : "admin-nav-button"} onClick={openCreateNormalGroup}>
-                  <span className="admin-nav-title">新增一般商品組</span>
-                  <span className="admin-nav-caption">建立母商品與第一個子項</span>
-                </button>
-                <button type="button" className={workspaceMode === "createBlindProduct" ? "admin-nav-button admin-nav-button-active" : "admin-nav-button"} onClick={openCreateBlindProduct}>
-                  <span className="admin-nav-title">新增盲盒母商品</span>
-                  <span className="admin-nav-caption">建立母商品</span>
-                </button>
-                <button type="button" className={workspaceMode === "import" ? "admin-nav-button admin-nav-button-active" : "admin-nav-button"} onClick={() => setWorkspaceMode("import")}>
-                  <span className="admin-nav-title">批次匯入</span>
-                  <span className="admin-nav-caption">大量資料貼 CSV / JSON</span>
-                </button>
-                <button type="button" className={workspaceMode === "browse" ? "admin-nav-button admin-nav-button-active" : "admin-nav-button"} onClick={() => setWorkspaceMode("browse")}>
-                  <span className="admin-nav-title">回商品工作區</span>
-                  <span className="admin-nav-caption">編輯現有母商品與子項</span>
-                </button>
+            <label className="block text-sm">
+              當前活動
+              <select className="mt-1 w-full rounded-xl border border-slate-200 px-3 py-2" value={productCampaignId} onChange={(event) => {
+                setProductCampaignId(event.target.value);
+                setWorkspaceMode("browse");
+                setSettingsProductKeyword("");
+              }}>
+                {system.state.campaigns.map((campaign) => (
+                  <option key={campaign.id} value={campaign.id}>{campaign.title}</option>
+                ))}
+              </select>
+            </label>
+
+            {selectedCampaign ? (
+              <div className="rounded-2xl border border-slate-200 bg-white/70 p-4 text-sm text-slate-600">
+                <p>釋出：{releaseStageLabel(selectedCampaign.releaseStage)}</p>
+                <p className="mt-1">截止：{new Date(selectedCampaign.deadlineAt).toLocaleString("zh-TW")}</p>
               </div>
+            ) : null}
 
-              {selectedCampaign ? (
-                <button
-                  type="button"
-                  className="rounded-lg border border-rose-300 bg-rose-50 px-3 py-2 text-xs font-semibold text-rose-700"
-                  onClick={() => {
-                    const ok = window.confirm(`確定要刪除活動「${selectedCampaign.title}」？\n會一併刪除此活動下的商品、喊單、訂單與物流資料。`);
-                    if (!ok) return;
-                    const result = system.adminDeleteCampaign(selectedCampaign.id);
-                    setFeedback(result.message);
-                  }}
-                >
-                  刪除活動
-                </button>
-              ) : null}
+            {selectedCampaign ? (
+              <div className="catalog-stage-grid">
+                {stageOptions.map((stage) => (
+                  <button
+                    key={stage}
+                    type="button"
+                    className={selectedCampaign.releaseStage === stage ? "rounded-lg border border-slate-900 bg-slate-900 px-2 py-2 text-xs font-semibold text-white" : "rounded-lg border border-slate-200 bg-white px-2 py-2 text-xs font-semibold text-slate-700"}
+                    onClick={() => {
+                      const result = system.adminUpdateCampaignReleaseStage(selectedCampaign.id, stage);
+                      setFeedback(result.message);
+                    }}
+                  >
+                    {releaseStageLabel(stage)}
+                  </button>
+                ))}
+              </div>
+            ) : null}
+
+            <div className="catalog-marketplace-actions">
+              <button type="button" className={workspaceMode === "browse" ? "admin-nav-button admin-nav-button-active" : "admin-nav-button"} onClick={() => setWorkspaceMode("browse")}>
+                <span className="admin-nav-title">商品編輯</span>
+                <span className="admin-nav-caption">從清單選商品開始維護</span>
+              </button>
+              <button type="button" className={workspaceMode === "createCampaign" ? "admin-nav-button admin-nav-button-active" : "admin-nav-button"} onClick={() => setWorkspaceMode("createCampaign")}>
+                <span className="admin-nav-title">新增活動</span>
+                <span className="admin-nav-caption">建立新的活動檔期</span>
+              </button>
+              <button type="button" className={workspaceMode === "createNormalGroup" ? "admin-nav-button admin-nav-button-active" : "admin-nav-button"} onClick={openCreateNormalGroup}>
+                <span className="admin-nav-title">新增一般商品</span>
+                <span className="admin-nav-caption">建立商品與第一個規格</span>
+              </button>
+              <button type="button" className={workspaceMode === "createBlindProduct" ? "admin-nav-button admin-nav-button-active" : "admin-nav-button"} onClick={openCreateBlindProduct}>
+                <span className="admin-nav-title">新增盲盒商品</span>
+                <span className="admin-nav-caption">建立商品主體</span>
+              </button>
+              <button type="button" className={workspaceMode === "import" ? "admin-nav-button admin-nav-button-active" : "admin-nav-button"} onClick={() => setWorkspaceMode("import")}>
+                <span className="admin-nav-title">批次匯入</span>
+                <span className="admin-nav-caption">大量商品直接貼 CSV / JSON</span>
+              </button>
             </div>
-          </div>
-        </section>
 
-        <section className="section-frame space-y-4">
-          <div className="admin-section-head">
-            <div>
-              <h3 className="text-lg font-bold text-slate-900">步驟 1：選母商品</h3>
-              <p className="admin-section-copy">一般商品依同名自動合併成母商品，盲盒直接列出母商品。先選一個，再往下編輯。</p>
-            </div>
-            <span className="rounded-full border border-slate-200 px-3 py-1 text-xs font-semibold text-slate-500">
-              {visibleFamilies.length}/{families.length}
-            </span>
-          </div>
-
-          <input
-            className="w-full rounded-xl border border-slate-200 px-3 py-2 text-sm"
-            placeholder="搜尋母商品 / SKU / 角色"
-            value={settingsProductKeyword}
-            onChange={(event) => setSettingsProductKeyword(event.target.value)}
-          />
-
-          <div className="grid gap-2 xl:grid-cols-2">
-            {visibleFamilies.map((family) => (
+            {selectedCampaign ? (
               <button
-                key={family.key}
                 type="button"
-                className={selectedFamilyKey === family.key && workspaceMode === "browse" ? "admin-nav-button admin-nav-button-active w-full text-left" : "admin-nav-button w-full text-left"}
+                className="rounded-lg border border-rose-300 bg-rose-50 px-3 py-2 text-xs font-semibold text-rose-700"
                 onClick={() => {
-                  setSelectedFamilyKey(family.key);
-                  setWorkspaceMode("browse");
+                  const ok = window.confirm(`確定要刪除活動「${selectedCampaign.title}」？\n會一併刪除此活動下的商品、喊單、訂單與物流資料。`);
+                  if (!ok) return;
+                  const result = system.adminDeleteCampaign(selectedCampaign.id);
+                  setFeedback(result.message);
                 }}
               >
-                <span className="admin-nav-title">{family.title}</span>
-                <span className="admin-nav-caption">
-                  {family.kind === "NORMAL_GROUP"
-                    ? `一般商品 / 子項 ${family.products.length} 個`
-                    : `盲盒 / 子項 ${family.blindItems.length} 個`}
-                </span>
+                刪除活動
               </button>
-            ))}
-            {visibleFamilies.length === 0 ? <div className="empty-panel xl:col-span-2">這個活動目前沒有符合搜尋條件的母商品。</div> : null}
-          </div>
-        </section>
+            ) : null}
+          </section>
 
-        <div className="space-y-5">
+          <section className="section-frame space-y-4">
+            <div className="admin-section-head">
+              <div>
+                <p className="admin-brand-kicker">PRODUCT LIST</p>
+                <h3 className="text-lg font-bold text-slate-900">商品清單</h3>
+              </div>
+              <span className="rounded-full border border-slate-200 px-3 py-1 text-xs font-semibold text-slate-500">
+                {visibleFamilies.length}/{families.length}
+              </span>
+            </div>
+
+            <input
+              className="w-full rounded-xl border border-slate-200 px-3 py-2 text-sm"
+              placeholder="搜尋商品 / SKU / 角色"
+              value={settingsProductKeyword}
+              onChange={(event) => setSettingsProductKeyword(event.target.value)}
+            />
+
+            <div className="catalog-product-list">
+              {visibleFamilies.map((family) => (
+                <button
+                  key={family.key}
+                  type="button"
+                  className={selectedFamilyKey === family.key && workspaceMode === "browse" ? "admin-nav-button admin-nav-button-active w-full text-left" : "admin-nav-button w-full text-left"}
+                  onClick={() => {
+                    setSelectedFamilyKey(family.key);
+                    setWorkspaceMode("browse");
+                  }}
+                >
+                  <span className="admin-nav-title">{family.title}</span>
+                  <span className="admin-nav-caption">
+                    {family.kind === "NORMAL_GROUP"
+                      ? `一般商品 / 規格 ${family.products.length} 個`
+                      : `盲盒商品 / 規格 ${family.blindItems.length} 個`}
+                  </span>
+                </button>
+              ))}
+              {visibleFamilies.length === 0 ? <div className="empty-panel">這個活動目前沒有符合搜尋條件的商品。</div> : null}
+            </div>
+          </section>
+        </aside>
+
+        <div className="catalog-marketplace-main">
           {workspaceMode === "createCampaign" ? renderCampaignComposer() : null}
           {workspaceMode === "createNormalGroup" ? renderProductComposer() : null}
           {workspaceMode === "createBlindProduct" ? renderProductComposer() : null}
@@ -1964,7 +2130,7 @@ export function AdminCatalogPanel(props: { system: UseOrderSystemReturn }): JSX.
           {workspaceMode === "browse" && selectedFamily?.kind === "BLIND_BOX" ? renderBlindFamilyWorkspace(selectedFamily) : null}
           {workspaceMode === "browse" && !selectedFamily ? (
             <section className="section-frame">
-              <div className="empty-panel">先在左側選一個活動，再選一個母商品開始編輯。</div>
+              <div className="empty-panel">先在左側選一個活動，再選一個商品開始編輯。</div>
             </section>
           ) : null}
         </div>
