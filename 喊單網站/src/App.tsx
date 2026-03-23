@@ -551,7 +551,6 @@ function CampaignView(props: {
           <div>
             <h3 className="text-2xl font-extrabold text-slate-900">全部商品</h3>
           </div>
-          <div className="campaign-curation-count">{visibleEntries.length} / {browseEntries.length}</div>
         </div>
 
         {visibleEntries.length === 0 && (
