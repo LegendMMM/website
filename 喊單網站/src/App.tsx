@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useState } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
 import { motion } from "framer-motion";
 import { AdminConsoleView } from "./admin/AdminConsoleView";
 import { adminTabs, type AdminTab } from "./admin/config";
@@ -1306,6 +1306,8 @@ export default function App(): JSX.Element {
   const [selectedBlindProductId, setSelectedBlindProductId] = useState<string>("");
   const [permissionSyncFeedback, setPermissionSyncFeedback] = useState<string>("");
   const [authNotice, setAuthNotice] = useState<string>("");
+  const previousViewRef = useRef<PageView>("home");
+  const previousCampaignIdRef = useRef<string>("");
 
   useEffect(() => {
     const handleHashChange = () => {
@@ -1347,8 +1349,22 @@ export default function App(): JSX.Element {
 
   useEffect(() => {
     if (typeof window === "undefined") return;
-    window.scrollTo({ top: 0, left: 0, behavior: "auto" });
-  }, [view, rootRoute, adminTab, selectedCampaignId, selectedBlindProductId]);
+    const previousView = previousViewRef.current;
+    const previousCampaignId = previousCampaignIdRef.current;
+    const sameCampaignDrawerTransition = rootRoute === "shop"
+      && previousCampaignId === selectedCampaignId
+      && (
+        (previousView === "campaign" && view === "blindBox")
+        || (previousView === "blindBox" && view === "campaign")
+      );
+
+    if (!sameCampaignDrawerTransition) {
+      window.scrollTo({ top: 0, left: 0, behavior: "auto" });
+    }
+
+    previousViewRef.current = view;
+    previousCampaignIdRef.current = selectedCampaignId;
+  }, [view, rootRoute, adminTab, selectedCampaignId]);
 
   const selectedCampaign = useMemo(
     () => system.state.campaigns.find((campaign) => campaign.id === selectedCampaignId) ?? null,
