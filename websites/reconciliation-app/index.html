@@ -3,7 +3,7 @@
   <head>
     <meta charset="UTF-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-    <title>雙方寄貨與 Wise 轉帳對帳工具</title>
+    <title>Wise Reconciliation App</title>
     <style>
       :root {
         --bg: #eef2f1;
@@ -60,8 +60,8 @@
       .card {
         border: 1px solid var(--line);
         border-radius: 8px;
-        padding: 16px;
         background: #f8faf9;
+        padding: 16px;
       }
       .card strong {
         display: block;
@@ -84,31 +84,30 @@
   <body>
     <main>
       <section class="panel">
-        <p class="eyebrow">Next.js app</p>
-        <h1>雙方寄貨與 Wise 轉帳對帳工具</h1>
+        <p class="eyebrow">Cloud app source</p>
+        <h1>Wise Reconciliation App</h1>
         <p>
-          這個資料夾包含完整的 Next.js + Prisma + Postgres 對帳系統。它需要伺服器與資料庫，
-          因此 GitHub Pages 只能顯示這個入口頁；完整功能請用 Vercel 或本機開發伺服器執行。
+          This folder contains the full Next.js server app for shipment records, Wise transfers, approvals, and JPY settlement.
+          GitHub Pages can only show this source entry page. The working app runs on Vercel with a Neon Postgres database.
         </p>
         <div class="grid">
           <div class="card">
-            <strong>帳號系統</strong>
-            <span>管理員建立對方帳號，雙方登入後確認資料。</span>
+            <strong>Accounts</strong>
+            <span>Admin and partner login with password-based sessions.</span>
           </div>
           <div class="card">
-            <strong>對帳流程</strong>
-            <span>寄貨、轉帳、調整項目可互抵後產生 JPY 結算單。</span>
+            <strong>Workflow</strong>
+            <span>Ledger entries require the other party's confirmation before settlement.</span>
           </div>
           <div class="card">
-            <strong>Wise 估算</strong>
-            <span>固定匯率、固定費、比例費與手續費分攤規則。</span>
+            <strong>Settlement</strong>
+            <span>Confirmed entries are converted to JPY and settled once.</span>
           </div>
         </div>
-        <p>本機執行：</p>
-        <code>cd websites/reconciliation-app &amp;&amp; npm install &amp;&amp; npm run dev</code>
+        <p>Local run:</p>
+        <code>cd websites/reconciliation-app &amp;&amp; npm ci &amp;&amp; npm run dev</code>
         <p>
-          詳細設定請看同資料夾的
-          <a href="./README.md">README.md</a>。
+          Deployment details are in <a href="./README.md">README.md</a>. The Vercel production URL will replace this entry link after deployment.
         </p>
       </section>
     </main>

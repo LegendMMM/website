@@ -1,44 +1,81 @@
-# 雙方寄貨與 Wise 轉帳對帳網頁
+# Wise Reconciliation App
 
-這是一個 Next.js + Prisma + Postgres 的雙人對帳工具。你可以建立自己與日本對方的帳號，雙方登入後新增寄貨、轉帳或調整項目，待另一方確認後再產生 JPY 結算單。
+Next.js + Prisma + Postgres app for two-party shipment, transfer, approval, and JPY settlement workflows.
 
-## 本機啟動
+## Cloud Target
 
-1. 複製 `.env.example` 成 `.env`，填入 Postgres 的 `DATABASE_URL` 與 `SESSION_SECRET`。
-2. 建立資料表：
-   ```powershell
-   npm run db:push
-   ```
-3. 建立初始管理員與對方帳號：
-   ```powershell
-   npm run db:seed
-   ```
-4. 啟動開發伺服器：
-   ```powershell
-   npm run dev
-   ```
+- Runtime: Vercel
+- Database: Neon Postgres or another Vercel Marketplace Postgres provider
+- Project root: `websites/reconciliation-app`
+- Production build command: `npm run vercel-build`
 
-## 預設資料
+## Environment Variables
 
-`prisma/seed.ts` 會建立：
+Set these in Vercel for Production and Preview:
 
-- 管理員：使用 `.env` 的 `ADMIN_EMAIL` / `ADMIN_PASSWORD`
-- 對方帳號：使用 `.env` 的 `PARTNER_EMAIL` / `PARTNER_PASSWORD`
-- Wise 固定估算：`1 TWD = 4.85 JPY`、固定費 `120 JPY`、比例費 `0.7%`
+```text
+DATABASE_URL
+SESSION_SECRET
+ADMIN_EMAIL
+ADMIN_PASSWORD
+PARTNER_EMAIL
+PARTNER_PASSWORD
+```
 
-## 主要功能
+Use a pooled Postgres connection string for `DATABASE_URL` when your provider offers one. `SESSION_SECRET` must be at least 32 characters in production.
 
-- 帳密登入、登出、改密碼
-- 管理員建立對方帳號並設定初始密碼
-- 繁中 / 日文介面切換
-- 寄貨、轉帳、調整記錄
-- 每筆記錄支援多個自訂費用項目與 TWD/JPY
-- 待確認、確認、拒絕流程
-- 手動日期範圍產生 JPY 結算單
-- Wise 固定匯率與手續費估算
-- JSON API：`/api/auth/*`、`/api/ledger/*`、`/api/settings`、`/api/settlements`
+## Local Setup
 
-## 驗證
+1. Copy `.env.example` to `.env`.
+2. Fill in `DATABASE_URL` and `SESSION_SECRET`.
+3. Install dependencies:
+
+```powershell
+npm ci
+```
+
+4. Create the database schema:
+
+```powershell
+npm run db:migrate:deploy
+```
+
+5. Seed the initial admin and partner accounts:
+
+```powershell
+npm run db:seed
+```
+
+6. Start the app:
+
+```powershell
+npm run dev
+```
+
+## First Cloud Deploy
+
+1. Create a Vercel project with root directory `websites/reconciliation-app`.
+2. Create or connect a Neon Postgres database.
+3. Add the environment variables listed above.
+4. Run production migrations against the cloud database:
+
+```powershell
+npm run db:migrate:deploy
+```
+
+5. Seed the first two accounts:
+
+```powershell
+npm run db:seed
+```
+
+6. Deploy:
+
+```powershell
+vercel --prod
+```
+
+## Validation
 
 ```powershell
 npm test
@@ -46,15 +83,10 @@ npm run typecheck
 npm run build
 ```
 
-## 部署
+After deployment, verify:
 
-部署到 Vercel 時，設定以下環境變數：
-
-- `DATABASE_URL`
-- `SESSION_SECRET`
-- `ADMIN_EMAIL`
-- `ADMIN_PASSWORD`
-- `PARTNER_EMAIL`
-- `PARTNER_PASSWORD`
-
-部署後先執行 Prisma migration 或 `npm run db:push`，再執行 `npm run db:seed` 建立初始帳號。
+- `/login` returns 200.
+- Admin login succeeds.
+- Partner login succeeds.
+- A pending ledger entry can be created and confirmed by the other account.
+- A confirmed entry can be included in a settlement only once.

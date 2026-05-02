@@ -15,10 +15,27 @@ export type SessionUser = {
 };
 
 function sessionSecret() {
-  const secret =
-    process.env.SESSION_SECRET ??
-    "development-only-session-secret-change-before-deploy";
-  return new TextEncoder().encode(secret);
+  const secret = process.env.SESSION_SECRET;
+
+  if (process.env.NODE_ENV === "production") {
+    if (!secret || secret.length < 32) {
+      throw new Error("SESSION_SECRET must be set to at least 32 characters in production.");
+    }
+
+    return new TextEncoder().encode(secret);
+  }
+
+  const fallbackSecret = "development-only-session-secret-change-before-deploy";
+  if (!secret) {
+    console.warn("SESSION_SECRET is not set. Using development-only fallback secret.");
+  }
+
+  const effectiveSecret = secret ?? fallbackSecret;
+  if (effectiveSecret.length < 32) {
+    throw new Error("SESSION_SECRET must be at least 32 characters.");
+  }
+
+  return new TextEncoder().encode(effectiveSecret);
 }
 
 export async function createSession(user: Pick<User, "id" | "email" | "name" | "role" | "locale">) {

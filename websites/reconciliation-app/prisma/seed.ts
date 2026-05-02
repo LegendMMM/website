@@ -14,7 +14,7 @@ async function main() {
     update: {},
     create: {
       email: adminEmail,
-      name: "我方管理員",
+      name: "Admin",
       passwordHash: await bcrypt.hash(adminPassword, 12),
       role: "ADMIN",
       locale: "ZH_TW",
@@ -26,7 +26,7 @@ async function main() {
     update: {},
     create: {
       email: partnerEmail,
-      name: "日本對方",
+      name: "Partner",
       passwordHash: await bcrypt.hash(partnerPassword, 12),
       role: "PARTNER",
       locale: "JA",
