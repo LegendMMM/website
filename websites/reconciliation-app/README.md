@@ -8,6 +8,7 @@ Next.js + Prisma + Postgres app for two-party shipment, transfer, approval, and 
 - Database: Neon Postgres or another Vercel Marketplace Postgres provider
 - Project root: `websites/reconciliation-app`
 - Production build command: `npm run vercel-build`
+- Production URL: https://reconciliation-app-beta.vercel.app/
 
 ## Environment Variables
 
@@ -46,6 +47,8 @@ npm run db:migrate:deploy
 npm run db:seed
 ```
 
+Running `db:seed` syncs the two seed accounts and the default Wise setting to the current environment variables. Do not rerun it after users change their passwords unless you intentionally want to reset the seed account passwords.
+
 6. Start the app:
 
 ```powershell
@@ -68,6 +71,8 @@ npm run db:migrate:deploy
 ```powershell
 npm run db:seed
 ```
+
+If Vercel marks passwords as sensitive, `vercel env pull` may not provide usable plaintext values for local seeding. In that case, set `ADMIN_EMAIL`, `ADMIN_PASSWORD`, `PARTNER_EMAIL`, and `PARTNER_PASSWORD` in the shell before running `db:seed`.
 
 6. Deploy:
 

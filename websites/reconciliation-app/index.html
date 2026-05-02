@@ -75,9 +75,30 @@
         color: #eef5ef;
         padding: 12px;
       }
+      .actions {
+        display: flex;
+        flex-wrap: wrap;
+        gap: 12px;
+        margin-top: 22px;
+      }
+      .button {
+        display: inline-flex;
+        align-items: center;
+        justify-content: center;
+        min-height: 44px;
+        border-radius: 8px;
+        background: var(--teal);
+        color: white;
+        padding: 0 18px;
+        text-decoration: none;
+      }
       a {
         color: var(--teal);
         font-weight: 800;
+      }
+      .button:visited,
+      .button:hover {
+        color: white;
       }
     </style>
   </head>
@@ -90,6 +111,10 @@
           This folder contains the full Next.js server app for shipment records, Wise transfers, approvals, and JPY settlement.
           GitHub Pages can only show this source entry page. The working app runs on Vercel with a Neon Postgres database.
         </p>
+        <div class="actions">
+          <a class="button" href="https://reconciliation-app-beta.vercel.app/">Open Cloud App</a>
+          <a href="https://reconciliation-app-beta.vercel.app/login">Login Page</a>
+        </div>
         <div class="grid">
           <div class="card">
             <strong>Accounts</strong>
@@ -107,7 +132,8 @@
         <p>Local run:</p>
         <code>cd websites/reconciliation-app &amp;&amp; npm ci &amp;&amp; npm run dev</code>
         <p>
-          Deployment details are in <a href="./README.md">README.md</a>. The Vercel production URL will replace this entry link after deployment.
+          Deployment details are in <a href="./README.md">README.md</a>. Production URL:
+          <a href="https://reconciliation-app-beta.vercel.app/">https://reconciliation-app-beta.vercel.app/</a>
         </p>
       </section>
     </main>

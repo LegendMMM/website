@@ -11,7 +11,12 @@ async function main() {
 
   await prisma.user.upsert({
     where: { email: adminEmail },
-    update: {},
+    update: {
+      name: "Admin",
+      passwordHash: await bcrypt.hash(adminPassword, 12),
+      role: "ADMIN",
+      locale: "ZH_TW",
+    },
     create: {
       email: adminEmail,
       name: "Admin",
@@ -23,7 +28,12 @@ async function main() {
 
   await prisma.user.upsert({
     where: { email: partnerEmail },
-    update: {},
+    update: {
+      name: "Partner",
+      passwordHash: await bcrypt.hash(partnerPassword, 12),
+      role: "PARTNER",
+      locale: "JA",
+    },
     create: {
       email: partnerEmail,
       name: "Partner",
@@ -35,7 +45,11 @@ async function main() {
 
   await prisma.exchangeFeeSetting.upsert({
     where: { id: "default" },
-    update: {},
+    update: {
+      jpyPerTwd: 4.85,
+      wiseFixedFeeJpy: 120,
+      wisePercentFee: 0.007,
+    },
     create: {
       id: "default",
       jpyPerTwd: 4.85,
