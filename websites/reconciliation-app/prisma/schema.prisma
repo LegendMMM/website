@@ -1,0 +1,149 @@
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "postgresql"
+  url      = env("DATABASE_URL")
+}
+
+enum Role {
+  ADMIN
+  PARTNER
+}
+
+enum Locale {
+  ZH_TW
+  JA
+}
+
+enum Currency {
+  TWD
+  JPY
+}
+
+enum EntryType {
+  SHIPMENT
+  TRANSFER
+  ADJUSTMENT
+}
+
+enum EntryDirection {
+  ADMIN_TO_PARTNER
+  PARTNER_TO_ADMIN
+}
+
+enum EntryStatus {
+  PENDING
+  CONFIRMED
+  REJECTED
+}
+
+enum WiseFeePolicy {
+  SENDER
+  RECEIVER
+  SPLIT
+}
+
+enum SettlementStatus {
+  DRAFT
+  CONFIRMED
+  PAID
+}
+
+model User {
+  id             String              @id @default(cuid())
+  email          String              @unique
+  name           String
+  passwordHash   String
+  role           Role                @default(PARTNER)
+  locale         Locale              @default(ZH_TW)
+  createdAt      DateTime            @default(now())
+  updatedAt      DateTime            @updatedAt
+  createdEntries LedgerEntry[]       @relation("EntryCreator")
+  confirmedEntries LedgerEntry[]     @relation("EntryConfirmer")
+  createdSettlements Settlement[]    @relation("SettlementCreator")
+  updatedSettings ExchangeFeeSetting[] @relation("SettingUpdater")
+}
+
+model LedgerEntry {
+  id              String          @id @default(cuid())
+  type            EntryType
+  title           String
+  entryDate       DateTime
+  direction       EntryDirection
+  status          EntryStatus     @default(PENDING)
+  wiseFeePolicy   WiseFeePolicy   @default(SENDER)
+  trackingCode    String?
+  externalRef     String?
+  note            String?
+  rejectionReason String?
+  createdById     String
+  confirmedById   String?
+  confirmedAt     DateTime?
+  createdAt       DateTime        @default(now())
+  updatedAt       DateTime        @updatedAt
+  createdBy       User            @relation("EntryCreator", fields: [createdById], references: [id])
+  confirmedBy     User?           @relation("EntryConfirmer", fields: [confirmedById], references: [id])
+  lineItems       LedgerLineItem[]
+  settlementLinks SettlementEntry[]
+
+  @@index([entryDate])
+  @@index([status])
+}
+
+model LedgerLineItem {
+  id        String      @id @default(cuid())
+  entryId   String
+  label     String
+  amount    Decimal     @db.Decimal(14, 2)
+  currency  Currency
+  createdAt DateTime    @default(now())
+  entry     LedgerEntry @relation(fields: [entryId], references: [id], onDelete: Cascade)
+}
+
+model Settlement {
+  id                    String             @id @default(cuid())
+  code                  String             @unique
+  startDate             DateTime
+  endDate               DateTime
+  settlementCurrency    Currency           @default(JPY)
+  exchangeRateJpyPerTwd Decimal            @db.Decimal(14, 6)
+  wiseFixedFeeJpy       Decimal            @db.Decimal(14, 2)
+  wisePercentFee        Decimal            @db.Decimal(8, 6)
+  wiseFeePolicy         WiseFeePolicy      @default(SENDER)
+  grossAmountJpy        Decimal            @db.Decimal(14, 2)
+  estimatedFeeJpy       Decimal            @db.Decimal(14, 2)
+  totalDueJpy           Decimal            @db.Decimal(14, 2)
+  payerRole             Role?
+  payeeRole             Role?
+  status                SettlementStatus   @default(DRAFT)
+  actualTransferJpy     Decimal?           @db.Decimal(14, 2)
+  actualWiseFeeJpy      Decimal?           @db.Decimal(14, 2)
+  paidAt                DateTime?
+  createdById           String
+  createdBy             User               @relation("SettlementCreator", fields: [createdById], references: [id])
+  entries               SettlementEntry[]
+  createdAt             DateTime           @default(now())
+  updatedAt             DateTime           @updatedAt
+}
+
+model SettlementEntry {
+  settlementId String
+  ledgerEntryId String
+  settlement   Settlement  @relation(fields: [settlementId], references: [id], onDelete: Cascade)
+  ledgerEntry   LedgerEntry @relation(fields: [ledgerEntryId], references: [id], onDelete: Restrict)
+
+  @@id([settlementId, ledgerEntryId])
+  @@unique([ledgerEntryId])
+}
+
+model ExchangeFeeSetting {
+  id              String   @id @default("default")
+  jpyPerTwd       Decimal  @db.Decimal(14, 6)
+  wiseFixedFeeJpy Decimal  @db.Decimal(14, 2)
+  wisePercentFee  Decimal  @db.Decimal(8, 6)
+  updatedById     String?
+  updatedBy       User?    @relation("SettingUpdater", fields: [updatedById], references: [id])
+  updatedAt       DateTime @updatedAt
+}

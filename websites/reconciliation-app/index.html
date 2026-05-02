@@ -1,0 +1,116 @@
+<!doctype html>
+<html lang="zh-Hant">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>雙方寄貨與 Wise 轉帳對帳工具</title>
+    <style>
+      :root {
+        --bg: #eef2f1;
+        --surface: #ffffff;
+        --ink: #18201c;
+        --muted: #657069;
+        --line: #d8ded8;
+        --teal: #0e766e;
+      }
+      * {
+        box-sizing: border-box;
+      }
+      body {
+        margin: 0;
+        min-height: 100vh;
+        background: var(--bg);
+        color: var(--ink);
+        font-family: "Noto Sans TC", "Noto Sans JP", "Segoe UI", sans-serif;
+      }
+      main {
+        width: min(920px, 92vw);
+        margin: 0 auto;
+        padding: 64px 0;
+      }
+      .panel {
+        border: 1px solid var(--line);
+        border-radius: 8px;
+        background: var(--surface);
+        padding: 28px;
+        box-shadow: 0 18px 45px rgba(24, 32, 28, 0.08);
+      }
+      .eyebrow {
+        margin: 0 0 8px;
+        color: var(--muted);
+        font-size: 12px;
+        font-weight: 800;
+        text-transform: uppercase;
+      }
+      h1 {
+        margin: 0;
+        font-size: clamp(2rem, 5vw, 3.2rem);
+        line-height: 1.1;
+      }
+      p {
+        color: var(--muted);
+        line-height: 1.8;
+      }
+      .grid {
+        display: grid;
+        grid-template-columns: repeat(auto-fit, minmax(210px, 1fr));
+        gap: 12px;
+        margin-top: 22px;
+      }
+      .card {
+        border: 1px solid var(--line);
+        border-radius: 8px;
+        padding: 16px;
+        background: #f8faf9;
+      }
+      .card strong {
+        display: block;
+        margin-bottom: 6px;
+      }
+      code {
+        display: block;
+        overflow-wrap: anywhere;
+        border-radius: 8px;
+        background: #17201c;
+        color: #eef5ef;
+        padding: 12px;
+      }
+      a {
+        color: var(--teal);
+        font-weight: 800;
+      }
+    </style>
+  </head>
+  <body>
+    <main>
+      <section class="panel">
+        <p class="eyebrow">Next.js app</p>
+        <h1>雙方寄貨與 Wise 轉帳對帳工具</h1>
+        <p>
+          這個資料夾包含完整的 Next.js + Prisma + Postgres 對帳系統。它需要伺服器與資料庫，
+          因此 GitHub Pages 只能顯示這個入口頁；完整功能請用 Vercel 或本機開發伺服器執行。
+        </p>
+        <div class="grid">
+          <div class="card">
+            <strong>帳號系統</strong>
+            <span>管理員建立對方帳號，雙方登入後確認資料。</span>
+          </div>
+          <div class="card">
+            <strong>對帳流程</strong>
+            <span>寄貨、轉帳、調整項目可互抵後產生 JPY 結算單。</span>
+          </div>
+          <div class="card">
+            <strong>Wise 估算</strong>
+            <span>固定匯率、固定費、比例費與手續費分攤規則。</span>
+          </div>
+        </div>
+        <p>本機執行：</p>
+        <code>cd websites/reconciliation-app &amp;&amp; npm install &amp;&amp; npm run dev</code>
+        <p>
+          詳細設定請看同資料夾的
+          <a href="./README.md">README.md</a>。
+        </p>
+      </section>
+    </main>
+  </body>
+</html>
