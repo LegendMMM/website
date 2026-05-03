@@ -21,8 +21,8 @@ export default async function LoginPage({
         <div className="login-brand">
           <span className="brand-mark">W</span>
           <div>
-            <p className="eyebrow">Wise reconciliation</p>
-            <h1>雙方對帳</h1>
+            <p className="eyebrow">Wise reconciliation v1</p>
+            <h1>雙方對帳 v1</h1>
           </div>
         </div>
         <p className="login-copy">記錄寄貨、轉帳與調整項目，雙方確認後再產生互抵結算單。</p>

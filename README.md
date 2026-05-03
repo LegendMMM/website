@@ -7,4 +7,4 @@ This repository stores multiple website projects.
 
 ## Websites
 - `websites/usj-poster-order`: static USJ poster order workflow
-- `websites/reconciliation-app`: Next.js reconciliation app for shipments, Wise transfers, approvals, and JPY settlement. Production app: https://reconciliation-app-beta.vercel.app/
+- `websites/reconciliation-app`: Wise Reconciliation App v1 for shipments, Wise transfers, approvals, and JPY settlement. Production app: https://reconciliation-app-beta.vercel.app/

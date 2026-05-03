@@ -39,7 +39,7 @@ export function AppShell({ session, children, title }: AppShellProps) {
           <span className="brand-mark">W</span>
           <span>
             <strong>{dictionary.appName}</strong>
-            <small>Wise reconciliation</small>
+            <small>Wise reconciliation v1</small>
           </span>
         </Link>
         <nav className="nav-list">

@@ -2,7 +2,7 @@ import type { Metadata } from "next";
 import "./globals.css";
 
 export const metadata: Metadata = {
-  title: "雙方對帳",
+  title: "雙方對帳 v1",
   description: "寄貨、Wise 轉帳與互抵結算工具",
 };
 

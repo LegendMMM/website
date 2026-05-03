@@ -3,7 +3,7 @@ import type { Locale } from "@prisma/client";
 export type Dictionary = typeof zhTw;
 
 const zhTw = {
-  appName: "雙方對帳",
+  appName: "雙方對帳 v1",
   dashboard: "總覽",
   entries: "交易記錄",
   newEntry: "新增記錄",
@@ -67,7 +67,7 @@ const zhTw = {
 };
 
 const ja = {
-  appName: "相互精算",
+  appName: "相互精算 v1",
   dashboard: "概要",
   entries: "取引記録",
   newEntry: "新規記録",

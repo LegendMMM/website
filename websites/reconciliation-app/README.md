@@ -1,4 +1,4 @@
-# Wise Reconciliation App
+# Wise Reconciliation App v1
 
 Next.js + Prisma + Postgres app for two-party shipment, transfer, approval, and JPY settlement workflows.
 
